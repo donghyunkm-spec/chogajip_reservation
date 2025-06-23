@@ -738,6 +738,8 @@
     <script>
         // 전역 변수
         let reservations = [];
+        let lastReservationCount = 0; // 실시간 알림용
+        let reminderInterval = null; // 15분 전 알림용
         const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
         
         // 테이블 정보
@@ -773,6 +775,153 @@
             { name: '룸 4~9번', tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 24 },
             { name: '룸 전체', tables: ['room-1', 'room-2', 'room-3', 'room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 36 }
         ];
+
+        // 소리 알림 함수들
+        function playNewReservationSound() {
+            // 새 예약 알림음 (높은 톤 3번)
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+            
+            // 3번 반복
+            setTimeout(() => playBeep(600, 0.2), 400);
+            setTimeout(() => playBeep(800, 0.2), 700);
+        }
+
+        function playReminderSound() {
+            // 15분 전 알림음 (낮은 톤 길게 2번)
+            playBeep(400, 0.5);
+            setTimeout(() => playBeep(400, 0.5), 700);
+        }
+
+        function playBeep(frequency = 800, duration = 0.2, volume = 0.3) {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + duration);
+            } catch (error) {
+                console.log('오디오 재생 실패:', error);
+            }
+        }
+
+        // TTS 음성 안내 (한국어)
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ko-KR';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.0;
+                utterance.volume = 0.8;
+                
+                // 한국어 음성 찾기
+                const voices = speechSynthesis.getVoices();
+                const koreanVoice = voices.find(voice => voice.lang.includes('ko')) || voices[0];
+                if (koreanVoice) {
+                    utterance.voice = koreanVoice;
+                }
+                
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        // 실시간 예약 감지 및 알림
+        async function checkForNewReservations() {
+            try {
+                const response = await apiCall('reservations');
+                const currentReservations = response.data || [];
+                const currentActiveCount = currentReservations.filter(r => r.status === 'active').length;
+                
+                // 초기 로드가 아니고 예약이 증가했을 때
+                if (lastReservationCount > 0 && currentActiveCount > lastReservationCount) {
+                    const newReservations = currentReservations.filter(r => 
+                        r.status === 'active' && 
+                        !reservations.some(existing => existing.id === r.id)
+                    );
+                    
+                    if (newReservations.length > 0) {
+                        const newReservation = newReservations[0];
+                        
+                        // 소리 알림
+                        playNewReservationSound();
+                        
+                        // 음성 안내
+                        setTimeout(() => {
+                            speakText(`새로운 예약이 등록되었습니다. ${newReservation.name}님 ${newReservation.people}명 ${newReservation.time}시 예약입니다.`);
+                        }, 1000);
+                        
+                        // 브라우저 알림
+                        sendNotification('새 예약 등록!', `${newReservation.name}님 ${newReservation.people}명 ${newReservation.time} 예약`);
+                        
+                        console.log('🔔 새 예약 감지:', newReservation.name);
+                    }
+                }
+                
+                reservations = currentReservations;
+                lastReservationCount = currentActiveCount;
+                
+            } catch (error) {
+                console.log('실시간 예약 체크 실패:', error);
+            }
+        }
+
+        // 15분 전 알림 체크
+        function checkUpcomingReservations() {
+            const now = new Date();
+            const currentDate = now.toISOString().split('T')[0];
+            const currentTime = now.toTimeString().slice(0, 5);
+            
+            const activeReservations = reservations.filter(r => 
+                r.status === 'active' && 
+                r.date === currentDate
+            );
+            
+            activeReservations.forEach(reservation => {
+                const reservationTime = reservation.time;
+                const timeDiff = getTimeDifferenceInMinutes(currentTime, reservationTime);
+                
+                // 15분 전 (±2분 오차 허용)
+                if (timeDiff >= 13 && timeDiff <= 17) {
+                    // 이미 알림을 보낸 예약인지 체크 (중복 방지)
+                    const alarmKey = `alarm_${reservation.id}_${reservation.date}`;
+                    if (!sessionStorage.getItem(alarmKey)) {
+                        sessionStorage.setItem(alarmKey, 'sent');
+                        
+                        // 소리 알림
+                        playReminderSound();
+                        
+                        // 음성 안내
+                        setTimeout(() => {
+                            speakText(`${reservation.name}님 예약 15분 전입니다. ${reservation.people}명 ${reservationTime}시 예약, 테이블 ${reservation.tables ? reservation.tables.join('번, ') + '번' : '미배정'} 입니다.`);
+                        }, 1000);
+                        
+                        // 브라우저 알림
+                        sendNotification('예약 15분 전!', `${reservation.name}님 ${reservation.people}명 ${reservationTime} (${reservation.tables ? reservation.tables.join(', ') : '미배정'})`);
+                        
+                        console.log('⏰ 15분 전 알림:', reservation.name, reservation.time);
+                    }
+                }
+            });
+        }
 
         // 유틸리티 함수들
         function getCurrentDate() {
@@ -825,6 +974,41 @@
             }
         }
 
+        // 브라우저 알림 권한 요청
+        async function requestNotificationPermission() {
+            if ('Notification' in window) {
+                if (Notification.permission === 'default') {
+                    const permission = await Notification.requestPermission();
+                    return permission === 'granted';
+                }
+                return Notification.permission === 'granted';
+            }
+            return false;
+        }
+
+        // 브라우저 알림 보내기
+        function sendNotification(title, message, type = 'info') {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                const notification = new Notification(`🏠 ${title}`, {
+                    body: message,
+                    icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiM0Q0FGNTASCZ8L3JlY3Q+Cjx0ZXh0IHg9IjMyIiB5PSI0MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjMyIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZCRsZSI+8J+PkDwvdGV4dD4KPHR0c3ZnPg==',
+                    badge: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiM0Q0FGNTASCZ8L3JlY3Q+Cjx0ZXh0IHg9IjMyIiB5PSI0MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb50LXNpemU9IjMyIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZCRsZSI+8J+PkDwvdGV4dD4KPHR0c3ZnPg==',
+                    requireInteraction: false
+                });
+
+                // 5초 후 자동 닫기
+                setTimeout(() => {
+                    notification.close();
+                }, 5000);
+
+                // 클릭 시 창 활성화
+                notification.onclick = function() {
+                    window.focus();
+                    notification.close();
+                };
+            }
+        }
+
         // API 호출 함수
         async function apiCall(endpoint, options = {}) {
             try {
@@ -861,6 +1045,12 @@
                 showLoading(true);
                 const response = await apiCall('reservations');
                 reservations = response.data || [];
+                
+                // 초기 로드 시 카운트 설정
+                if (lastReservationCount === 0) {
+                    lastReservationCount = reservations.filter(r => r.status === 'active').length;
+                }
+                
                 updateConnectionStatus(true);
                 window.offlineMode = false;
                 console.log('서버에서 예약 데이터 로드:', reservations.length, '건');
@@ -1039,7 +1229,14 @@
                     
                     await saveReservation(newReservation);
                     
-                    showAlert(`예약이 완료되었습니다!\n${name}님 - ${people}명 - ${time}\n배정 테이블: ${assignedTables.join(', ')}`, 'success');
+                    const successMessage = `예약이 완료되었습니다!\n${name}님 - ${people}명 - ${time}\n배정 테이블: ${assignedTables.join(', ')}`;
+                    showAlert(successMessage, 'success');
+                    
+                    // 소리 알림 (현재 사용자가 직접 등록한 경우)
+                    playNewReservationSound();
+                    
+                    // 브라우저 알림 보내기
+                    sendNotification('새 예약 등록', `${name}님 ${people}명 ${time} 예약 완료`);
                     
                     // 폼 초기화
                     event.target.reset();
@@ -1101,6 +1298,7 @@
             
             return message;
         }
+
         function assignTables(people, preference, date, time) {
             const activeReservations = reservations.filter(r => r.status === 'active');
             let conflictingReservations = activeReservations.filter(r => 
@@ -2014,6 +2212,10 @@
                     }
                     
                     showAlert('예약이 성공적으로 수정되었습니다.', 'success');
+                    
+                    // 브라우저 알림 보내기
+                    sendNotification('예약 수정', `${reservation.name}님 예약이 수정되었습니다`);
+                    
                     updateStatus();
                 } else {
                     reservations = originalReservations; // 원래 배열 복원
@@ -2043,6 +2245,13 @@
             try {
                 await cancelReservationData(reservationId, reason);
                 showAlert('예약이 취소되었습니다.', 'success');
+                
+                // 브라우저 알림 보내기
+                const reservation = reservations.find(r => r.id === reservationId);
+                if (reservation) {
+                    sendNotification('예약 취소', `${reservation.name}님 예약이 취소되었습니다`);
+                }
+                
                 updateStatus();
             } catch (error) {
                 showAlert('예약 취소 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
@@ -2123,10 +2332,25 @@
             if (statusDateInput) statusDateInput.value = getCurrentDate();
             if (timeFilterSelect) timeFilterSelect.value = 'all';
             
+            // 알림 권한 요청
+            await requestNotificationPermission();
+            
+            // 음성 합성 초기화 (브라우저 호환성)
+            if ('speechSynthesis' in window) {
+                speechSynthesis.getVoices(); // 음성 목록 로드
+            }
+            
             // 데이터 로드
             await loadReservations();
             
-            console.log('초가집 예약 시스템이 초기화되었습니다.');
+            // 실시간 알림 시작 (30초마다)
+            setInterval(checkForNewReservations, 30000);
+            
+            // 15분 전 알림 시작 (1분마다)
+            setInterval(checkUpcomingReservations, 60000);
+            
+            console.log('🔔 초가집 예약 시스템이 초기화되었습니다.');
+            console.log('📢 실시간 알림 및 15분 전 안내 활성화됨');
         });
 
         // 서버 연결 상태 주기적 확인
@@ -2142,6 +2366,15 @@
                 }
             }
         }, 30000);
+
+        // 페이지 가시성 변경 시 알림 재개 (탭 전환 시)
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                // 페이지가 다시 활성화될 때 즉시 체크
+                setTimeout(checkForNewReservations, 1000);
+                setTimeout(checkUpcomingReservations, 2000);
+            }
+        });
     </script>
 </body>
 </html>
