@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>초가짚 예약 시스템</title>
+    <title>초가집 예약 시스템</title>
     <style>
         * {
             margin: 0;
@@ -251,28 +251,44 @@
         }
 
         .table-cell.group-reserved.group-1 {
-            background: linear-gradient(135deg, #ef5350 0%, #d32f2f 100%);
-            border-color: #c62828;
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+            border-color: #990000;
         }
 
         .table-cell.group-reserved.group-2 {
-            background: linear-gradient(135deg, #e91e63 0%, #ad1457 100%);
-            border-color: #880e4f;
+            background: linear-gradient(135deg, #4444ff 0%, #0000cc 100%);
+            border-color: #000099;
         }
 
         .table-cell.group-reserved.group-3 {
-            background: linear-gradient(135deg, #9c27b0 0%, #6a1b9a 100%);
-            border-color: #4a148c;
+            background: linear-gradient(135deg, #44ff44 0%, #00cc00 100%);
+            border-color: #009900;
+            color: #003300;
         }
 
         .table-cell.group-reserved.group-4 {
-            background: linear-gradient(135deg, #ff5722 0%, #d84315 100%);
-            border-color: #bf360c;
+            background: linear-gradient(135deg, #ff8800 0%, #cc5500 100%);
+            border-color: #993300;
         }
 
         .table-cell.group-reserved.group-5 {
-            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
-            border-color: #e65100;
+            background: linear-gradient(135deg, #8844ff 0%, #5500cc 100%);
+            border-color: #330099;
+        }
+
+        .table-cell.group-reserved.group-6 {
+            background: linear-gradient(135deg, #ff44aa 0%, #cc0077 100%);
+            border-color: #990055;
+        }
+
+        .table-cell.group-reserved.group-7 {
+            background: linear-gradient(135deg, #44aaff 0%, #0077cc 100%);
+            border-color: #005599;
+        }
+
+        .table-cell.group-reserved.group-8 {
+            background: linear-gradient(135deg, #ffaa44 0%, #cc7700 100%);
+            border-color: #995500;
         }
 
         .group-info-cell {
@@ -401,6 +417,21 @@
 
         .download-btn:hover {
             background: #1976D2;
+        }
+
+        .edit-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .edit-btn:hover {
+            background: #45a049;
         }
 
         .delete-btn {
@@ -1015,7 +1046,9 @@
                     const dateInput = document.getElementById('date');
                     if (dateInput) dateInput.value = getCurrentDate();
                 } else {
-                    showAlert('죄송합니다. 해당 시간에 예약 가능한 테이블이 없습니다.', 'error');
+                    // 더 상세한 예약 불가 메시지
+                    const detailedMessage = getDetailedAvailabilityMessage(people, preference, date, time);
+                    showAlert(detailedMessage, 'error');
                 }
             } catch (error) {
                 showAlert('예약 등록 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
@@ -1028,7 +1061,46 @@
             }
         }
 
-        // 사장 관점의 효율적 테이블 배정 알고리즘
+        // 상세한 예약 불가 메시지 생성
+        function getDetailedAvailabilityMessage(people, preference, date, time) {
+            const activeReservations = reservations.filter(r => r.status === 'active');
+            const conflictingReservations = activeReservations.filter(r => 
+                r.date === date && isTimeOverlap(r.time, time)
+            );
+            const usedTables = getUsedTables(conflictingReservations);
+            
+            // 룸과 홀 각각 가능 여부 체크
+            const roomAvailable = tryRoomAssignment(people, usedTables).length > 0;
+            const hallAvailable = tryHallAssignment(people, usedTables).length > 0;
+            
+            let message = `죄송합니다. ${people}명 예약이 어려운 상황입니다.\n\n`;
+            
+            if (preference === 'room') {
+                if (!roomAvailable && !hallAvailable) {
+                    message += '🔴 룸: 예약 불가\n🔴 홀: 예약 불가\n\n해당 시간대는 모든 좌석이 만석입니다.';
+                } else if (!roomAvailable && hallAvailable) {
+                    message += '🔴 룸: 예약 불가 (만석)\n🟢 홀: 예약 가능\n\n룸은 만석이지만 홀은 가능합니다.\n홀로 변경하시겠다면 손님께 문의가 필요합니다.';
+                } else {
+                    message += '일시적 오류가 발생했습니다. 다시 시도해주세요.';
+                }
+            } else if (preference === 'hall') {
+                if (!hallAvailable && !roomAvailable) {
+                    message += '🔴 홀: 예약 불가\n🔴 룸: 예약 불가\n\n해당 시간대는 모든 좌석이 만석입니다.';
+                } else if (!hallAvailable && roomAvailable) {
+                    message += '🔴 홀: 예약 불가 (만석)\n🟢 룸: 예약 가능\n\n홀은 만석이지만 룸은 가능합니다.\n룸으로 변경하시겠다면 손님께 문의가 필요합니다.';
+                } else {
+                    message += '일시적 오류가 발생했습니다. 다시 시도해주세요.';
+                }
+            } else { // preference === 'any'
+                if (!roomAvailable && !hallAvailable) {
+                    message += '🔴 룸: 예약 불가\n🔴 홀: 예약 불가\n\n해당 시간대는 모든 좌석이 만석입니다.';
+                } else {
+                    message += '일시적 오류가 발생했습니다. 다시 시도해주세요.';
+                }
+            }
+            
+            return message;
+        }
         function assignTables(people, preference, date, time) {
             const activeReservations = reservations.filter(r => r.status === 'active');
             let conflictingReservations = activeReservations.filter(r => 
@@ -1652,7 +1724,7 @@
                         
                         if (groupTables.has(tableId)) {
                             const groupReservation = groupInfo.get(tableId);
-                            cell.className = `table-cell group-reserved group-${(groupReservation.id % 5) + 1}`;
+                            cell.className = `table-cell group-reserved group-${(groupReservation.id % 8) + 1}`;
                             cell.innerHTML = `
                                 <div class="group-info-cell">
                                     <div class="group-name">${tableNum}번</div>
@@ -1717,7 +1789,7 @@
                     
                     if (groupTables.has(tableId)) {
                         const groupReservation = groupInfo.get(tableId);
-                        cell.className = `table-cell group-reserved group-${(groupReservation.id % 5) + 1}`;
+                        cell.className = `table-cell group-reserved group-${(groupReservation.id % 8) + 1}`;
                         cell.innerHTML = `
                             <div class="group-info-cell">
                                 <div class="group-name">룸${tableNum}</div>
@@ -1829,6 +1901,7 @@
                             ${r.phone ? `<br><small>전화: ${r.phone}</small>` : ''}
                             ${r.company ? `<br><small>회사: ${r.company}</small>` : ''}
                             ${r.reservationMethod ? `<br><small>예약방법: ${getReservationMethodText(r.reservationMethod)}</small>` : ''}
+                            <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
                             <button class="delete-btn" onclick="cancelReservation(${r.id})">취소</button>
                         </div>
                     `).join('');
@@ -1865,15 +1938,106 @@
             }
         }
 
+        // 예약 수정
+        async function editReservation(reservationId) {
+            const reservation = reservations.find(r => r.id === reservationId);
+            if (!reservation) {
+                showAlert('예약을 찾을 수 없습니다.', 'error');
+                return;
+            }
+            
+            const newName = prompt('새 이름을 입력하세요:', reservation.name);
+            if (newName === null) return; // 취소
+            if (!newName.trim()) {
+                showAlert('이름은 필수입니다.', 'error');
+                return;
+            }
+            
+            const newPhone = prompt('새 전화번호를 입력하세요 (선택사항):', reservation.phone || '');
+            if (newPhone === null) return; // 취소
+            
+            const newCompany = prompt('새 회사명을 입력하세요 (선택사항):', reservation.company || '');
+            if (newCompany === null) return; // 취소
+            
+            const newPeople = prompt('새 인원수를 입력하세요:', reservation.people);
+            if (newPeople === null) return; // 취소
+            if (!newPeople || isNaN(newPeople) || parseInt(newPeople) < 1) {
+                showAlert('올바른 인원수를 입력해주세요.', 'error');
+                return;
+            }
+            
+            const newTime = prompt('새 시간을 입력하세요 (HH:MM 형식):', reservation.time);
+            if (newTime === null) return; // 취소
+            if (!newTime.match(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)) {
+                showAlert('올바른 시간 형식을 입력해주세요 (예: 19:30).', 'error');
+                return;
+            }
+            
+            try {
+                // 기존 예약을 임시로 제거하고 새로운 조건으로 테이블 재배정
+                const tempReservations = reservations.filter(r => r.id !== reservationId);
+                const originalReservations = reservations;
+                reservations = tempReservations;
+                
+                const newAssignedTables = assignTables(parseInt(newPeople), reservation.preference, reservation.date, newTime);
+                
+                if (newAssignedTables.length > 0) {
+                    // 예약 업데이트
+                    reservation.name = newName.trim();
+                    reservation.phone = newPhone || '';
+                    reservation.company = newCompany || '';
+                    reservation.people = parseInt(newPeople);
+                    reservation.time = newTime;
+                    reservation.tables = newAssignedTables;
+                    reservation.updatedAt = new Date().toISOString();
+                    
+                    reservations = originalReservations; // 원래 배열 복원
+                    
+                    if (window.offlineMode) {
+                        localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                    } else {
+                        try {
+                            await apiCall(`reservations/${reservationId}`, {
+                                method: 'PUT',
+                                body: JSON.stringify({
+                                    name: reservation.name,
+                                    phone: reservation.phone,
+                                    company: reservation.company,
+                                    people: reservation.people,
+                                    time: reservation.time,
+                                    tables: reservation.tables
+                                })
+                            });
+                        } catch (error) {
+                            localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                        }
+                    }
+                    
+                    showAlert('예약이 성공적으로 수정되었습니다.', 'success');
+                    updateStatus();
+                } else {
+                    reservations = originalReservations; // 원래 배열 복원
+                    const detailedMessage = getDetailedAvailabilityMessage(parseInt(newPeople), reservation.preference, reservation.date, newTime);
+                    showAlert('수정 실패:\n' + detailedMessage, 'error');
+                }
+            } catch (error) {
+                showAlert('예약 수정 중 오류가 발생했습니다.', 'error');
+                console.error('예약 수정 오류:', error);
+            }
+        }
+
         // 예약 취소
         async function cancelReservation(reservationId) {
             if (!confirm('정말로 이 예약을 취소하시겠습니까?')) {
                 return;
             }
             
-            const reason = prompt('취소 사유를 입력해주세요:');
-            if (!reason) {
-                return;
+            let reason = prompt('취소 사유를 입력하세요 (선택사항):');
+            if (reason === null) return; // 취소 버튼 클릭시 중단
+            
+            // 빈 문자열이면 기본 사유 설정
+            if (!reason.trim()) {
+                reason = '사유 없음';
             }
             
             try {
