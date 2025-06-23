@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초가집 예약 시스템</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: clamp(1.8em, 5vw, 2.5em);
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px 10px;
+            text-align: center;
+            cursor: pointer;
+            background: #f8f9fa;
+            border: none;
+            font-size: clamp(14px, 3vw, 16px);
+            font-weight: bold;
+            transition: all 0.3s ease;
+            color: #333;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+        }
+
+        .tab.active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-container, .status-container {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+            font-size: 16px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        select {
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 20px;
+        }
+
+        input:focus, select:focus {
+            border-color: #4CAF50;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+
+        .btn {
+            background: #4CAF50;
+            color: white;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .table-layout {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .hall-section, .room-section {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .hall-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .room-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            max-width: 200px;
+            margin: 0 auto;
+        }
+
+        .table-cell {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 10px;
+            text-align: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 50px;
+        }
+
+        .table-cell.available {
+            background: #e8f5e8;
+            border-color: #4CAF50;
+            color: #2e7d32;
+        }
+
+        .table-cell.reserved {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+        }
+
+        .table-cell.group-reserved {
+            border: 3px solid;
+            color: white;
+            font-size: 8px;
+            padding: 2px;
+            line-height: 1.1;
+            font-weight: bold;
+        }
+
+        .table-cell.group-reserved.group-1 {
+            background: linear-gradient(135deg, #ef5350 0%, #d32f2f 100%);
+            border-color: #c62828;
+        }
+
+        .table-cell.group-reserved.group-2 {
+            background: linear-gradient(135deg, #e91e63 0%, #ad1457 100%);
+            border-color: #880e4f;
+        }
+
+        .table-cell.group-reserved.group-3 {
+            background: linear-gradient(135deg, #9c27b0 0%, #6a1b9a 100%);
+            border-color: #4a148c;
+        }
+
+        .table-cell.group-reserved.group-4 {
+            background: linear-gradient(135deg, #ff5722 0%, #d84315 100%);
+            border-color: #bf360c;
+        }
+
+        .table-cell.group-reserved.group-5 {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            border-color: #e65100;
+        }
+
+        .group-info-cell {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            gap: 1px;
+        }
+
+        .group-name {
+            font-weight: bold;
+            font-size: 9px;
+        }
+
+        .group-details {
+            font-size: 7px;
+            opacity: 0.9;
+        }
+
+        .table-cell:hover:not(.empty-cell) {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .table-info {
+            font-size: 8px;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        .empty-cell {
+            visibility: hidden;
+        }
+
+        .status-info {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid;
+        }
+
+        .status-dot.available {
+            background: #e8f5e8;
+            border-color: #4CAF50;
+        }
+
+        .status-dot.reserved {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+
+        .group-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .group-info h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .group-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .group-item {
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .group-item.available {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .group-item.unavailable {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .reservation-list {
+            margin-top: 20px;
+        }
+
+        .reservation-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            position: relative;
+        }
+
+        .download-btn {
+            background: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+
+        .download-btn:hover {
+            background: #1976D2;
+        }
+
+        .delete-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .delete-btn:hover {
+            background: #d32f2f;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 5px;
+            }
+            
+            .form-container, .status-container {
+                padding: 15px;
+            }
+            
+            .table-layout {
+                flex-direction: column;
+                gap: 30px;
+            }
+            
+            .hall-grid {
+                max-width: 100%;
+            }
+            
+            .room-grid {
+                max-width: 150px;
+            }
+            
+            .table-cell {
+                min-height: 40px;
+                font-size: 9px;
+            }
+            
+            .group-status {
+                grid-template-columns: 1fr;
+            }
+
+            input, select {
+                padding: 12px;
+                font-size: 16px;
+            }
+        }
+
+        .alert {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 1000;
+        }
+
+        .connection-status.online {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .connection-status.offline {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">🔗 연결 확인중...</div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🏠 초가집 예약 시스템</h1>
+            <p>간편하고 스마트한 예약 관리</p>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>데이터를 처리하는 중...</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showReservationTab()">예약 등록</button>
+            <button class="tab" onclick="showStatusTab()">예약 현황</button>
+        </div>
+
+        <!-- 예약 등록 탭 -->
+        <div id="reservation-content" class="tab-content active">
+            <div class="form-container">
+                <h2 style="margin-bottom: 20px; color: #333;">새 예약 등록</h2>
+                <div id="alert-container"></div>
+                <form onsubmit="handleReservation(event)">
+                    <div class="form-group">
+                        <label>인원수 *</label>
+                        <input type="number" id="people" min="1" max="50" required placeholder="예: 4" inputmode="numeric">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>좌석 선호도 *</label>
+                        <select id="preference" required>
+                            <option value="">선택해주세요</option>
+                            <option value="any">관계없음</option>
+                            <option value="room">룸 선호</option>
+                            <option value="hall">홀 선호</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>예약 날짜 *</label>
+                        <input type="date" id="date" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>예약 시간 *</label>
+                        <select id="time" required>
+                            <option value="">시간을 선택해주세요</option>
+                            <option value="14:30">오후 2:30</option>
+                            <option value="15:00">오후 3:00</option>
+                            <option value="15:30">오후 3:30</option>
+                            <option value="16:00">오후 4:00</option>
+                            <option value="16:30">오후 4:30</option>
+                            <option value="17:00">오후 5:00</option>
+                            <option value="17:30">오후 5:30</option>
+                            <option value="18:00">오후 6:00</option>
+                            <option value="18:30">오후 6:30</option>
+                            <option value="19:00">오후 7:00</option>
+                            <option value="19:30">오후 7:30</option>
+                            <option value="20:00">오후 8:00</option>
+                            <option value="20:30">오후 8:30</option>
+                            <option value="21:00">오후 9:00</option>
+                            <option value="21:30">오후 9:30</option>
+                            <option value="22:00">오후 10:00</option>
+                            <option value="22:30">오후 10:30</option>
+                            <option value="23:00">오후 11:00</option>
+                            <option value="23:30">오후 11:30</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>성함 *</label>
+                        <input type="text" id="name" required placeholder="예약자 성함을 입력해주세요" inputmode="text">
+                    </div>
+                    
+                    <button type="submit" class="btn" id="submitBtn">예약 등록</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 예약 현황 탭 -->
+        <div id="status-content" class="tab-content">
+            <div class="status-container">
+                <h2 style="margin-bottom: 20px; color: #333;">예약 현황</h2>
+                
+                <div class="form-group">
+                    <label>조회 날짜</label>
+                    <input type="date" id="statusDate" onchange="updateStatus()">
+                </div>
+                
+                <div class="form-group">
+                    <label>시간대 선택</label>
+                    <select id="timeFilter" onchange="updateStatus()">
+                        <option value="all">전체 시간</option>
+                        <option value="14:30">오후 2:30</option>
+                        <option value="15:00">오후 3:00</option>
+                        <option value="15:30">오후 3:30</option>
+                        <option value="16:00">오후 4:00</option>
+                        <option value="16:30">오후 4:30</option>
+                        <option value="17:00">오후 5:00</option>
+                        <option value="17:30">오후 5:30</option>
+                        <option value="18:00">오후 6:00</option>
+                        <option value="18:30">오후 6:30</option>
+                        <option value="19:00">오후 7:00</option>
+                        <option value="19:30">오후 7:30</option>
+                        <option value="20:00">오후 8:00</option>
+                        <option value="20:30">오후 8:30</option>
+                        <option value="21:00">오후 9:00</option>
+                        <option value="21:30">오후 9:30</option>
+                        <option value="22:00">오후 10:00</option>
+                        <option value="22:30">오후 10:30</option>
+                        <option value="23:00">오후 11:00</option>
+                        <option value="23:30">오후 11:30</option>
+                    </select>
+                </div>
+                
+                <div class="table-layout">
+                    <div class="hall-section">
+                        <div class="section-title">홀 (Hall)</div>
+                        <div class="hall-grid" id="hall-tables"></div>
+                    </div>
+                    
+                    <div class="room-section">
+                        <div class="section-title">룸 (Room)</div>
+                        <div class="room-grid" id="room-tables"></div>
+                    </div>
+                </div>
+                
+                <div class="status-info">
+                    <div class="status-item">
+                        <div class="status-dot available"></div>
+                        <span>예약 가능</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-dot reserved"></div>
+                        <span>예약 완료</span>
+                    </div>
+                </div>
+                
+                <div class="group-info">
+                    <h3>단체 예약 가능 현황</h3>
+                    <div class="group-status" id="group-status"></div>
+                </div>
+                
+                <div class="reservation-list">
+                    <h3>시간별 예약현황</h3>
+                    <table id="timeTable" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                        <thead>
+                            <tr style="background: #f5f5f5;">
+                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px;">시간</th>
+                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px;">예약자</th>
+                                <th style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 14px;">인원</th>
+                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px;">테이블</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timeTableBody">
+                            <!-- 동적으로 생성됨 -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="reservation-list">
+                    <h3>오늘의 예약 
+                        <button class="download-btn" onclick="downloadReservations()">CSV 다운로드</button>
+                        <button class="download-btn" onclick="backupData()">백업 다운로드</button>
+                        <button class="download-btn" onclick="refreshData()">새로고침</button>
+                    </h3>
+                    <div id="reservations"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 전역 변수
+        let reservations = [];
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+        
+        // 테이블 정보
+        const TABLE_INFO = {
+            hall: {
+                1: { capacity: 5 }, 2: { capacity: 4 }, 3: { capacity: 4 }, 4: { capacity: 4 },
+                5: { capacity: 4 }, 6: { capacity: 4 }, 7: { capacity: 4 }, 8: { capacity: 4 },
+                9: { capacity: 4 }, 10: { capacity: 4 }, 11: { capacity: 4 }, 12: { capacity: 4 },
+                13: { capacity: 4 }, 14: { capacity: 4 }, 15: { capacity: 4 }, 16: { capacity: 4 }
+            },
+            room: {
+                1: { capacity: 4 }, 2: { capacity: 4 }, 3: { capacity: 4 }, 4: { capacity: 4 },
+                5: { capacity: 4 }, 6: { capacity: 4 }, 7: { capacity: 4 }, 8: { capacity: 4 }, 9: { capacity: 4 }
+            }
+        };
+
+        // 단체석 규칙
+        const GROUP_RULES = [
+            { name: '홀 1,2번', tables: ['hall-1', 'hall-2'], maxPeople: 9 },
+            { name: '홀 4,5번', tables: ['hall-4', 'hall-5'], maxPeople: 8 },
+            { name: '홀 6,7번', tables: ['hall-6', 'hall-7'], maxPeople: 8 },
+            { name: '홀 4,5,6,7번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 16 },
+            { name: '홀 3,4,5,6,7,8번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 24 },
+            { name: '룸 1,2번', tables: ['room-1', 'room-2'], maxPeople: 8 },
+            { name: '룸 2,3번', tables: ['room-2', 'room-3'], maxPeople: 8 },
+            { name: '룸 4,5번', tables: ['room-4', 'room-5'], maxPeople: 8 },
+            { name: '룸 5,6번', tables: ['room-5', 'room-6'], maxPeople: 8 },
+            { name: '룸 7,8번', tables: ['room-7', 'room-8'], maxPeople: 8 },
+            { name: '룸 8,9번', tables: ['room-8', 'room-9'], maxPeople: 8 },
+            { name: '룸 1,2,3번', tables: ['room-1', 'room-2', 'room-3'], maxPeople: 12 },
+            { name: '룸 4,5,6번', tables: ['room-4', 'room-5', 'room-6'], maxPeople: 12 },
+            { name: '룸 7,8,9번', tables: ['room-7', 'room-8', 'room-9'], maxPeople: 12 },
+            { name: '룸 4~9번', tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 24 },
+            { name: '룸 전체', tables: ['room-1', 'room-2', 'room-3', 'room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 36 }
+        ];
+
+        // 유틸리티 함수들
+        function getCurrentDate() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        function addHours(timeStr, hours) {
+            const [hour, minute] = timeStr.split(':').map(Number);
+            const date = new Date();
+            date.setHours(hour + hours, minute);
+            return date.toTimeString().slice(0, 5);
+        }
+
+        function isTimeOverlap(time1, time2) {
+            const start1 = time1;
+            const end1 = addHours(time1, 3);
+            const start2 = time2;
+            const end2 = addHours(time2, 3);
+            return !(end1 <= start2 || end2 <= start1);
+        }
+
+        // 연결 상태 업데이트
+        function updateConnectionStatus(isOnline) {
+            const status = document.getElementById('connectionStatus');
+            if (isOnline) {
+                status.textContent = '🟢 서버 연결됨';
+                status.className = 'connection-status online';
+            } else {
+                status.textContent = '🔴 오프라인 모드';
+                status.className = 'connection-status offline';
+            }
+        }
+
+        // 알림 표시
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.getElementById('alert-container');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${type}`;
+            alertDiv.textContent = message;
+            
+            alertContainer.innerHTML = '';
+            alertContainer.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        // API 호출 함수
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}/api/${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error(`API 호출 실패 (${endpoint}):`, error);
+                updateConnectionStatus(false);
+                
+                // 오프라인 모드로 전환
+                if (!window.offlineMode) {
+                    showAlert('서버 연결에 실패했습니다. 오프라인 모드로 전환합니다.', 'error');
+                    window.offlineMode = true;
+                    loadOfflineData();
+                }
+                throw error;
+            }
+        }
+
+        // 온라인 데이터 로드
+        async function loadReservations() {
+            try {
+                showLoading(true);
+                const response = await apiCall('reservations');
+                reservations = response.data || [];
+                updateConnectionStatus(true);
+                window.offlineMode = false;
+                console.log('서버에서 예약 데이터 로드:', reservations.length, '건');
+            } catch (error) {
+                console.error('서버 데이터 로드 실패:', error);
+                loadOfflineData();
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 오프라인 데이터 로드
+        function loadOfflineData() {
+            try {
+                const saved = localStorage.getItem('thatch_house_reservations');
+                reservations = saved ? JSON.parse(saved) : [];
+                console.log('로컬 데이터 로드:', reservations.length, '건');
+                updateConnectionStatus(false);
+            } catch (error) {
+                console.error('로컬 데이터 로드 오류:', error);
+                reservations = [];
+            }
+        }
+
+        // 데이터 저장
+        async function saveReservation(reservation) {
+            if (window.offlineMode) {
+                // 오프라인 모드
+                reservations.push(reservation);
+                localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                return { success: true };
+            } else {
+                // 온라인 모드
+                try {
+                    const response = await apiCall('reservations', {
+                        method: 'POST',
+                        body: JSON.stringify(reservation)
+                    });
+                    reservations.push(reservation);
+                    return response;
+                } catch (error) {
+                    // 서버 실패시 로컬에 저장
+                    reservations.push(reservation);
+                    localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                    throw error;
+                }
+            }
+        }
+
+        // 예약 취소
+        async function cancelReservationData(reservationId, reason) {
+            const reservation = reservations.find(r => r.id === reservationId);
+            if (!reservation) return { success: false };
+
+            reservation.status = 'cancelled';
+            reservation.cancelReason = reason;
+            reservation.cancelTime = new Date().toISOString();
+
+            if (window.offlineMode) {
+                localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                return { success: true };
+            } else {
+                try {
+                    await apiCall(`reservations/${reservationId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ status: 'cancelled', cancelReason: reason })
+                    });
+                    return { success: true };
+                } catch (error) {
+                    localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                    throw error;
+                }
+            }
+        }
+
+        // 로딩 표시
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            const tabs = document.querySelector('.tabs');
+            const content = document.querySelectorAll('.tab-content');
+            
+            if (show) {
+                loading.style.display = 'block';
+                tabs.style.display = 'none';
+                content.forEach(c => c.style.display = 'none');
+            } else {
+                loading.style.display = 'none';
+                tabs.style.display = 'flex';
+                document.querySelector('.tab-content.active').style.display = 'block';
+            }
+        }
+
+        // 탭 전환 함수들
+        function showReservationTab() {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            document.querySelector('.tab:first-child').classList.add('active');
+            document.getElementById('reservation-content').classList.add('active');
+        }
+
+        function showStatusTab() {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            document.querySelector('.tab:last-child').classList.add('active');
+            document.getElementById('status-content').classList.add('active');
+            
+            updateStatus();
+        }
+
+        // 예약 등록 처리
+        async function handleReservation(event) {
+            event.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '처리 중...';
+            
+            try {
+                const people = parseInt(document.getElementById('people').value);
+                const preference = document.getElementById('preference').value;
+                const date = document.getElementById('date').value;
+                const time = document.getElementById('time').value;
+                const name = document.getElementById('name').value;
+                
+                // 스마트 테이블 배정
+                const assignedTables = assignTables(people, preference, date, time);
+                
+                if (assignedTables.length > 0) {
+                    const newReservation = {
+                        id: Date.now(),
+                        name: name,
+                        people: people,
+                        preference: preference,
+                        date: date,
+                        time: time,
+                        tables: assignedTables,
+                        timestamp: new Date().toISOString(),
+                        status: 'active'
+                    };
+                    
+                    await saveReservation(newReservation);
+                    
+                    showAlert(`예약이 완료되었습니다!\n${name}님 - ${people}명 - ${time}\n배정 테이블: ${assignedTables.join(', ')}`, 'success');
+                    
+                    // 폼 초기화
+                    event.target.reset();
+                    document.getElementById('date').value = getCurrentDate();
+                } else {
+                    showAlert('죄송합니다. 해당 시간에 예약 가능한 테이블이 없습니다.', 'error');
+                }
+            } catch (error) {
+                showAlert('예약 등록 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
+                console.error('예약 등록 오류:', error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '예약 등록';
+            }
+        }
+
+        // 스마트 테이블 배정 알고리즘 (핵심 기능)
+        function assignTables(people, preference, date, time) {
+            const activeReservations = reservations.filter(r => r.status === 'active');
+            const conflictingReservations = activeReservations.filter(r => 
+                r.date === date && isTimeOverlap(r.time, time)
+            );
+            
+            const usedTables = new Set();
+            conflictingReservations.forEach(r => {
+                if (r.tables) {
+                    r.tables.forEach(table => usedTables.add(table));
+                }
+            });
+            
+            let assignedTables = [];
+            
+            // 5명 이상이면 단체석 우선 시도
+            if (people >= 5) {
+                assignedTables = assignLargeGroup(people, preference, usedTables, conflictingReservations, date, time);
+            }
+            
+            // 단체석이 안 되면 개별 테이블로
+            if (assignedTables.length === 0) {
+                assignedTables = assignSmallGroup(people, preference, usedTables, conflictingReservations, date, time);
+            }
+            
+            return assignedTables;
+        }
+
+        // 소규모 그룹 배정 (재배정 알고리즘 포함)
+        function assignSmallGroup(people, preference, usedTables, existingReservations, date, time) {
+            // 재배정 시도
+            const reassignmentSuccess = attemptReassignment(people, preference, existingReservations, usedTables, date, time);
+            if (reassignmentSuccess) {
+                const newUsedTables = new Set();
+                existingReservations.forEach(r => {
+                    if (r.tables) {
+                        r.tables.forEach(table => newUsedTables.add(table));
+                    }
+                });
+                usedTables = newUsedTables;
+            }
+            
+            const availableRoomTables = [];
+            const availableHallTables = [];
+            
+            // 룸 테이블 체크
+            for (let i = 1; i <= 9; i++) {
+                const tableId = `room-${i}`;
+                if (!usedTables.has(tableId) && TABLE_INFO.room[i].capacity >= people) {
+                    availableRoomTables.push(tableId);
+                }
+            }
+            
+            // 홀 테이블 체크
+            for (let i = 1; i <= 16; i++) {
+                const tableId = `hall-${i}`;
+                if (!usedTables.has(tableId) && TABLE_INFO.hall[i].capacity >= people) {
+                    availableHallTables.push(tableId);
+                }
+            }
+            
+            // 선호도에 따른 배정
+            if (preference === 'room') {
+                if (availableRoomTables.length > 0) {
+                    return [availableRoomTables[0]];
+                } else if (availableHallTables.length > 0) {
+                    return [availableHallTables[0]];
+                }
+            } else if (preference === 'hall') {
+                if (availableHallTables.length > 0) {
+                    return [availableHallTables[0]];
+                } else if (availableRoomTables.length > 0) {
+                    return [availableRoomTables[0]];
+                }
+            } else { // 'any' - 룸 우선
+                if (availableRoomTables.length > 0) {
+                    return [availableRoomTables[0]];
+                } else if (availableHallTables.length > 0) {
+                    return [availableHallTables[0]];
+                }
+            }
+            
+            return [];
+        }
+
+        // 대규모 그룹 배정 (단체석)
+        function assignLargeGroup(people, preference, usedTables, conflictingReservations, date, time) {
+            const applicableRules = GROUP_RULES.filter(rule => rule.maxPeople >= people)
+                                             .sort((a, b) => a.maxPeople - b.maxPeople);
+            
+            for (const rule of applicableRules) {
+                const isRoomRule = rule.tables.every(table => table.startsWith('room-'));
+                const isHallRule = rule.tables.every(table => table.startsWith('hall-'));
+                
+                if (preference === 'room' && isHallRule) continue;
+                if (preference === 'hall' && isRoomRule) continue;
+                
+                const canUseRule = rule.tables.every(table => !usedTables.has(table));
+                
+                if (canUseRule) {
+                    return rule.tables;
+                }
+                
+                if (attemptReassignmentForGroup(rule, conflictingReservations, date, time)) {
+                    return rule.tables;
+                }
+            }
+            
+            return [];
+        }
+
+        // 기존 예약 재배정 시도 (핵심 알고리즘)
+        function attemptReassignment(newPeople, newPreference, conflictingReservations, usedTables, date, time) {
+            const flexibleReservations = conflictingReservations
+                .filter(r => r.preference === 'any')
+                .sort((a, b) => a.people - b.people);
+            
+            for (const reservation of flexibleReservations) {
+                const alternativePreference = newPreference === 'room' ? 'hall' : 
+                                            newPreference === 'hall' ? 'room' : 'any';
+                
+                const tempUsedTables = new Set(usedTables);
+                reservation.tables.forEach(table => tempUsedTables.delete(table));
+                
+                const alternativeTables = findAlternativeTables(
+                    reservation.people, 
+                    alternativePreference, 
+                    tempUsedTables
+                );
+                
+                if (alternativeTables.length > 0) {
+                    console.log(`재배정 성공: ${reservation.name}님을 ${reservation.tables} → ${alternativeTables}로 이동`);
+                    reservation.tables = alternativeTables;
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        // 단체를 위한 재배정 시도
+        function attemptReassignmentForGroup(rule, conflictingReservations, date, time) {
+            const conflictingWithRule = conflictingReservations.filter(r => 
+                r.tables && r.tables.some(table => rule.tables.includes(table))
+            );
+            
+            const reassignableReservations = conflictingWithRule
+                .filter(r => r.preference === 'any')
+                .sort((a, b) => a.people - b.people);
+            
+            for (const reservation of reassignableReservations) {
+                const otherUsedTables = new Set();
+                conflictingReservations.forEach(r => {
+                    if (r.id !== reservation.id) {
+                        r.tables?.forEach(table => otherUsedTables.add(table));
+                    }
+                });
+                
+                const alternativeTables = findAlternativeTables(reservation.people, 'any', otherUsedTables);
+                
+                if (alternativeTables.length > 0) {
+                    console.log(`단체 재배정 성공: ${reservation.name}님을 ${reservation.tables} → ${alternativeTables}로 이동`);
+                    reservation.tables = alternativeTables;
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        // 대안 테이블 찾기
+        function findAlternativeTables(people, preference, usedTables) {
+            const availableRoomTables = [];
+            const availableHallTables = [];
+            
+            for (let i = 1; i <= 9; i++) {
+                const tableId = `room-${i}`;
+                if (!usedTables.has(tableId) && TABLE_INFO.room[i].capacity >= people) {
+                    availableRoomTables.push(tableId);
+                }
+            }
+            
+            for (let i = 1; i <= 16; i++) {
+                const tableId = `hall-${i}`;
+                if (!usedTables.has(tableId) && TABLE_INFO.hall[i].capacity >= people) {
+                    availableHallTables.push(tableId);
+                }
+            }
+            
+            if (preference === 'room' && availableRoomTables.length > 0) {
+                return [availableRoomTables[0]];
+            } else if (preference === 'hall' && availableHallTables.length > 0) {
+                return [availableHallTables[0]];
+            } else if (availableRoomTables.length > 0) {
+                return [availableRoomTables[0]];
+            } else if (availableHallTables.length > 0) {
+                return [availableHallTables[0]];
+            }
+            
+            return [];
+        }
+
+        // 예약 현황 업데이트
+        function updateStatus() {
+            const selectedDate = document.getElementById('statusDate')?.value || getCurrentDate();
+            const selectedTime = document.getElementById('timeFilter')?.value || 'all';
+            
+            let activeReservations = reservations.filter(r => r.status === 'active');
+            let dayReservations = activeReservations.filter(r => r.date === selectedDate);
+            
+            if (selectedTime !== 'all') {
+                dayReservations = dayReservations.filter(r => 
+                    isTimeOverlap(r.time, selectedTime)
+                );
+            }
+            
+            const { individual: groupedReservations, groups: groupReservations } = groupReservationsByTables(dayReservations);
+            
+            renderHallTables(groupedReservations, groupReservations, selectedDate, selectedTime);
+            renderRoomTables(groupedReservations, groupReservations, selectedDate, selectedTime);
+            updateGroupStatus(selectedDate, selectedTime);
+            updateReservationList(dayReservations);
+        }
+
+        // 예약 그룹핑
+        function groupReservationsByTables(reservations) {
+            const grouped = {};
+            const groupReservations = {};
+            
+            reservations.forEach(r => {
+                if (r.tables && r.tables.length > 1) {
+                    const key = r.tables.sort().join(',');
+                    grouped[key] = r;
+                    groupReservations[key] = r;
+                } else if (r.tables && r.tables.length === 1) {
+                    grouped[r.tables[0]] = r;
+                }
+            });
+            
+            return { individual: grouped, groups: groupReservations };
+        }
+
+        // 홀 테이블 렌더링
+        function renderHallTables(groupedReservations, groupReservations, selectedDate, selectedTime) {
+            const hallDiv = document.getElementById('hall-tables');
+            hallDiv.innerHTML = '';
+            
+            const hallLayout = [
+                [1, '', 3, 4, 5, 6, 7, 8],
+                [2, '', '', '', '', '', '', ''],
+                ['', '', 9, 10, 11, 12, '', ''],
+                ['', '', 13, 14, 15, 16, '', '']
+            ];
+            
+            const groupTables = new Set();
+            const groupInfo = new Map();
+            
+            for (const [groupKey, reservation] of Object.entries(groupReservations)) {
+                if (reservation.tables.some(t => t.startsWith('hall-'))) {
+                    const hallTablesInGroup = reservation.tables.filter(t => t.startsWith('hall-'));
+                    hallTablesInGroup.forEach(tableId => {
+                        groupTables.add(tableId);
+                        groupInfo.set(tableId, reservation);
+                    });
+                }
+            }
+            
+            hallLayout.forEach(row => {
+                row.forEach(tableNum => {
+                    const cell = document.createElement('div');
+                    
+                    if (tableNum === '') {
+                        cell.className = 'table-cell empty-cell';
+                    } else {
+                        const tableId = `hall-${tableNum}`;
+                        
+                        if (groupTables.has(tableId)) {
+                            const groupReservation = groupInfo.get(tableId);
+                            cell.className = `table-cell group-reserved group-${(groupReservation.id % 5) + 1}`;
+                            cell.innerHTML = `
+                                <div class="group-info-cell">
+                                    <div class="group-name">${tableNum}번</div>
+                                    <div class="group-name">${groupReservation.name}</div>
+                                    <div class="group-details">${groupReservation.people}명</div>
+                                    <div class="group-details">${groupReservation.time}</div>
+                                </div>
+                            `;
+                            cell.onclick = () => showGroupReservationInfo(groupReservation, selectedDate);
+                        } else {
+                            const individualReservation = groupedReservations[tableId];
+                            
+                            if (individualReservation) {
+                                cell.className = 'table-cell reserved';
+                                cell.innerHTML = `
+                                    <div>${tableNum}번</div>
+                                    <div class="table-info">${individualReservation.name}</div>
+                                    <div class="table-info">${individualReservation.people}명</div>
+                                `;
+                                cell.onclick = () => showTableInfo(tableId, selectedDate);
+                            } else {
+                                cell.className = 'table-cell available';
+                                cell.innerHTML = `<div>${tableNum}번</div><div class="table-info">${TABLE_INFO.hall[tableNum].capacity}석</div>`;
+                                cell.onclick = () => showTableInfo(tableId, selectedDate);
+                            }
+                        }
+                    }
+                    
+                    hallDiv.appendChild(cell);
+                });
+            });
+        }
+
+        // 룸 테이블 렌더링
+        function renderRoomTables(groupedReservations, groupReservations, selectedDate, selectedTime) {
+            const roomDiv = document.getElementById('room-tables');
+            roomDiv.innerHTML = '';
+            
+            const roomLayout = [
+                [7, 8, 9],
+                [4, 5, 6],
+                [1, 2, 3]
+            ];
+            
+            const groupTables = new Set();
+            const groupInfo = new Map();
+            
+            for (const [groupKey, reservation] of Object.entries(groupReservations)) {
+                if (reservation.tables.some(t => t.startsWith('room-'))) {
+                    const roomTablesInGroup = reservation.tables.filter(t => t.startsWith('room-'));
+                    roomTablesInGroup.forEach(tableId => {
+                        groupTables.add(tableId);
+                        groupInfo.set(tableId, reservation);
+                    });
+                }
+            }
+            
+            roomLayout.forEach(row => {
+                row.forEach(tableNum => {
+                    const cell = document.createElement('div');
+                    const tableId = `room-${tableNum}`;
+                    
+                    if (groupTables.has(tableId)) {
+                        const groupReservation = groupInfo.get(tableId);
+                        cell.className = `table-cell group-reserved group-${(groupReservation.id % 5) + 1}`;
+                        cell.innerHTML = `
+                            <div class="group-info-cell">
+                                <div class="group-name">룸${tableNum}</div>
+                                <div class="group-name">${groupReservation.name}</div>
+                                <div class="group-details">${groupReservation.people}명</div>
+                                <div class="group-details">${groupReservation.time}</div>
+                            </div>
+                        `;
+                        cell.onclick = () => showGroupReservationInfo(groupReservation, selectedDate);
+                    } else {
+                        const individualReservation = groupedReservations[tableId];
+                        
+                        if (individualReservation) {
+                            cell.className = 'table-cell reserved';
+                            cell.innerHTML = `
+                                <div>룸${tableNum}</div>
+                                <div class="table-info">${individualReservation.name}</div>
+                                <div class="table-info">${individualReservation.people}명</div>
+                            `;
+                            cell.onclick = () => showTableInfo(tableId, selectedDate);
+                        } else {
+                            cell.className = 'table-cell available';
+                            cell.innerHTML = `<div>룸${tableNum}</div><div class="table-info">${TABLE_INFO.room[tableNum].capacity}석</div>`;
+                            cell.onclick = () => showTableInfo(tableId, selectedDate);
+                        }
+                    }
+                    
+                    roomDiv.appendChild(cell);
+                });
+            });
+        }
+
+        // 단체 예약 현황 업데이트
+        function updateGroupStatus(selectedDate = getCurrentDate(), selectedTime = 'all') {
+            const groupDiv = document.getElementById('group-status');
+            
+            let activeReservations = reservations.filter(r => r.status === 'active');
+            let dayReservations = activeReservations.filter(r => r.date === selectedDate);
+            
+            if (selectedTime !== 'all') {
+                dayReservations = dayReservations.filter(r => 
+                    isTimeOverlap(r.time, selectedTime)
+                );
+            }
+            
+            const availableGroups = GROUP_RULES.filter(rule => {
+                return checkGroupAvailability(rule, dayReservations);
+            });
+            
+            const unavailableGroups = GROUP_RULES.filter(rule => {
+                return !checkGroupAvailability(rule, dayReservations);
+            });
+            
+            let html = '';
+            
+            if (availableGroups.length > 0) {
+                html += availableGroups.map(rule => `
+                    <div class="group-item available">
+                        <strong>${rule.name}</strong><br>
+                        최대 ${rule.maxPeople}명 - ✅ 예약 가능
+                    </div>
+                `).join('');
+            }
+            
+            if (unavailableGroups.length > 0) {
+                html += unavailableGroups.map(rule => `
+                    <div class="group-item unavailable">
+                        <strong>${rule.name}</strong><br>
+                        최대 ${rule.maxPeople}명 - ❌ 예약 불가
+                    </div>
+                `).join('');
+            }
+            
+            groupDiv.innerHTML = html || '<div style="text-align: center; color: #666; padding: 20px;">단체석 정보를 불러오는 중...</div>';
+        }
+
+        // 단체 예약 가능 여부 체크
+        function checkGroupAvailability(rule, dayReservations) {
+            const usedTables = new Set();
+            dayReservations.forEach(r => {
+                if (r.tables) {
+                    r.tables.forEach(table => usedTables.add(table));
+                }
+            });
+            return rule.tables.every(table => !usedTables.has(table));
+        }
+
+        // 예약 목록 업데이트
+        function updateReservationList(dayReservations) {
+            updateTimeTable(dayReservations);
+            
+            const reservationsDiv = document.getElementById('reservations');
+            
+            if (dayReservations.length === 0) {
+                reservationsDiv.innerHTML = '<p>해당 조건에 예약이 없습니다.</p>';
+            } else {
+                reservationsDiv.innerHTML = dayReservations
+                    .sort((a, b) => a.time.localeCompare(b.time))
+                    .map(r => `
+                        <div class="reservation-item">
+                            <strong>${r.name}</strong> - ${r.people}명 - ${r.time}~${addHours(r.time, 3)}
+                            <br>테이블: ${r.tables ? r.tables.join(', ') : '미배정'}
+                            <br><small>선호: ${getPreferenceText(r.preference)}</small>
+                            <button class="delete-btn" onclick="cancelReservation(${r.id})">취소</button>
+                        </div>
+                    `).join('');
+            }
+        }
+
+        // 시간별 예약현황 표 업데이트
+        function updateTimeTable(dayReservations) {
+            const tableBody = document.getElementById('timeTableBody');
+            
+            if (dayReservations.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: center; color: #666;">해당 조건에 예약이 없습니다.</td></tr>';
+            } else {
+                tableBody.innerHTML = dayReservations
+                    .sort((a, b) => a.time.localeCompare(b.time))
+                    .map(r => `
+                        <tr>
+                            <td style="border: 1px solid #ddd; padding: 8px; font-size: 13px;">${r.time}~${addHours(r.time, 3)}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; font-size: 13px;">${r.name}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 13px;">${r.people}명</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; font-size: 13px;">${r.tables ? r.tables.join(', ') : '미배정'}</td>
+                        </tr>
+                    `).join('');
+            }
+        }
+
+        // 기타 유틸리티 함수들
+        function getPreferenceText(preference) {
+            switch(preference) {
+                case 'room': return '룸 선호';
+                case 'hall': return '홀 선호';
+                default: return '관계없음';
+            }
+        }
+
+        function showGroupReservationInfo(reservation, selectedDate) {
+            const endTime = addHours(reservation.time, 3);
+            alert(`단체 예약 정보\n\n예약자: ${reservation.name}\n인원: ${reservation.people}명\n선호도: ${getPreferenceText(reservation.preference)}\n시간: ${reservation.time}~${endTime}\n테이블: ${reservation.tables.join(', ')}\n날짜: ${selectedDate}`);
+        }
+
+        function showTableInfo(tableId, selectedDate = getCurrentDate()) {
+            const dayReservations = reservations.filter(r => 
+                r.status === 'active' && r.date === selectedDate && r.tables && r.tables.includes(tableId)
+            );
+            
+            if (dayReservations.length > 0) {
+                const reservationDetails = dayReservations
+                    .sort((a, b) => a.time.localeCompare(b.time))
+                    .map(r => `${r.time}~${addHours(r.time, 3)} ${r.name}님 (${r.people}명)`)
+                    .join('\n');
+                alert(`${tableId}\n${selectedDate}\n\n${reservationDetails}`);
+            } else {
+                alert(`${tableId}\n${selectedDate}\n상태: 예약 가능`);
+            }
+        }
+
+        // 예약 취소
+        async function cancelReservation(reservationId) {
+            if (!confirm('정말로 이 예약을 취소하시겠습니까?')) {
+                return;
+            }
+            
+            const reason = prompt('취소 사유를 입력해주세요:');
+            if (!reason) {
+                return;
+            }
+            
+            try {
+                await cancelReservationData(reservationId, reason);
+                showAlert('예약이 취소되었습니다.', 'success');
+                updateStatus();
+            } catch (error) {
+                showAlert('예약 취소 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
+                console.error('예약 취소 오류:', error);
+            }
+        }
+
+        // 데이터 새로고침
+        async function refreshData() {
+            await loadReservations();
+            updateStatus();
+            showAlert('데이터가 새로고침되었습니다.', 'success');
+        }
+
+        // CSV 다운로드
+        function downloadReservations() {
+            if (reservations.length === 0) {
+                showAlert('다운로드할 예약 데이터가 없습니다.', 'info');
+                return;
+            }
+            
+            let csv = '\uFEFF날짜,시간,이용종료시간,성명,인원,선호도,배정테이블,상태,취소사유,등록시간\n';
+            
+            reservations
+                .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+                .forEach(r => {
+                    const endTime = addHours(r.time, 3);
+                    const status = r.status === 'active' ? '활성' : '취소';
+                    const cancelReason = r.cancelReason || '';
+                    csv += `${r.date},${r.time},${endTime},${r.name},${r.people},${getPreferenceText(r.preference)},"${r.tables ? r.tables.join(' + ') : '미배정'}",${status},${cancelReason},${new Date(r.timestamp).toLocaleString('ko-KR')}\n`;
+                });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `초가집_예약_${getCurrentDate()}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 백업 다운로드
+        function backupData() {
+            if (reservations.length === 0) {
+                showAlert('백업할 데이터가 없습니다.', 'info');
+                return;
+            }
+            
+            const backup = {
+                timestamp: new Date().toISOString(),
+                reservations: reservations
+            };
+            
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `초가집_백업_${getCurrentDate()}.json`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 페이지 로드 시 초기화
+        window.addEventListener('load', async function() {
+            // 기본값 설정
+            document.getElementById('date').value = getCurrentDate();
+            document.getElementById('statusDate').value = getCurrentDate();
+            document.getElementById('timeFilter').value = 'all';
+            
+            // 데이터 로드
+            await loadReservations();
+            
+            console.log('초가집 예약 시스템이 초기화되었습니다.');
+            console.log('- 서버 기반 저장 (Railway 배포용)');
+            console.log('- 오프라인 모드 지원 (localStorage 백업)');
+            console.log('- 스마트 테이블 배정 알고리즘 적용');
+            console.log('- 모바일 최적화 완료');
+        });
+
+        // 서버 연결 상태 주기적 확인
+        setInterval(async () => {
+            if (!window.offlineMode) {
+                try {
+                    await apiCall('ping');
+                    updateConnectionStatus(true);
+                } catch (error) {
+                    updateConnectionStatus(false);
+                    window.offlineMode = true;
+                    loadOfflineData();
+                }
+            }
+        }, 30000); // 30초마다 확인
+    </script>
+</body>
+</html>
