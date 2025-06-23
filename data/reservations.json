@@ -1,0 +1,240 @@
+[
+  {
+    "id": 1750670891448,
+    "name": "김동현",
+    "people": 16,
+    "preference": "any",
+    "date": "2025-06-23",
+    "time": "19:30",
+    "tables": [
+      "hall-4",
+      "hall-5",
+      "hall-6",
+      "hall-7"
+    ],
+    "timestamp": "2025-06-23T09:28:11.448Z",
+    "status": "cancelled",
+    "cancelReason": "   ",
+    "updatedAt": "2025-06-23T10:01:05.146Z"
+  },
+  {
+    "id": 1750671499203,
+    "name": "김봉선",
+    "people": 16,
+    "preference": "hall",
+    "date": "2025-06-23",
+    "time": "19:30",
+    "tables": [
+      "hall-4",
+      "hall-5",
+      "hall-6",
+      "hall-7"
+    ],
+    "timestamp": "2025-06-23T09:38:19.203Z",
+    "status": "cancelled",
+    "cancelReason": "   ",
+    "updatedAt": "2025-06-23T10:01:08.161Z"
+  },
+  {
+    "id": 1750672743447,
+    "name": "김치중",
+    "people": 16,
+    "preference": "any",
+    "date": "2025-06-23",
+    "time": "18:30",
+    "tables": [
+      "room-4",
+      "room-5",
+      "room-6",
+      "room-7",
+      "room-8",
+      "room-9"
+    ],
+    "timestamp": "2025-06-23T09:59:03.447Z",
+    "status": "cancelled",
+    "cancelReason": "  ",
+    "updatedAt": "2025-06-23T10:01:02.238Z"
+  },
+  {
+    "id": 1750672881409,
+    "name": "김동현",
+    "people": 16,
+    "preference": "any",
+    "date": "2025-06-23",
+    "time": "20:00",
+    "tables": [
+      "room-4",
+      "room-5",
+      "room-6",
+      "room-7",
+      "room-8",
+      "room-9"
+    ],
+    "timestamp": "2025-06-23T10:01:21.409Z",
+    "status": "cancelled",
+    "cancelReason": "  ",
+    "updatedAt": "2025-06-23T10:09:33.126Z"
+  },
+  {
+    "id": 1750673382858,
+    "name": "김동현",
+    "people": 17,
+    "preference": "room",
+    "date": "2025-06-23",
+    "time": "20:00",
+    "tables": [
+      "room-4",
+      "room-5",
+      "room-6",
+      "room-7",
+      "room-8",
+      "room-9"
+    ],
+    "timestamp": "2025-06-23T10:09:42.858Z",
+    "status": "active"
+  },
+  {
+    "id": 1750673396906,
+    "name": "김치중",
+    "people": 17,
+    "preference": "any",
+    "date": "2025-06-23",
+    "time": "20:00",
+    "tables": [
+      "hall-3",
+      "hall-4",
+      "hall-5",
+      "hall-6",
+      "hall-7",
+      "hall-8"
+    ],
+    "timestamp": "2025-06-23T10:09:56.906Z",
+    "status": "active"
+  },
+  {
+    "id": 1750673412125,
+    "name": "김봉선",
+    "people": 9,
+    "preference": "room",
+    "date": "2025-06-23",
+    "time": "20:00",
+    "tables": [
+      "room-1",
+      "room-2",
+      "room-3"
+    ],
+    "timestamp": "2025-06-23T10:10:12.125Z",
+    "status": "active"
+  },
+  {
+    "id": 1750673425347,
+    "name": "박상환",
+    "people": 12,
+    "preference": "room",
+    "date": "2025-06-23",
+    "time": "23:00",
+    "tables": [
+      "room-1",
+      "room-2",
+      "room-3"
+    ],
+    "timestamp": "2025-06-23T10:10:25.347Z",
+    "status": "active"
+  },
+  {
+    "id": 1750674423253,
+    "name": "동현",
+    "people": 9,
+    "preference": "any",
+    "date": "2025-06-23",
+    "time": "20:00",
+    "tables": [
+      "hall-1",
+      "hall-2"
+    ],
+    "timestamp": "2025-06-23T10:27:03.253Z",
+    "status": "active"
+  },
+  {
+    "id": 1750674438763,
+    "name": "치중",
+    "people": 4,
+    "preference": "any",
+    "date": "2025-06-23",
+    "time": "20:00",
+    "tables": [
+      "hall-9"
+    ],
+    "timestamp": "2025-06-23T10:27:18.763Z",
+    "status": "active"
+  },
+  {
+    "id": 1750675906361,
+    "name": "상환",
+    "people": 4,
+    "preference": "any",
+    "date": "2025-06-23",
+    "time": "20:00",
+    "tables": [
+      "hall-10"
+    ],
+    "timestamp": "2025-06-23T10:51:46.361Z",
+    "status": "active"
+  },
+  {
+    "id": 1750676098092,
+    "name": "이다영",
+    "people": 9,
+    "preference": "room",
+    "date": "2025-06-24",
+    "time": "17:30",
+    "tables": [
+      "room-1",
+      "room-2",
+      "room-3"
+    ],
+    "timestamp": "2025-06-23T10:54:58.092Z",
+    "status": "active"
+  },
+  {
+    "id": 1750676117420,
+    "name": "이성진",
+    "people": 4,
+    "preference": "room",
+    "date": "2025-06-24",
+    "time": "18:00",
+    "tables": [
+      "room-4"
+    ],
+    "timestamp": "2025-06-23T10:55:17.420Z",
+    "status": "active"
+  },
+  {
+    "id": 1750676137741,
+    "name": "유한양행",
+    "people": 6,
+    "preference": "any",
+    "date": "2025-06-24",
+    "time": "18:00",
+    "tables": [
+      "room-5",
+      "room-6"
+    ],
+    "timestamp": "2025-06-23T10:55:37.741Z",
+    "status": "active"
+  },
+  {
+    "id": 1750676155086,
+    "name": "하바름",
+    "people": 7,
+    "preference": "room",
+    "date": "2025-06-24",
+    "time": "19:00",
+    "tables": [
+      "room-7",
+      "room-8"
+    ],
+    "timestamp": "2025-06-23T10:55:55.086Z",
+    "status": "active"
+  }
+]
