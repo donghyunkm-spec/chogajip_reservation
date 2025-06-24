@@ -1644,50 +1644,31 @@
                 return checkGroupAvailability(rule, dayReservations);
             });
             
-            const unavailableGroups = GROUP_RULES.filter(rule => {
-                return !checkGroupAvailability(rule, dayReservations);
-            });
+            let html = '<div style="text-align: center;">';
             
-            let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
-            
-            // 예약 가능한 단체석
-            html += '<div><h4 style="color: #4CAF50; margin-bottom: 10px;">🟢 예약 가능</h4>';
+            // 예약 가능한 단체석만 표시
+            html += '<h4 style="color: #4CAF50; margin-bottom: 15px;">🟢 예약 가능한 단체석</h4>';
             if (availableGroups.length > 0) {
+                html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">';
                 html += availableGroups
                     .sort((a, b) => a.maxPeople - b.maxPeople)
                     .map(rule => `
-                        <div class="group-item available" style="margin-bottom: 8px; padding: 8px; background: #e8f5e8; border-radius: 5px;">
+                        <div class="group-item available" style="margin-bottom: 8px; padding: 10px; background: #e8f5e8; border-radius: 8px; text-align: center;">
                             <strong>${rule.name}</strong><br>
                             <small>${rule.minPeople || rule.maxPeople}~${rule.maxPeople}명</small>
                         </div>
                     `).join('');
+                html += '</div>';
             } else {
-                html += '<div style="color: #666; font-style: italic;">예약 가능한 단체석이 없습니다.</div>';
+                html += '<div style="color: #666; font-style: italic; padding: 20px;">현재 예약 가능한 단체석이 없습니다.</div>';
             }
-            html += '</div>';
             
-            // 예약 불가능한 단체석
-            html += '<div><h4 style="color: #f44336; margin-bottom: 10px;">🔴 예약 불가</h4>';
-            if (unavailableGroups.length > 0) {
-                html += unavailableGroups
-                    .sort((a, b) => a.maxPeople - b.maxPeople)
-                    .map(rule => `
-                        <div class="group-item unavailable" style="margin-bottom: 8px; padding: 8px; background: #ffebee; border-radius: 5px;">
-                            <strong>${rule.name}</strong><br>
-                            <small>${rule.minPeople || rule.maxPeople}~${rule.maxPeople}명</small>
-                        </div>
-                    `).join('');
-            } else {
-                html += '<div style="color: #666; font-style: italic;">모든 단체석이 예약 가능합니다.</div>';
-            }
-            html += '</div></div>';
-            
-            // 전체 현황 요약
-            html += `<div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; text-align: center;">
-                        <strong>단체석 현황 요약</strong><br>
-                        <span style="color: #4CAF50;">✅ 예약가능: ${availableGroups.length}개</span> | 
-                        <span style="color: #f44336;">❌ 예약불가: ${unavailableGroups.length}개</span>
+            // 간단한 요약
+            html += `<div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                        <strong>단체석 현황: 예약가능 ${availableGroups.length}개 / 전체 ${GROUP_RULES.length}개</strong>
                      </div>`;
+            
+            html += '</div>';
             
             groupDiv.innerHTML = html;
         }
@@ -1715,12 +1696,212 @@
                     .sort((a, b) => a.time.localeCompare(b.time))
                     .map(r => `
                         <div class="reservation-item">
-                            <strong>${r.name}</strong> - ${r.people}명 - ${r.time}~${addHours(r.time, 3)}
-                            <br>테이블: ${r.tables ? r.tables.join(', ') : '미배정'}
-                            <br><small>선호: ${getPreferenceText(r.preference)}</small>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                                <div>
+                                    <strong>${r.name}</strong> - ${r.people}명 - ${r.time}~${addHours(r.time, 3)}
+                                    <br>테이블: ${r.tables ? r.tables.join(', ') : '미배정'}
+                                    <br><small>선호: ${getPreferenceText(r.preference)}</small>
+                                </div>
+                                <div style="display: flex; gap: 5px;">
+                                    <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
+                                    <button class="delete-btn" onclick="cancelReservation(${r.id})">취소</button>
+                                </div>
+                            </div>
                         </div>
                     `).join('');
             }
+        }
+
+        // 예약 취소 함수
+        async function cancelReservation(reservationId) {
+            if (!confirm('정말로 이 예약을 취소하시겠습니까?')) {
+                return;
+            }
+            
+            try {
+                if (window.offlineMode) {
+                    // 오프라인 모드
+                    const index = reservations.findIndex(r => r.id === reservationId);
+                    if (index !== -1) {
+                        reservations[index].status = 'cancelled';
+                        localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                        showAlert('예약이 취소되었습니다.', 'success');
+                        updateStatus();
+                    }
+                } else {
+                    // 온라인 모드
+                    await apiCall(`reservations/${reservationId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    const index = reservations.findIndex(r => r.id === reservationId);
+                    if (index !== -1) {
+                        reservations.splice(index, 1);
+                    }
+                    
+                    showAlert('예약이 취소되었습니다.', 'success');
+                    updateStatus();
+                }
+            } catch (error) {
+                console.error('예약 취소 오류:', error);
+                showAlert('예약 취소 중 오류가 발생했습니다.', 'error');
+            }
+        }
+
+        // 예약 수정 함수
+        function editReservation(reservationId) {
+            const reservation = reservations.find(r => r.id === reservationId);
+            if (!reservation) {
+                showAlert('예약을 찾을 수 없습니다.', 'error');
+                return;
+            }
+            
+            // 수정 폼 생성
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 3000;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                    <h3 style="margin-bottom: 20px; color: #333;">예약 수정</h3>
+                    <form id="editForm">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">성함</label>
+                            <input type="text" id="editName" value="${reservation.name}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">인원수</label>
+                            <input type="number" id="editPeople" value="${reservation.people}" min="1" max="50" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">좌석 선호도</label>
+                            <select id="editPreference" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                                <option value="any" ${reservation.preference === 'any' ? 'selected' : ''}>관계없음</option>
+                                <option value="room" ${reservation.preference === 'room' ? 'selected' : ''}>룸 선호</option>
+                                <option value="hall" ${reservation.preference === 'hall' ? 'selected' : ''}>홀 선호</option>
+                            </select>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 날짜</label>
+                            <input type="date" id="editDate" value="${reservation.date}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 시간</label>
+                            <select id="editTime" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                                <option value="14:30" ${reservation.time === '14:30' ? 'selected' : ''}>오후 2:30</option>
+                                <option value="15:00" ${reservation.time === '15:00' ? 'selected' : ''}>오후 3:00</option>
+                                <option value="15:30" ${reservation.time === '15:30' ? 'selected' : ''}>오후 3:30</option>
+                                <option value="16:00" ${reservation.time === '16:00' ? 'selected' : ''}>오후 4:00</option>
+                                <option value="16:30" ${reservation.time === '16:30' ? 'selected' : ''}>오후 4:30</option>
+                                <option value="17:00" ${reservation.time === '17:00' ? 'selected' : ''}>오후 5:00</option>
+                                <option value="17:30" ${reservation.time === '17:30' ? 'selected' : ''}>오후 5:30</option>
+                                <option value="18:00" ${reservation.time === '18:00' ? 'selected' : ''}>오후 6:00</option>
+                                <option value="18:30" ${reservation.time === '18:30' ? 'selected' : ''}>오후 6:30</option>
+                                <option value="19:00" ${reservation.time === '19:00' ? 'selected' : ''}>오후 7:00</option>
+                                <option value="19:30" ${reservation.time === '19:30' ? 'selected' : ''}>오후 7:30</option>
+                                <option value="20:00" ${reservation.time === '20:00' ? 'selected' : ''}>오후 8:00</option>
+                                <option value="20:30" ${reservation.time === '20:30' ? 'selected' : ''}>오후 8:30</option>
+                                <option value="21:00" ${reservation.time === '21:00' ? 'selected' : ''}>오후 9:00</option>
+                                <option value="21:30" ${reservation.time === '21:30' ? 'selected' : ''}>오후 9:30</option>
+                                <option value="22:00" ${reservation.time === '22:00' ? 'selected' : ''}>오후 10:00</option>
+                                <option value="22:30" ${reservation.time === '22:30' ? 'selected' : ''}>오후 10:30</option>
+                                <option value="23:00" ${reservation.time === '23:00' ? 'selected' : ''}>오후 11:00</option>
+                                <option value="23:30" ${reservation.time === '23:30' ? 'selected' : ''}>오후 11:30</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" style="flex: 1; background: #4CAF50; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">수정 완료</button>
+                            <button type="button" onclick="this.closest('.modal').remove()" style="flex: 1; background: #666; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">취소</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            modal.className = 'modal';
+            document.body.appendChild(modal);
+            
+            // 폼 제출 처리
+            document.getElementById('editForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const updatedData = {
+                    name: document.getElementById('editName').value,
+                    people: parseInt(document.getElementById('editPeople').value),
+                    preference: document.getElementById('editPreference').value,
+                    date: document.getElementById('editDate').value,
+                    time: document.getElementById('editTime').value
+                };
+                
+                // 새로운 테이블 배정
+                const newTables = assignTablesForEdit(updatedData.people, updatedData.preference, updatedData.date, updatedData.time, reservationId);
+                
+                if (newTables.length > 0) {
+                    updatedData.tables = newTables;
+                    
+                    try {
+                        if (window.offlineMode) {
+                            // 오프라인 모드
+                            const index = reservations.findIndex(r => r.id === reservationId);
+                            if (index !== -1) {
+                                reservations[index] = { ...reservations[index], ...updatedData };
+                                localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                            }
+                        } else {
+                            // 온라인 모드
+                            await apiCall(`reservations/${reservationId}`, {
+                                method: 'PUT',
+                                body: JSON.stringify(updatedData)
+                            });
+                            
+                            const index = reservations.findIndex(r => r.id === reservationId);
+                            if (index !== -1) {
+                                reservations[index] = { ...reservations[index], ...updatedData };
+                            }
+                        }
+                        
+                        modal.remove();
+                        showAlert('예약이 수정되었습니다.', 'success');
+                        updateStatus();
+                    } catch (error) {
+                        console.error('예약 수정 오류:', error);
+                        showAlert('예약 수정 중 오류가 발생했습니다.', 'error');
+                    }
+                } else {
+                    showAlert('해당 조건으로 예약 수정이 어렵습니다. 다른 시간대를 선택해주세요.', 'error');
+                }
+            });
+            
+            // 모달 바깥 클릭 시 닫기
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        // 수정용 테이블 배정 (기존 예약 제외)
+        function assignTablesForEdit(people, preference, date, time, excludeId) {
+            const activeReservations = reservations.filter(r => r.status === 'active' && r.id !== excludeId);
+            const conflictingReservations = activeReservations.filter(r => 
+                r.date === date && isTimeOverlap(r.time, time)
+            );
+            
+            return assignTables(people, preference, date, time);
         }
 
         // 선호도 텍스트 변환
