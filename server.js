@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 // 미들웨어
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('.'));  // public 대신 현재 디렉토리 사용
 
 // Railway Volume 경로 사용 (영구 저장)
 const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
@@ -155,7 +155,7 @@ function checkFileSystemStatus() {
 
 // API 엔드포인트들
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/api/ping', (req, res) => {
@@ -383,25 +383,38 @@ app.use((err, req, res, next) => {
     });
 });
 
+// 서버 시작 시 에러 핸들링 추가
+app.on('error', (error) => {
+    console.error(`❌ 서버 시작 오류:`, error);
+});
+
 // 서버 시작
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🏠 초가집 예약 시스템 서버가 포트 ${PORT}에서 실행 중입니다.`);
+    console.log(`🏠 초가집 예약 시스템 서버 시작됨 - 포트 ${PORT}`);
     console.log(`📁 데이터 경로: ${FINAL_DATA_FILE}`);
     console.log(`💾 볼륨 사용: ${FINAL_DATA_FILE.includes('/data') ? 'YES' : 'NO'}`);
+    console.log(`🌐 서버 주소: http://0.0.0.0:${PORT}`);
     
-    const reservations = readReservations();
-    console.log(`📊 현재 저장된 예약: ${reservations.length}건`);
-    
-    if (reservations.length > 0) {
-        console.log(`📋 최근 예약:`);
-        reservations.slice(-3).forEach((r, i) => {
-            console.log(`  ${r.name}님 ${r.people}명 ${r.date} ${r.time}`);
-        });
+    try {
+        const reservations = readReservations();
+        console.log(`📊 현재 저장된 예약: ${reservations.length}건`);
+        
+        if (reservations.length > 0) {
+            console.log(`📋 최근 예약:`);
+            reservations.slice(-3).forEach((r, i) => {
+                console.log(`  ${r.name}님 ${r.people}명 ${r.date} ${r.time}`);
+            });
+        }
+        
+        // 파일 시스템 상태 출력
+        const fsStatus = checkFileSystemStatus();
+        console.log(`📊 파일 시스템 상태:`, JSON.stringify(fsStatus, null, 2));
+        
+    } catch (error) {
+        console.error(`❌ 초기화 오류:`, error);
     }
-    
-    // 파일 시스템 상태 출력
-    const fsStatus = checkFileSystemStatus();
-    console.log(`📊 파일 시스템 상태:`, fsStatus);
+}).on('error', (error) => {
+    console.error(`❌ 서버 리스닝 오류:`, error);
 });
 
 process.on('SIGTERM', () => {
