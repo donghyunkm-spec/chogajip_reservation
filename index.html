@@ -150,6 +150,111 @@
             padding: 20px;
             color: #666;
         }
+		
+		/* 모바일 친화적 스타일 추가 */
+.required {
+    color: #f44336;
+}
+
+.number-input {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.number-btn {
+    width: 60px;
+    height: 54px;
+    background: #f8f9fa;
+    border: none;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #333;
+}
+
+.number-input input {
+    width: calc(100% - 120px);
+    border: none;
+    text-align: center;
+    font-size: 20px;
+    padding: 0;
+}
+
+.preference-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.preference-option {
+    flex: 1;
+    text-align: center;
+    padding: 15px 5px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    background: #f8f9fa;
+}
+
+.preference-option:hover {
+    background: #e9ecef;
+}
+
+.preference-option.selected {
+    background: #4CAF50;
+    color: white;
+    border-color: #388E3C;
+    transform: scale(1.05);
+}
+
+.preference-option .emoji {
+    display: block;
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+.pulse-btn {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+}
+
+/* 미디어 쿼리 */
+@media (max-width: 480px) {
+    .preference-selector {
+        flex-direction: column;
+    }
+    
+    .number-btn {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .number-input input {
+        width: calc(100% - 100px);
+    }
+    
+    .preference-option {
+        padding: 12px 5px;
+    }
+    
+    .preference-option .emoji {
+        display: inline-block;
+        margin-right: 5px;
+        margin-bottom: 0;
+    }
+}
 
         .spinner {
             border: 4px solid #f3f3f3;
@@ -640,64 +745,75 @@
 
         <!-- 예약 등록 탭 -->
         <div id="reservation-content" class="tab-content active">
-            <div class="form-container">
-                <h2 style="margin-bottom: 20px; color: #333;">새 예약 등록</h2>
-                <div id="alert-container"></div>
-                <form onsubmit="handleReservation(event)">
-                    <div class="form-group">
-                        <label>인원수 *</label>
-                        <input type="number" id="people" min="1" max="50" required placeholder="예: 4" inputmode="numeric">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>좌석 선호도 *</label>
-                        <select id="preference" required>
-                            <option value="any">관계없음</option>
-                            <option value="room">룸 선호</option>
-                            <option value="hall">홀 선호</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>예약 날짜 *</label>
-                        <input type="date" id="date" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>예약 시간 *</label>
-                        <select id="time" required>
-                            <option value="">시간을 선택해주세요</option>
-                            <option value="14:30">오후 2:30</option>
-                            <option value="15:00">오후 3:00</option>
-                            <option value="15:30">오후 3:30</option>
-                            <option value="16:00">오후 4:00</option>
-                            <option value="16:30">오후 4:30</option>
-                            <option value="17:00">오후 5:00</option>
-                            <option value="17:30">오후 5:30</option>
-                            <option value="18:00">오후 6:00</option>
-                            <option value="18:30">오후 6:30</option>
-                            <option value="19:00">오후 7:00</option>
-                            <option value="19:30">오후 7:30</option>
-                            <option value="20:00">오후 8:00</option>
-                            <option value="20:30">오후 8:30</option>
-                            <option value="21:00">오후 9:00</option>
-                            <option value="21:30">오후 9:30</option>
-                            <option value="22:00">오후 10:00</option>
-                            <option value="22:30">오후 10:30</option>
-                            <option value="23:00">오후 11:00</option>
-                            <option value="23:30">오후 11:30</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>성함 *</label>
-                        <input type="text" id="name" required placeholder="예약자 성함을 입력해주세요" inputmode="text">
-                    </div>
-                    
-                    <button type="submit" class="btn" id="submitBtn">예약 등록</button>
-                </form>
+    <div class="form-container">
+        <h2 style="margin-bottom: 20px; color: #333;">새 예약 등록</h2>
+        <div id="alert-container"></div>
+        <form onsubmit="handleReservation(event)">
+            <div class="form-group">
+                <label for="people">인원수 <span class="required">*</span></label>
+                <div class="number-input">
+                    <button type="button" onclick="decrementValue('people')" class="number-btn">-</button>
+                    <input type="number" id="people" min="1" max="36" required placeholder="예: 4" value="4" inputmode="numeric">
+                    <button type="button" onclick="incrementValue('people')" class="number-btn">+</button>
+                </div>
             </div>
-        </div>
+            
+            <div class="form-group">
+                <label for="preference">좌석 선호도 <span class="required">*</span></label>
+                <div class="preference-selector">
+                    <div class="preference-option" onclick="selectPreference('any')" id="pref-any">
+                        <span class="emoji">⭐</span>관계없음
+                    </div>
+                    <div class="preference-option" onclick="selectPreference('room')" id="pref-room">
+                        <span class="emoji">🚪</span>룸 선호
+                    </div>
+                    <div class="preference-option" onclick="selectPreference('hall')" id="pref-hall">
+                        <span class="emoji">🏠</span>홀 선호
+                    </div>
+                </div>
+                <input type="hidden" id="preference" value="any" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="date">예약 날짜 <span class="required">*</span></label>
+                <input type="date" id="date" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="time">예약 시간 <span class="required">*</span></label>
+                <select id="time" required>
+                    <option value="">시간을 선택해주세요</option>
+                    <option value="14:30">오후 2:30</option>
+                    <option value="15:00">오후 3:00</option>
+                    <option value="15:30">오후 3:30</option>
+                    <option value="16:00">오후 4:00</option>
+                    <option value="16:30">오후 4:30</option>
+                    <option value="17:00">오후 5:00</option>
+                    <option value="17:30">오후 5:30</option>
+                    <option value="18:00">오후 6:00</option>
+                    <option value="18:30">오후 6:30</option>
+                    <option value="19:00">오후 7:00</option>
+                    <option value="19:30">오후 7:30</option>
+                    <option value="20:00">오후 8:00</option>
+                    <option value="20:30">오후 8:30</option>
+                    <option value="21:00">오후 9:00</option>
+                    <option value="21:30">오후 9:30</option>
+                    <option value="22:00">오후 10:00</option>
+                    <option value="22:30">오후 10:30</option>
+                    <option value="23:00">오후 11:00</option>
+                    <option value="23:30">오후 11:30</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="name">성함 <span class="required">*</span></label>
+                <input type="text" id="name" required placeholder="예약자 성함을 입력해주세요" inputmode="text">
+            </div>
+            
+            <button type="submit" class="btn pulse-btn" id="submitBtn">예약 등록</button>
+        </form>
+    </div>
+</div>
 
         <!-- 예약 현황 탭 -->
         <div id="status-content" class="tab-content">
@@ -821,6 +937,41 @@
             { name: '룸 4~9번', tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 24, minPeople: 17 },
             { name: '룸 전체', tables: ['room-1', 'room-2', 'room-3', 'room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 36, minPeople: 25 }
         ];
+		// 인원수 증감 함수
+function decrementValue(id) {
+    const input = document.getElementById(id);
+    const min = parseInt(input.min) || 1;
+    const currentValue = parseInt(input.value) || 0;
+    if (currentValue > min) {
+        input.value = currentValue - 1;
+    }
+}
+
+function incrementValue(id) {
+    const input = document.getElementById(id);
+    const max = parseInt(input.max) || 50;
+    const currentValue = parseInt(input.value) || 0;
+    if (currentValue < max) {
+        input.value = currentValue + 1;
+    }
+}
+
+// 좌석 선호도 선택 함수
+function selectPreference(value) {
+    document.getElementById('preference').value = value;
+    
+    const options = ['any', 'room', 'hall'];
+    options.forEach(opt => {
+        const element = document.getElementById(`pref-${opt}`);
+        if (element) {
+            if (opt === value) {
+                element.classList.add('selected');
+            } else {
+                element.classList.remove('selected');
+            }
+        }
+    });
+}
 
         // 알림 함수들
         function playNotificationSound() {
@@ -1449,119 +1600,120 @@
         }
 
         // 다중 연쇄 재배정 - 여러 고객을 순차적으로 이동 (핵심 개선)
-        function tryMultiChainReassignment(people, preference, conflictingReservations) {
-            console.log(`다중 연쇄 재배정 시도: ${people}명, 선호도: ${preference}`);
-            
-            // 특별 처리 - 20명 이상의 대형 단체 룸 예약
-            if (people >= 20 && preference === 'room') {
-                console.log("대형 단체 예약 (20명 이상) 특별 처리");
-                return tryLargeGroupReassignment(people, conflictingReservations);
+        // 다중 연쇄 재배정 - 여러 고객을 순차적으로 이동 (핵심 개선)
+function tryMultiChainReassignment(people, preference, conflictingReservations) {
+    console.log(`다중 연쇄 재배정 시도: ${people}명, 선호도: ${preference}`);
+    
+    // 특별 처리 - 20명 이상의 대형 단체 룸 예약
+    if (people >= 13 && preference === 'room') {
+        console.log("대형 단체 예약 (13명 이상) 특별 처리");
+        return tryLargeGroupReassignment(people, conflictingReservations);
+    }
+    
+    // 1. 이동 가능한 고객 목록 생성
+    const movableCandidates = [];
+    
+    // 선호도 '관계없음' 고객 먼저 (가장 이동하기 쉬움)
+    const flexibleReservations = conflictingReservations.filter(r => r.preference === 'any');
+    flexibleReservations.forEach(r => {
+        if (r.tables && r.tables.some(t => t.startsWith('room-'))) {
+            movableCandidates.push({
+                reservation: r,
+                currentLocation: 'room',
+                moveToLocation: 'hall',
+                priority: 1 // 가장 높은 우선순위
+            });
+        } else if (r.tables && r.tables.some(t => t.startsWith('hall-'))) {
+            movableCandidates.push({
+                reservation: r,
+                currentLocation: 'hall',
+                moveToLocation: 'room',
+                priority: 2
+            });
+        }
+    });
+    
+    // 룸 선호지만 홀에 있는 고객 (룸으로 이동 희망)
+    const roomPreferInHall = conflictingReservations.filter(r => 
+        r.preference === 'room' && r.tables && r.tables.some(t => t.startsWith('hall-'))
+    );
+    roomPreferInHall.forEach(r => {
+        movableCandidates.push({
+            reservation: r,
+            currentLocation: 'hall',
+            moveToLocation: 'room',
+            priority: 3
+        });
+    });
+    
+    // 홀 선호지만 룸에 있는 고객 (홀로 이동 희망)
+    const hallPreferInRoom = conflictingReservations.filter(r => 
+        r.preference === 'hall' && r.tables && r.tables.some(t => t.startsWith('room-'))
+    );
+    hallPreferInRoom.forEach(r => {
+        movableCandidates.push({
+            reservation: r,
+            currentLocation: 'room',
+            moveToLocation: 'hall',
+            priority: 3
+        });
+    });
+    
+    // 우선순위 순으로 정렬
+    movableCandidates.sort((a, b) => a.priority - b.priority);
+    
+    console.log(`이동 가능 후보: ${movableCandidates.length}명`);
+    movableCandidates.forEach(c => {
+        console.log(`- ${c.reservation.name}님(${c.reservation.people}명): ${c.currentLocation} → ${c.moveToLocation}, 우선순위 ${c.priority}`);
+    });
+    
+    // 2. 연쇄 재배정 시도 - 최대 3명까지 이동 고려
+    // 후보가 1명인 경우
+    if (movableCandidates.length >= 1) {
+        for (const candidate of movableCandidates) {
+            const result = trySingleCandidateMove(candidate, people, preference, conflictingReservations);
+            if (result.length > 0) return result;
+        }
+    }
+    
+    // 후보가 2명인 경우 (모든 2명 조합 시도)
+    if (movableCandidates.length >= 2) {
+        for (let i = 0; i < movableCandidates.length - 1; i++) {
+            for (let j = i + 1; j < movableCandidates.length; j++) {
+                const result = tryTwoCandidatesMove(
+                    movableCandidates[i], 
+                    movableCandidates[j], 
+                    people, 
+                    preference, 
+                    conflictingReservations
+                );
+                if (result.length > 0) return result;
             }
-            
-            // 1. 이동 가능한 고객 목록 생성
-            const movableCandidates = [];
-            
-            // 선호도 '관계없음' 고객 먼저 (가장 이동하기 쉬움)
-            const flexibleReservations = conflictingReservations.filter(r => r.preference === 'any');
-            flexibleReservations.forEach(r => {
-                if (r.tables && r.tables.some(t => t.startsWith('room-'))) {
-                    movableCandidates.push({
-                        reservation: r,
-                        currentLocation: 'room',
-                        moveToLocation: 'hall',
-                        priority: 1 // 가장 높은 우선순위
-                    });
-                } else if (r.tables && r.tables.some(t => t.startsWith('hall-'))) {
-                    movableCandidates.push({
-                        reservation: r,
-                        currentLocation: 'hall',
-                        moveToLocation: 'room',
-                        priority: 2
-                    });
-                }
-            });
-            
-            // 룸 선호지만 홀에 있는 고객 (룸으로 이동 희망)
-            const roomPreferInHall = conflictingReservations.filter(r => 
-                r.preference === 'room' && r.tables && r.tables.some(t => t.startsWith('hall-'))
-            );
-            roomPreferInHall.forEach(r => {
-                movableCandidates.push({
-                    reservation: r,
-                    currentLocation: 'hall',
-                    moveToLocation: 'room',
-                    priority: 3
-                });
-            });
-            
-            // 홀 선호지만 룸에 있는 고객 (홀로 이동 희망)
-            const hallPreferInRoom = conflictingReservations.filter(r => 
-                r.preference === 'hall' && r.tables && r.tables.some(t => t.startsWith('room-'))
-            );
-            hallPreferInRoom.forEach(r => {
-                movableCandidates.push({
-                    reservation: r,
-                    currentLocation: 'room',
-                    moveToLocation: 'hall',
-                    priority: 3
-                });
-            });
-            
-            // 우선순위 순으로 정렬
-            movableCandidates.sort((a, b) => a.priority - b.priority);
-            
-            console.log(`이동 가능 후보: ${movableCandidates.length}명`);
-            movableCandidates.forEach(c => {
-                console.log(`- ${c.reservation.name}님(${c.reservation.people}명): ${c.currentLocation} → ${c.moveToLocation}, 우선순위 ${c.priority}`);
-            });
-            
-            // 2. 연쇄 재배정 시도 - 최대 3명까지 이동 고려
-            // 후보가 1명인 경우
-            if (movableCandidates.length >= 1) {
-                for (const candidate of movableCandidates) {
-                    const result = trySingleCandidateMove(candidate, people, preference, conflictingReservations);
+        }
+    }
+    
+    // 후보가 3명인 경우 (모든 3명 조합 시도)
+    if (movableCandidates.length >= 3) {
+        for (let i = 0; i < movableCandidates.length - 2; i++) {
+            for (let j = i + 1; j < movableCandidates.length - 1; j++) {
+                for (let k = j + 1; k < movableCandidates.length; k++) {
+                    const result = tryThreeCandidatesMove(
+                        movableCandidates[i],
+                        movableCandidates[j],
+                        movableCandidates[k],
+                        people,
+                        preference,
+                        conflictingReservations
+                    );
                     if (result.length > 0) return result;
                 }
             }
-            
-            // 후보가 2명인 경우 (모든 2명 조합 시도)
-            if (movableCandidates.length >= 2) {
-                for (let i = 0; i < movableCandidates.length - 1; i++) {
-                    for (let j = i + 1; j < movableCandidates.length; j++) {
-                        const result = tryTwoCandidatesMove(
-                            movableCandidates[i], 
-                            movableCandidates[j], 
-                            people, 
-                            preference, 
-                            conflictingReservations
-                        );
-                        if (result.length > 0) return result;
-                    }
-                }
-            }
-            
-            // 후보가 3명인 경우 (모든 3명 조합 시도)
-            if (movableCandidates.length >= 3) {
-                for (let i = 0; i < movableCandidates.length - 2; i++) {
-                    for (let j = i + 1; j < movableCandidates.length - 1; j++) {
-                        for (let k = j + 1; k < movableCandidates.length; k++) {
-                            const result = tryThreeCandidatesMove(
-                                movableCandidates[i],
-                                movableCandidates[j],
-                                movableCandidates[k],
-                                people,
-                                preference,
-                                conflictingReservations
-                            );
-                            if (result.length > 0) return result;
-                        }
-                    }
-                }
-            }
-            
-            console.log("다중 연쇄 재배정 실패");
-            return [];
         }
+    }
+    
+    console.log("다중 연쇄 재배정 실패");
+    return [];
+}
 
         // 단일 고객 이동 시도
         function trySingleCandidateMove(candidate, newPeople, newPreference, conflictingReservations) {
@@ -1789,53 +1941,94 @@
         }
 
         // 대형 단체 (20명 이상) 특별 재배정 처리
-        function tryLargeGroupReassignment(people, conflictingReservations) {
-            console.log(`대형 단체 (${people}명) 특별 재배정 처리`);
-            
-            // 룸 테이블 사용 현황 파악
-            const roomTables = [];
-            for (let i = 1; i <= 9; i++) {
-                roomTables.push(`room-${i}`);
-            }
-            
-            // 현재 룸 테이블 사용 현황
-            const usedRoomTables = new Set();
-            conflictingReservations.forEach(r => {
-                if (r.tables) {
-                    r.tables.forEach(t => {
-                        if (t.startsWith('room-')) usedRoomTables.add(t);
-                    });
-                }
+        // 대형 단체 (13명 이상) 특별 재배정 처리
+function tryLargeGroupReassignment(people, conflictingReservations) {
+    console.log(`대형 단체 (${people}명) 특별 재배정 처리`);
+    
+    // 룸 테이블 사용 현황 파악
+    const roomTables = [];
+    for (let i = 1; i <= 9; i++) {
+        roomTables.push(`room-${i}`);
+    }
+    
+    // 현재 룸 테이블 사용 현황
+    const usedRoomTables = new Set();
+    conflictingReservations.forEach(r => {
+        if (r.tables) {
+            r.tables.forEach(t => {
+                if (t.startsWith('room-')) usedRoomTables.add(t);
             });
-            
-            // 필요한 테이블 수 계산 (대략 20명 이상이면 룸 전체 또는 룸 4-9번이 필요)
-            const targetTables = people >= 25 ? roomTables : roomTables.filter(t => t.startsWith('room-4') || t.startsWith('room-5') || 
-                                                                 t.startsWith('room-6') || t.startsWith('room-7') || 
-                                                                 t.startsWith('room-8') || t.startsWith('room-9'));
-            
-            // 현재 사용 중인 타겟 테이블
-            const usedTargetTables = targetTables.filter(t => usedRoomTables.has(t));
-            
-            // 해당 테이블 사용 중인 예약들
-            const blockingReservations = conflictingReservations.filter(r => 
-                r.tables && r.tables.some(t => usedTargetTables.includes(t))
-            ).sort((a, b) => {
-                // 선호도 기준 정렬: 'any' > 'hall' > 'room'
-                const prefOrder = { 'any': 0, 'hall': 1, 'room': 2 };
-                return prefOrder[a.preference] - prefOrder[b.preference];
-            });
-            
-            console.log(`대상 테이블 ${targetTables.length}개 중 ${usedTargetTables.length}개 사용 중, ${blockingReservations.length}명의 고객이 사용 중`);
-            
-            // 모든 고객 홀로 이동 시도
-            const result = tryMoveAllToHall(blockingReservations, people, conflictingReservations);
-            if (result.length > 0) {
-                return result;
-            }
-            
-            // 복합 이동 시도 (일부 룸으로, 일부 홀로)
-            return tryComplexMixedMove(blockingReservations, people, conflictingReservations);
         }
+    });
+    
+    // 필요한 테이블 수 계산
+    let targetTables;
+    if (people >= 25) {
+        // 전체 룸 필요 (36명까지)
+        targetTables = roomTables;
+    } else if (people >= 17) {
+        // 룸 4-9번 필요 (24명까지)
+        targetTables = roomTables.filter(t => 
+            t.startsWith('room-4') || t.startsWith('room-5') || 
+            t.startsWith('room-6') || t.startsWith('room-7') || 
+            t.startsWith('room-8') || t.startsWith('room-9')
+        );
+    } else if (people >= 13) {
+        // 룸 4,5,7,8 또는 룸 5,6,8,9 (16명까지)
+        // 그중 더 많은 테이블이 사용 가능한 쪽 선택
+        const set1 = ['room-4', 'room-5', 'room-7', 'room-8'];
+        const set2 = ['room-5', 'room-6', 'room-8', 'room-9'];
+        
+        const set1Free = set1.filter(t => !usedRoomTables.has(t)).length;
+        const set2Free = set2.filter(t => !usedRoomTables.has(t)).length;
+        
+        targetTables = (set1Free >= set2Free) ? set1 : set2;
+    } else {
+        // 9-12명 룸 그룹 (룸 1,2,3 / 룸 4,5,6 / 룸 7,8,9)
+        const sets = [
+            ['room-1', 'room-2', 'room-3'],
+            ['room-4', 'room-5', 'room-6'],
+            ['room-7', 'room-8', 'room-9']
+        ];
+        
+        // 가장 많은 테이블이 사용 가능한 세트 선택
+        let bestSet = null;
+        let maxFree = -1;
+        
+        for (const set of sets) {
+            const freeCount = set.filter(t => !usedRoomTables.has(t)).length;
+            if (freeCount > maxFree) {
+                maxFree = freeCount;
+                bestSet = set;
+            }
+        }
+        
+        targetTables = bestSet || sets[0];
+    }
+    
+    // 현재 사용 중인 타겟 테이블
+    const usedTargetTables = targetTables.filter(t => usedRoomTables.has(t));
+    
+    // 해당 테이블 사용 중인 예약들
+    const blockingReservations = conflictingReservations.filter(r => 
+        r.tables && r.tables.some(t => usedTargetTables.includes(t))
+    ).sort((a, b) => {
+        // 선호도 기준 정렬: 'any' > 'hall' > 'room'
+        const prefOrder = { 'any': 0, 'hall': 1, 'room': 2 };
+        return prefOrder[a.preference] - prefOrder[b.preference];
+    });
+    
+    console.log(`대상 테이블 ${targetTables.length}개 중 ${usedTargetTables.length}개 사용 중, ${blockingReservations.length}명의 고객이 사용 중`);
+    
+    // 모든 고객 홀로 이동 시도
+    const result = tryMoveAllToHall(blockingReservations, people, conflictingReservations);
+    if (result.length > 0) {
+        return result;
+    }
+    
+    // 복합 이동 시도 (일부 룸으로, 일부 홀로)
+    return tryComplexMixedMove(blockingReservations, people, conflictingReservations);
+}
 
         // 모든 고객을 홀로 이동 시도
         function tryMoveAllToHall(blockingReservations, newPeople, conflictingReservations) {
@@ -1899,105 +2092,415 @@
         }
 
         // 복합 이동 시도 (일부는 룸으로, 일부는 홀로)
-        function tryComplexMixedMove(blockingReservations, newPeople, conflictingReservations) {
-            console.log(`복합 이동 시도: 일부 룸으로, 일부 홀로`);
-            
-            // 1. 방해되는 고객들 중 '관계없음'이나 '홀 선호' 고객만 홀로 이동
-            const flexibleCustomers = blockingReservations.filter(r => 
-                r.preference === 'any' || r.preference === 'hall'
-            );
-            
-            // 2. 방해되는 나머지 고객들
-            const inflexibleCustomers = blockingReservations.filter(r => 
-                !(r.preference === 'any' || r.preference === 'hall')
-            );
-            
-            // 3. 이동할 고객과 이동하지 않을 고객으로 분리
-            const otherReservations = conflictingReservations.filter(r => 
-                !blockingReservations.some(br => br.id === r.id)
-            );
-            
-            // 유연한 고객들 홀로 이동 시도
-            if (flexibleCustomers.length > 0) {
-                console.log(`${flexibleCustomers.length}명의 유연한 고객을 홀로 이동 시도`);
-                
-                const baseUsedTables = getUsedTables([...otherReservations, ...inflexibleCustomers]);
-                const moveResults = [];
-                let currentUsedTables = new Set(baseUsedTables);
-                
-                // 모든 유연한 고객 이동 가능한지 시도
-                for (const reservation of flexibleCustomers) {
-                    const hallTables = tryHallAssignment(reservation.people, currentUsedTables);
-                    
-                    if (hallTables.length === 0) {
-                        console.log(`${reservation.name}님 홀 이동 불가`);
-                        return []; // 한 명이라도 이동 불가하면 실패
-                    }
-                    
-                    moveResults.push({
-                        reservation: reservation,
-                        newTables: hallTables
-                    });
-                    
-                    // 사용 테이블 업데이트
-                    hallTables.forEach(t => currentUsedTables.add(t));
+        초가집 예약 시스템 개선 설치 가이드
+이 가이드는 초가집 예약 시스템의 개선된 기능을 적용하는 방법을 안내합니다. 주요 개선 사항은 다음과 같습니다:
+
+복잡한 테이블 재배정 알고리즘 개선: 예약자 간 연쇄 이동이 가능하도록 개선
+모바일 친화적 UI: 모바일에서 예약 입력이 용이하도록 UI 개선
+
+1. 테이블 재배정 알고리즘 개선
+기존 index.html 파일에서 다음 함수들을 찾아 대체하세요:
+A. tryMultiChainReassignment 함수 교체
+javascript// 다중 연쇄 재배정 - 여러 고객을 순차적으로 이동 (핵심 개선)
+function tryMultiChainReassignment(people, preference, conflictingReservations) {
+    console.log(`다중 연쇄 재배정 시도: ${people}명, 선호도: ${preference}`);
+    
+    // 특별 처리 - 20명 이상의 대형 단체 룸 예약
+    if (people >= 13 && preference === 'room') {
+        console.log("대형 단체 예약 (13명 이상) 특별 처리");
+        return tryLargeGroupReassignment(people, conflictingReservations);
+    }
+    
+    // 1. 이동 가능한 고객 목록 생성
+    const movableCandidates = [];
+    
+    // 선호도 '관계없음' 고객 먼저 (가장 이동하기 쉬움)
+    const flexibleReservations = conflictingReservations.filter(r => r.preference === 'any');
+    flexibleReservations.forEach(r => {
+        if (r.tables && r.tables.some(t => t.startsWith('room-'))) {
+            movableCandidates.push({
+                reservation: r,
+                currentLocation: 'room',
+                moveToLocation: 'hall',
+                priority: 1 // 가장 높은 우선순위
+            });
+        } else if (r.tables && r.tables.some(t => t.startsWith('hall-'))) {
+            movableCandidates.push({
+                reservation: r,
+                currentLocation: 'hall',
+                moveToLocation: 'room',
+                priority: 2
+            });
+        }
+    });
+    
+    // 룸 선호지만 홀에 있는 고객 (룸으로 이동 희망)
+    const roomPreferInHall = conflictingReservations.filter(r => 
+        r.preference === 'room' && r.tables && r.tables.some(t => t.startsWith('hall-'))
+    );
+    roomPreferInHall.forEach(r => {
+        movableCandidates.push({
+            reservation: r,
+            currentLocation: 'hall',
+            moveToLocation: 'room',
+            priority: 3
+        });
+    });
+    
+    // 홀 선호지만 룸에 있는 고객 (홀로 이동 희망)
+    const hallPreferInRoom = conflictingReservations.filter(r => 
+        r.preference === 'hall' && r.tables && r.tables.some(t => t.startsWith('room-'))
+    );
+    hallPreferInRoom.forEach(r => {
+        movableCandidates.push({
+            reservation: r,
+            currentLocation: 'room',
+            moveToLocation: 'hall',
+            priority: 3
+        });
+    });
+    
+    // 우선순위 순으로 정렬
+    movableCandidates.sort((a, b) => a.priority - b.priority);
+    
+    console.log(`이동 가능 후보: ${movableCandidates.length}명`);
+    movableCandidates.forEach(c => {
+        console.log(`- ${c.reservation.name}님(${c.reservation.people}명): ${c.currentLocation} → ${c.moveToLocation}, 우선순위 ${c.priority}`);
+    });
+    
+    // 2. 연쇄 재배정 시도 - 최대 3명까지 이동 고려
+    // 후보가 1명인 경우
+    if (movableCandidates.length >= 1) {
+        for (const candidate of movableCandidates) {
+            const result = trySingleCandidateMove(candidate, people, preference, conflictingReservations);
+            if (result.length > 0) return result;
+        }
+    }
+    
+    // 후보가 2명인 경우 (모든 2명 조합 시도)
+    if (movableCandidates.length >= 2) {
+        for (let i = 0; i < movableCandidates.length - 1; i++) {
+            for (let j = i + 1; j < movableCandidates.length; j++) {
+                const result = tryTwoCandidatesMove(
+                    movableCandidates[i], 
+                    movableCandidates[j], 
+                    people, 
+                    preference, 
+                    conflictingReservations
+                );
+                if (result.length > 0) return result;
+            }
+        }
+    }
+    
+    // 후보가 3명인 경우 (모든 3명 조합 시도)
+    if (movableCandidates.length >= 3) {
+        for (let i = 0; i < movableCandidates.length - 2; i++) {
+            for (let j = i + 1; j < movableCandidates.length - 1; j++) {
+                for (let k = j + 1; k < movableCandidates.length; k++) {
+                    const result = tryThreeCandidatesMove(
+                        movableCandidates[i],
+                        movableCandidates[j],
+                        movableCandidates[k],
+                        people,
+                        preference,
+                        conflictingReservations
+                    );
+                    if (result.length > 0) return result;
                 }
-                
-                // 필요한 룸 그룹 찾기
-                let targetGroupRule;
-                
-                // 대상 테이블 찾기
-                let targetTables = [];
-                
-                for (const res of flexibleCustomers) {
-                    if (res.tables) {
-                        res.tables.forEach(t => {
-                            if (t.startsWith('room-')) targetTables.push(t);
-                        });
+            }
+        }
+    }
+    
+    console.log("다중 연쇄 재배정 실패");
+    return [];
+}
+B. tryLargeGroupReassignment 함수 교체
+javascript// 대형 단체 (13명 이상) 특별 재배정 처리
+function tryLargeGroupReassignment(people, conflictingReservations) {
+    console.log(`대형 단체 (${people}명) 특별 재배정 처리`);
+    
+    // 룸 테이블 사용 현황 파악
+    const roomTables = [];
+    for (let i = 1; i <= 9; i++) {
+        roomTables.push(`room-${i}`);
+    }
+    
+    // 현재 룸 테이블 사용 현황
+    const usedRoomTables = new Set();
+    conflictingReservations.forEach(r => {
+        if (r.tables) {
+            r.tables.forEach(t => {
+                if (t.startsWith('room-')) usedRoomTables.add(t);
+            });
+        }
+    });
+    
+    // 필요한 테이블 수 계산
+    let targetTables;
+    if (people >= 25) {
+        // 전체 룸 필요 (36명까지)
+        targetTables = roomTables;
+    } else if (people >= 17) {
+        // 룸 4-9번 필요 (24명까지)
+        targetTables = roomTables.filter(t => 
+            t.startsWith('room-4') || t.startsWith('room-5') || 
+            t.startsWith('room-6') || t.startsWith('room-7') || 
+            t.startsWith('room-8') || t.startsWith('room-9')
+        );
+    } else if (people >= 13) {
+        // 룸 4,5,7,8 또는 룸 5,6,8,9 (16명까지)
+        // 그중 더 많은 테이블이 사용 가능한 쪽 선택
+        const set1 = ['room-4', 'room-5', 'room-7', 'room-8'];
+        const set2 = ['room-5', 'room-6', 'room-8', 'room-9'];
+        
+        const set1Free = set1.filter(t => !usedRoomTables.has(t)).length;
+        const set2Free = set2.filter(t => !usedRoomTables.has(t)).length;
+        
+        targetTables = (set1Free >= set2Free) ? set1 : set2;
+    } else {
+        // 9-12명 룸 그룹 (룸 1,2,3 / 룸 4,5,6 / 룸 7,8,9)
+        const sets = [
+            ['room-1', 'room-2', 'room-3'],
+            ['room-4', 'room-5', 'room-6'],
+            ['room-7', 'room-8', 'room-9']
+        ];
+        
+        // 가장 많은 테이블이 사용 가능한 세트 선택
+        let bestSet = null;
+        let maxFree = -1;
+        
+        for (const set of sets) {
+            const freeCount = set.filter(t => !usedRoomTables.has(t)).length;
+            if (freeCount > maxFree) {
+                maxFree = freeCount;
+                bestSet = set;
+            }
+        }
+        
+        targetTables = bestSet || sets[0];
+    }
+    
+    // 현재 사용 중인 타겟 테이블
+    const usedTargetTables = targetTables.filter(t => usedRoomTables.has(t));
+    
+    // 해당 테이블 사용 중인 예약들
+    const blockingReservations = conflictingReservations.filter(r => 
+        r.tables && r.tables.some(t => usedTargetTables.includes(t))
+    ).sort((a, b) => {
+        // 선호도 기준 정렬: 'any' > 'hall' > 'room'
+        const prefOrder = { 'any': 0, 'hall': 1, 'room': 2 };
+        return prefOrder[a.preference] - prefOrder[b.preference];
+    });
+    
+    console.log(`대상 테이블 ${targetTables.length}개 중 ${usedTargetTables.length}개 사용 중, ${blockingReservations.length}명의 고객이 사용 중`);
+    
+    // 모든 고객 홀로 이동 시도
+    const result = tryMoveAllToHall(blockingReservations, people, conflictingReservations);
+    if (result.length > 0) {
+        return result;
+    }
+    
+    // 복합 이동 시도 (일부 룸으로, 일부 홀로)
+    return tryComplexMixedMove(blockingReservations, people, conflictingReservations);
+}
+C. tryComplexMixedMove 함수 교체
+javascript// 복합 이동 시도 (일부 룸으로, 일부 홀로)
+function tryComplexMixedMove(blockingReservations, people, conflictingReservations) {
+    console.log(`복합 이동 시도: 일부 룸으로, 일부 홀로`);
+    
+    // 1. 방해되는 고객들 중 '관계없음'이나 '홀 선호' 고객만 홀로 이동
+    const flexibleCustomers = blockingReservations.filter(r => 
+        r.preference === 'any' || r.preference === 'hall'
+    );
+    
+    // 2. 방해되는 나머지 고객들
+    const inflexibleCustomers = blockingReservations.filter(r => 
+        !(r.preference === 'any' || r.preference === 'hall')
+    );
+    
+    // 3. 이동할 고객과 이동하지 않을 고객으로 분리
+    const otherReservations = conflictingReservations.filter(r => 
+        !blockingReservations.some(br => br.id === r.id)
+    );
+    
+    // 유연한 고객들 홀로 이동 시도
+    if (flexibleCustomers.length > 0) {
+        console.log(`${flexibleCustomers.length}명의 유연한 고객을 홀로 이동 시도`);
+        
+        const baseUsedTables = getUsedTables([...otherReservations, ...inflexibleCustomers]);
+        const moveResults = [];
+        let currentUsedTables = new Set(baseUsedTables);
+        
+        // 모든 유연한 고객 이동 가능한지 시도
+        for (const reservation of flexibleCustomers) {
+            const hallTables = tryHallAssignment(reservation.people, currentUsedTables);
+            
+            if (hallTables.length === 0) {
+                console.log(`${reservation.name}님 홀 이동 불가`);
+                return []; // 한 명이라도 이동 불가하면 실패
+            }
+            
+            moveResults.push({
+                reservation: reservation,
+                newTables: hallTables,
+                oldTables: reservation.tables
+            });
+            
+            // 사용 테이블 업데이트
+            hallTables.forEach(t => currentUsedTables.add(t));
+        }
+        
+        // 이 시점에서 유연한 고객들은 모두 홀로 이동 가능
+        // 이제 방해되는 룸 선호 고객들을 다른 룸으로 이동 시도
+        
+        // Step 1: 유연한 고객들이 비운 룸 테이블 확인
+        const freedRoomTables = [];
+        for (const move of moveResults) {
+            if (move.oldTables) {
+                move.oldTables.forEach(t => {
+                    if (t.startsWith('room-') && !currentUsedTables.has(t)) {
+                        freedRoomTables.push(t);
                     }
-                }
-                
-                // 중복 제거
-                targetTables = [...new Set(targetTables)];
-                
-                // 적절한 룸 그룹 찾기
+                });
+            }
+        }
+        
+        // Step 2: 룸 선호 고객들 중 테이블 재배정이 필요한 고객 찾기
+        const roomPreferCustomers = inflexibleCustomers.filter(r => 
+            r.preference === 'room' && r.tables && r.tables.some(t => t.startsWith('room-'))
+        );
+        
+        console.log(`룸 선호 고객 ${roomPreferCustomers.length}명 다른 룸으로 이동 시도, 해방된 룸 테이블: ${freedRoomTables.join(',')}`);
+        
+        // 연쇄 이동을 위한 결과 저장
+        const roomMoveResults = [];
+        
+        // 룸 고객별로 다른 룸으로 이동 시도
+        for (const customer of roomPreferCustomers) {
+            // 현재 고객의 룸 테이블 확인
+            const currentRoomTables = customer.tables.filter(t => t.startsWith('room-'));
+            
+            // 이 고객에게 적합한 대체 룸 조합 찾기
+            let alternativeRoomTables = [];
+            
+            // 1. 해방된 룸 테이블로 이동 가능한지 확인
+            if (freedRoomTables.length > 0) {
+                // 단체석 규칙에서 적합한 조합 찾기
                 for (const rule of GROUP_RULES) {
                     if (rule.tables.every(t => t.startsWith('room-')) && 
-                        rule.maxPeople >= newPeople && 
-                        targetTables.every(t => rule.tables.includes(t))) {
-                        targetGroupRule = rule;
+                        rule.maxPeople >= customer.people && 
+                        rule.minPeople <= customer.people &&
+                        rule.tables.every(t => freedRoomTables.includes(t) || !currentUsedTables.has(t))) {
+                        
+                        alternativeRoomTables = rule.tables;
+                        console.log(`${customer.name}님 ${currentRoomTables.join(',')}에서 ${alternativeRoomTables.join(',')}로 이동 가능`);
                         break;
                     }
                 }
                 
-                if (targetGroupRule) {
-                    // 해당 그룹의 모든 테이블이 이동 후에 사용 가능한지 확인
-                    const allTablesAvailable = targetGroupRule.tables.every(t => 
-                        targetTables.includes(t) || !getUsedTables(conflictingReservations).has(t)
-                    );
-                    
-                    if (allTablesAvailable) {
-                        console.log(`✅ 유연한 고객 ${flexibleCustomers.length}명 홀 이동 성공, ${newPeople}명에게 ${targetGroupRule.name} 배정 가능`);
-                        
-                        // 실제 이동 실행
-                        for (const move of moveResults) {
-                            const index = reservations.findIndex(r => r.id === move.reservation.id);
-                            if (index !== -1) {
-                                reservations[index].tables = move.newTables;
-                                reservations[index].reassigned = true;
-                            }
+                // 적합한 조합이 없으면 개별 테이블 시도
+                if (alternativeRoomTables.length === 0 && customer.people <= 4) {
+                    for (const table of freedRoomTables) {
+                        if (!currentUsedTables.has(table)) {
+                            alternativeRoomTables = [table];
+                            console.log(`${customer.name}님 ${currentRoomTables.join(',')}에서 ${table}로 개별 이동 가능`);
+                            break;
                         }
-                        
-                        // 저장
-                        localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
-                        
-                        return targetGroupRule.tables;
                     }
                 }
             }
             
-            return [];
+            // 이동 가능한 경우 결과 저장
+            if (alternativeRoomTables.length > 0) {
+                roomMoveResults.push({
+                    reservation: customer,
+                    newTables: alternativeRoomTables,
+                    oldTables: customer.tables
+                });
+                
+                // 사용 테이블 업데이트
+                currentRoomTables.forEach(t => currentUsedTables.delete(t)); // 기존 테이블 제거
+                alternativeRoomTables.forEach(t => currentUsedTables.add(t)); // 새 테이블 추가
+                
+                // 해방된 테이블에서 사용한 테이블 제거
+                alternativeRoomTables.forEach(t => {
+                    const index = freedRoomTables.indexOf(t);
+                    if (index !== -1) {
+                        freedRoomTables.splice(index, 1);
+                    }
+                });
+                
+                // 기존 테이블을 해방된 테이블로 추가
+                currentRoomTables.forEach(t => {
+                    if (!freedRoomTables.includes(t)) {
+                        freedRoomTables.push(t);
+                    }
+                });
+            }
         }
+        
+        // Step 3: 모든 이동 후 대형 단체 배정 가능한지 확인
+        // 대형 단체에 필요한 룸 그룹 규칙 찾기
+        let targetGroupRule;
+        
+        if (people >= 25) {
+            targetGroupRule = GROUP_RULES.find(r => r.name === '룸 전체');
+        } else if (people >= 17) {
+            targetGroupRule = GROUP_RULES.find(r => r.name === '룸 4~9번');
+        } else if (people >= 13) {
+            targetGroupRule = GROUP_RULES.find(r => 
+                r.name === '룸 4,5,7,8번' || r.name === '룸 5,6,8,9번'
+            );
+        } else if (people >= 9) {
+            // 9-12명 그룹에 대한 룸 규칙 찾기
+            for (const rule of GROUP_RULES) {
+                if (rule.tables.every(t => t.startsWith('room-')) && 
+                    rule.maxPeople >= people && 
+                    rule.minPeople <= people) {
+                    targetGroupRule = rule;
+                    break;
+                }
+            }
+        }
+        
+        if (targetGroupRule) {
+            // 대상 그룹의 모든 테이블이 사용 가능한지 확인
+            const groupTablesAvailable = targetGroupRule.tables.every(t => !currentUsedTables.has(t));
+            
+            if (groupTablesAvailable) {
+                console.log(`✅ 복합 연쇄 이동 성공: 유연 고객 ${moveResults.length}명 홀로, 룸 선호 고객 ${roomMoveResults.length}명 다른 룸으로 이동`);
+                console.log(`✅ ${people}명 단체에게 ${targetGroupRule.name} 배정 가능`);
+                
+                // 모든 이동 실행
+                // 1. 유연한 고객 홀로 이동
+                for (const move of moveResults) {
+                    const index = reservations.findIndex(r => r.id === move.reservation.id);
+                    if (index !== -1) {
+                        reservations[index].tables = move.newTables;
+                        reservations[index].reassigned = true;
+                    }
+                }
+                
+                // 2. 룸 선호 고객 다른 룸으로 이동
+                for (const move of roomMoveResults) {
+                    const index = reservations.findIndex(r => r.id === move.reservation.id);
+                    if (index !== -1) {
+                        reservations[index].tables = move.newTables;
+                        reservations[index].reassigned = true;
+                    }
+                }
+                
+                // 저장
+                localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                
+                return targetGroupRule.tables;
+            }
+        }
+    }
+    
+    return [];
+}
 
         // 룸 선호 고객을 위한 재배정
         function tryRoomReassignment(people, conflictingReservations) {
@@ -3039,6 +3542,7 @@
         // 페이지 로드 시 초기화
         window.addEventListener('load', async function() {
             // 기본값 설정
+			
             const dateInput = document.getElementById('date');
             const statusDateInput = document.getElementById('statusDate');
             const timeFilterSelect = document.getElementById('timeFilter');
@@ -3046,6 +3550,9 @@
             if (dateInput) dateInput.value = getCurrentDate();
             if (statusDateInput) statusDateInput.value = getCurrentDate();
             if (timeFilterSelect) timeFilterSelect.value = 'all';
+			
+			// 좌석 선호도 기본값 설정
+selectPreference('any');
             
             // 소리 설정 로드
             const savedSoundSetting = localStorage.getItem('soundEnabled');
