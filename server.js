@@ -25,20 +25,52 @@ if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(DATA_FILE, JSON.stringify([], null, 2));
 }
 
-// 백업 파일명 생성
-function getBackupFileName() {
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    return `backup-${timestamp}.json`;
+// 환경변수 백업 시스템 추가
+function saveToEnvironment(data) {
+    try {
+        if (data && data.length > 0) {
+            const compressed = JSON.stringify(data);
+            // 환경변수는 Railway Variables에서 수동으로 설정해야 함
+            console.log(`💾 환경변수 백업 데이터 (복사해서 Railway Variables에 BACKUP_DATA로 저장하세요):`);
+            console.log(`---START---`);
+            console.log(compressed);
+            console.log(`---END---`);
+        }
+    } catch (error) {
+        console.error('환경변수 백업 실패:', error);
+    }
+}
+
+// 환경변수에서 복원
+function restoreFromEnvironment() {
+    try {
+        const backupData = process.env.BACKUP_DATA;
+        if (backupData) {
+            const parsed = JSON.parse(backupData);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                console.log(`🔄 환경변수에서 복원: ${parsed.length}건`);
+                return parsed;
+            }
+        }
+    } catch (error) {
+        console.error('환경변수 복원 실패:', error);
+    }
+    return null;
 }
 
 // 간단한 백업 함수 (데이터 쓸 때마다 호출)
 function createBackup(data) {
     try {
         if (data && data.length > 0) {
-            const backupFile = path.join(__dirname, 'data', getBackupFileName());
+            // 1. 파일 백업 (임시)
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const backupFile = path.join(__dirname, 'data', `backup-${timestamp}.json`);
             fs.writeFileSync(backupFile, JSON.stringify(data, null, 2));
-            console.log(`💾 백업 생성: ${path.basename(backupFile)} (${data.length}건)`);
+            console.log(`💾 파일 백업 생성: backup-${timestamp}.json (${data.length}건)`);
+            
+            // 2. 환경변수 백업 (영구)
+            saveToEnvironment(data);
         }
     } catch (error) {
         console.error('백업 생성 실패:', error);
@@ -57,20 +89,30 @@ function restoreFromBackup() {
         }
 
         if (currentData.length === 0) {
-            const dataDir = path.dirname(DATA_FILE);
-            const files = fs.readdirSync(dataDir);
-            const backupFiles = files
-                .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
-                .sort()
-                .reverse(); // 최신 순
+            // 1. 먼저 환경변수에서 복원 시도
+            const envData = restoreFromEnvironment();
+            if (envData) {
+                fs.writeFileSync(DATA_FILE, JSON.stringify(envData, null, 2));
+                return;
+            }
 
-            if (backupFiles.length > 0) {
-                const latestBackup = path.join(dataDir, backupFiles[0]);
-                const backupData = JSON.parse(fs.readFileSync(latestBackup, 'utf8'));
-                
-                if (backupData.length > 0) {
-                    fs.writeFileSync(DATA_FILE, JSON.stringify(backupData, null, 2));
-                    console.log(`🔄 백업에서 복원: ${backupFiles[0]} (${backupData.length}건)`);
+            // 2. 파일 백업에서 복원 시도
+            const dataDir = path.dirname(DATA_FILE);
+            if (fs.existsSync(dataDir)) {
+                const files = fs.readdirSync(dataDir);
+                const backupFiles = files
+                    .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+                    .sort()
+                    .reverse(); // 최신 순
+
+                if (backupFiles.length > 0) {
+                    const latestBackup = path.join(dataDir, backupFiles[0]);
+                    const backupData = JSON.parse(fs.readFileSync(latestBackup, 'utf8'));
+                    
+                    if (backupData.length > 0) {
+                        fs.writeFileSync(DATA_FILE, JSON.stringify(backupData, null, 2));
+                        console.log(`🔄 파일 백업에서 복원: ${backupFiles[0]} (${backupData.length}건)`);
+                    }
                 }
             }
         }
@@ -163,11 +205,15 @@ app.post('/api/reservations', (req, res) => {
         
         if (writeReservations(reservations)) {
             console.log(`새 예약 추가: ${newReservation.name}님 (${newReservation.people}명) - ${newReservation.date} ${newReservation.time}`);
-            res.json({ 
-                success: true, 
-                message: '예약이 성공적으로 등록되었습니다.',
-                data: newReservation
-            });
+            
+            // 백업 완료 후 응답 (약간의 지연)
+            setTimeout(() => {
+                res.json({ 
+                    success: true, 
+                    message: '예약이 성공적으로 등록되었습니다.',
+                    data: newReservation
+                });
+            }, 200);
         } else {
             res.status(500).json({ 
                 success: false, 
