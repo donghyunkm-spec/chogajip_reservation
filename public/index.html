@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초가짚 예약 시스템</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">🔗 연결 확인중...</div>
+    <div class="sound-control">
+        <button class="sound-btn" id="soundToggle" onclick="toggleSound()">🔊 알림음</button>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🏠 초가짚 예약 시스템</h1>
+            <p>간편하고 스마트한 예약 관리</p>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>데이터를 처리하는 중...</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showReservationTab()">예약 등록</button>
+            <button class="tab" onclick="showStatusTab()">예약 현황</button>
+        </div>
+
+        <!-- 예약 등록 탭 -->
+        <div id="reservation-content" class="tab-content active">
+            <div class="form-container">
+                <h2 style="margin-bottom: 20px; color: #333;">새 예약 등록</h2>
+                <div id="alert-container"></div>
+                <form onsubmit="handleReservation(event)">
+                    <div class="form-group">
+                        <label for="people">인원수 <span class="required">*</span></label>
+                        <div class="number-input">
+                            <button type="button" onclick="decrementValue('people')" class="number-btn">-</button>
+                            <input type="number" id="people" min="1" max="36" required placeholder="예: 4" value="4" inputmode="numeric">
+                            <button type="button" onclick="incrementValue('people')" class="number-btn">+</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="preference">좌석 선호도 <span class="required">*</span></label>
+                        <div class="preference-selector">
+                            <div class="preference-option selected" onclick="selectPreference('any')" id="pref-any">
+                                <span class="emoji">⭐</span>관계없음
+                            </div>
+                            <div class="preference-option" onclick="selectPreference('room')" id="pref-room">
+                                <span class="emoji">🚪</span>룸 선호
+                            </div>
+                            <div class="preference-option" onclick="selectPreference('hall')" id="pref-hall">
+                                <span class="emoji">🏠</span>홀 선호
+                            </div>
+                        </div>
+                        <input type="hidden" id="preference" value="any" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="date">예약 날짜 <span class="required">*</span></label>
+                        <input type="date" id="date" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="time">예약 시간 <span class="required">*</span></label>
+                        <select id="time" required>
+                            <option value="">시간을 선택해주세요</option>
+                            <option value="14:30">오후 2:30</option>
+                            <option value="15:00">오후 3:00</option>
+                            <option value="15:30">오후 3:30</option>
+                            <option value="16:00">오후 4:00</option>
+                            <option value="16:30">오후 4:30</option>
+                            <option value="17:00">오후 5:00</option>
+                            <option value="17:30">오후 5:30</option>
+                            <option value="18:00">오후 6:00</option>
+                            <option value="18:30">오후 6:30</option>
+                            <option value="19:00">오후 7:00</option>
+                            <option value="19:30">오후 7:30</option>
+                            <option value="20:00">오후 8:00</option>
+                            <option value="20:30">오후 8:30</option>
+                            <option value="21:00">오후 9:00</option>
+                            <option value="21:30">오후 9:30</option>
+                            <option value="22:00">오후 10:00</option>
+                            <option value="22:30">오후 10:30</option>
+                            <option value="23:00">오후 11:00</option>
+                            <option value="23:30">오후 11:30</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="name">성함 <span class="required">*</span></label>
+                        <input type="text" id="name" required placeholder="예약자 성함을 입력해주세요" inputmode="text">
+                    </div>
+                    
+                    <button type="submit" class="btn pulse-btn" id="submitBtn">예약 등록</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 예약 현황 탭 -->
+        <div id="status-content" class="tab-content">
+            <div class="status-container">
+                <h2 style="margin-bottom: 20px; color: #333;">예약 현황</h2>
+                
+                <div class="form-group">
+                    <label>조회 날짜</label>
+                    <input type="date" id="statusDate" onchange="updateStatus()">
+                </div>
+                
+                <div class="form-group">
+                    <label>시간대 선택</label>
+                    <select id="timeFilter" onchange="updateStatus()">
+                        <option value="all">전체 시간</option>
+                        <option value="14:30">오후 2:30</option>
+                        <option value="15:00">오후 3:00</option>
+                        <option value="15:30">오후 3:30</option>
+                        <option value="16:00">오후 4:00</option>
+                        <option value="16:30">오후 4:30</option>
+                        <option value="17:00">오후 5:00</option>
+                        <option value="17:30">오후 5:30</option>
+                        <option value="18:00">오후 6:00</option>
+                        <option value="18:30">오후 6:30</option>
+                        <option value="19:00">오후 7:00</option>
+                        <option value="19:30">오후 7:30</option>
+                        <option value="20:00">오후 8:00</option>
+                        <option value="20:30">오후 8:30</option>
+                        <option value="21:00">오후 9:00</option>
+                        <option value="21:30">오후 9:30</option>
+                        <option value="22:00">오후 10:00</option>
+                        <option value="22:30">오후 10:30</option>
+                        <option value="23:00">오후 11:00</option>
+                        <option value="23:30">오후 11:30</option>
+                    </select>
+                </div>
+                
+                <div class="table-layout">
+                    <div class="hall-section">
+                        <div class="section-title">홀 (Hall)</div>
+                        <div class="hall-grid" id="hall-tables"></div>
+                    </div>
+                    
+                    <div class="room-section">
+                        <div class="section-title">룸 (Room)</div>
+                        <div class="room-grid" id="room-tables"></div>
+                    </div>
+                </div>
+                
+                <div class="status-info">
+                    <div class="status-item">
+                        <div class="status-dot available"></div>
+                        <span>예약 가능</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-dot reserved"></div>
+                        <span>예약 완료</span>
+                    </div>
+                </div>
+                
+                <div class="group-info">
+                    <h3>단체 예약 가능 현황</h3>
+                    <div class="group-status" id="group-status"></div>
+                </div>
+                
+                <div class="reservation-list">
+                    <h3>오늘의 예약 
+                        <button class="download-btn" onclick="downloadReservations()">CSV 다운로드</button>
+                        <button class="download-btn" onclick="refreshData()">새로고침</button>
+                    </h3>
+                    <div id="reservations"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="table-algorithm.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

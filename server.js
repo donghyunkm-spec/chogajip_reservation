@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 // 미들웨어
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.'));  // public 대신 현재 디렉토리 사용
+app.use(express.static('public'));  // public  사용
 
 // Railway Volume 경로 사용 (영구 저장)
 const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
