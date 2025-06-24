@@ -1,66 +1,74 @@
-// server.js - Railway용 Node.js 서버
+// server.js - Railway PostgreSQL 연동
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
+const { Pool } = require('pg');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// PostgreSQL 연결 설정
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
 // 미들웨어
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('.'));
 
-// 데이터 파일 경로
-const DATA_FILE = path.join(__dirname, 'data', 'reservations.json');
-
-// 데이터 디렉토리 생성
-if (!fs.existsSync(path.dirname(DATA_FILE))) {
-    fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-}
-
-// 초기 데이터 파일 생성
-if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify([], null, 2));
-}
-
-// 데이터 읽기 함수
-function readReservations() {
+// 테이블 생성
+async function initDatabase() {
     try {
-        const data = fs.readFileSync(DATA_FILE, 'utf8');
-        return JSON.parse(data);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS reservations (
+                id BIGINT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                phone VARCHAR(20),
+                company VARCHAR(100),
+                reservation_method VARCHAR(20),
+                people INTEGER NOT NULL,
+                preference VARCHAR(20) NOT NULL,
+                date DATE NOT NULL,
+                time TIME NOT NULL,
+                tables TEXT,
+                status VARCHAR(20) DEFAULT 'active',
+                cancel_reason TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('✅ 데이터베이스 테이블 초기화 완료');
     } catch (error) {
-        console.error('데이터 읽기 오류:', error);
-        return [];
+        console.error('❌ 데이터베이스 초기화 실패:', error);
     }
 }
 
-// 데이터 쓰기 함수
-function writeReservations(reservations) {
+// 예약 조회
+app.get('/api/reservations', async (req, res) => {
     try {
-        fs.writeFileSync(DATA_FILE, JSON.stringify(reservations, null, 2));
-        return true;
-    } catch (error) {
-        console.error('데이터 쓰기 오류:', error);
-        return false;
-    }
-}
-
-// 메인 페이지 제공
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// 서버 상태 확인
-app.get('/api/ping', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// 예약 목록 조회
-app.get('/api/reservations', (req, res) => {
-    try {
-        const reservations = readReservations();
+        const result = await pool.query(
+            'SELECT * FROM reservations ORDER BY date DESC, time DESC'
+        );
+        
+        const reservations = result.rows.map(row => ({
+            id: parseInt(row.id),
+            name: row.name,
+            phone: row.phone,
+            company: row.company,
+            reservationMethod: row.reservation_method,
+            people: row.people,
+            preference: row.preference,
+            date: row.date.toISOString().split('T')[0],
+            time: row.time.slice(0, 5),
+            tables: row.tables ? row.tables.split(',') : [],
+            status: row.status,
+            cancelReason: row.cancel_reason,
+            timestamp: row.timestamp.toISOString(),
+            updatedAt: row.updated_at?.toISOString()
+        }));
+        
         res.json({ 
             success: true, 
             data: reservations,
@@ -77,228 +85,133 @@ app.get('/api/reservations', (req, res) => {
 });
 
 // 새 예약 추가
-app.post('/api/reservations', (req, res) => {
+app.post('/api/reservations', async (req, res) => {
     try {
-        const newReservation = req.body;
+        const {
+            id, name, phone, company, reservationMethod,
+            people, preference, date, time, tables, status
+        } = req.body;
         
-        // 데이터 검증
-        if (!newReservation.name || !newReservation.people || !newReservation.date || !newReservation.time) {
+        if (!name || !people || !date || !time) {
             return res.status(400).json({ 
                 success: false, 
                 error: '필수 정보가 누락되었습니다.' 
             });
         }
 
-        const reservations = readReservations();
+        const reservationId = id || Date.now();
+        const tablesStr = tables ? tables.join(',') : '';
         
-        // ID 중복 확인 및 생성
-        if (!newReservation.id) {
-            newReservation.id = Date.now();
-        }
+        await pool.query(`
+            INSERT INTO reservations 
+            (id, name, phone, company, reservation_method, people, preference, date, time, tables, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `, [
+            reservationId, name, phone || '', company || '', reservationMethod || '',
+            people, preference, date, time, tablesStr, status || 'active'
+        ]);
         
-        while (reservations.find(r => r.id === newReservation.id)) {
-            newReservation.id = Date.now() + Math.floor(Math.random() * 1000);
-        }
-
-        // 예약 추가
-        reservations.push(newReservation);
-        
-        if (writeReservations(reservations)) {
-            console.log(`새 예약 추가: ${newReservation.name}님 (${newReservation.people}명) - ${newReservation.date} ${newReservation.time}`);
-            res.json({ 
-                success: true, 
-                message: '예약이 성공적으로 등록되었습니다.',
-                data: newReservation
-            });
-        } else {
-            res.status(500).json({ 
-                success: false, 
-                error: '예약 저장에 실패했습니다.' 
-            });
-        }
+        console.log(`새 예약 추가: ${name}님 (${people}명) - ${date} ${time}`);
+        res.json({ 
+            success: true, 
+            message: '예약이 성공적으로 등록되었습니다.',
+            data: { id: reservationId, name, people, date, time }
+        });
     } catch (error) {
         console.error('예약 추가 오류:', error);
         res.status(500).json({ 
             success: false, 
-            error: '서버 오류가 발생했습니다.' 
+            error: '예약 저장에 실패했습니다.' 
         });
     }
 });
 
-// 예약 수정 (취소 등)
-app.put('/api/reservations/:id', (req, res) => {
+// 예약 수정
+app.put('/api/reservations/:id', async (req, res) => {
     try {
-        const reservationId = parseInt(req.params.id);
+        const reservationId = req.params.id;
         const updates = req.body;
         
-        const reservations = readReservations();
-        const reservationIndex = reservations.findIndex(r => r.id === reservationId);
+        const setClause = [];
+        const values = [];
+        let valueIndex = 1;
         
-        if (reservationIndex === -1) {
+        Object.entries(updates).forEach(([key, value]) => {
+            if (key === 'tables') {
+                setClause.push(`tables = $${valueIndex}`);
+                values.push(Array.isArray(value) ? value.join(',') : value);
+            } else if (key === 'reservationMethod') {
+                setClause.push(`reservation_method = $${valueIndex}`);
+                values.push(value);
+            } else if (key === 'cancelReason') {
+                setClause.push(`cancel_reason = $${valueIndex}`);
+                values.push(value);
+            } else {
+                setClause.push(`${key} = $${valueIndex}`);
+                values.push(value);
+            }
+            valueIndex++;
+        });
+        
+        setClause.push(`updated_at = CURRENT_TIMESTAMP`);
+        values.push(reservationId);
+        
+        const query = `
+            UPDATE reservations 
+            SET ${setClause.join(', ')}
+            WHERE id = $${valueIndex}
+        `;
+        
+        const result = await pool.query(query, values);
+        
+        if (result.rowCount === 0) {
             return res.status(404).json({ 
                 success: false, 
                 error: '예약을 찾을 수 없습니다.' 
             });
         }
-
-        // 예약 정보 업데이트
-        reservations[reservationIndex] = { 
-            ...reservations[reservationIndex], 
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
         
-        if (writeReservations(reservations)) {
-            console.log(`예약 수정: ID ${reservationId} - ${JSON.stringify(updates)}`);
-            res.json({ 
-                success: true, 
-                message: '예약이 성공적으로 수정되었습니다.',
-                data: reservations[reservationIndex]
-            });
-        } else {
-            res.status(500).json({ 
-                success: false, 
-                error: '예약 수정에 실패했습니다.' 
-            });
-        }
+        console.log(`예약 수정: ID ${reservationId}`);
+        res.json({ 
+            success: true, 
+            message: '예약이 성공적으로 수정되었습니다.'
+        });
     } catch (error) {
         console.error('예약 수정 오류:', error);
         res.status(500).json({ 
             success: false, 
-            error: '서버 오류가 발생했습니다.' 
+            error: '예약 수정에 실패했습니다.' 
         });
     }
 });
 
-// 예약 삭제
-app.delete('/api/reservations/:id', (req, res) => {
-    try {
-        const reservationId = parseInt(req.params.id);
-        
-        const reservations = readReservations();
-        const reservationIndex = reservations.findIndex(r => r.id === reservationId);
-        
-        if (reservationIndex === -1) {
-            return res.status(404).json({ 
-                success: false, 
-                error: '예약을 찾을 수 없습니다.' 
-            });
-        }
-
-        const deletedReservation = reservations.splice(reservationIndex, 1)[0];
-        
-        if (writeReservations(reservations)) {
-            console.log(`예약 삭제: ${deletedReservation.name}님 - ID ${reservationId}`);
-            res.json({ 
-                success: true, 
-                message: '예약이 성공적으로 삭제되었습니다.',
-                data: deletedReservation
-            });
-        } else {
-            res.status(500).json({ 
-                success: false, 
-                error: '예약 삭제에 실패했습니다.' 
-            });
-        }
-    } catch (error) {
-        console.error('예약 삭제 오류:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: '서버 오류가 발생했습니다.' 
-        });
-    }
+// 메인 페이지
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 데이터 백업 다운로드
-app.get('/api/backup', (req, res) => {
-    try {
-        const reservations = readReservations();
-        const backup = {
-            timestamp: new Date().toISOString(),
-            reservations: reservations
-        };
-        
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Content-Disposition', `attachment; filename="thatch_house_backup_${new Date().toISOString().split('T')[0]}.json"`);
-        res.json(backup);
-    } catch (error) {
-        console.error('백업 다운로드 오류:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: '백업 생성에 실패했습니다.' 
-        });
-    }
-});
-
-// 데이터 복원
-app.post('/api/restore', (req, res) => {
-    try {
-        const { reservations } = req.body;
-        
-        if (!Array.isArray(reservations)) {
-            return res.status(400).json({ 
-                success: false, 
-                error: '올바른 백업 데이터가 아닙니다.' 
-            });
-        }
-
-        if (writeReservations(reservations)) {
-            console.log(`데이터 복원 완료: ${reservations.length}건의 예약`);
-            res.json({ 
-                success: true, 
-                message: `${reservations.length}건의 예약이 복원되었습니다.`,
-                count: reservations.length
-            });
-        } else {
-            res.status(500).json({ 
-                success: false, 
-                error: '데이터 복원에 실패했습니다.' 
-            });
-        }
-    } catch (error) {
-        console.error('데이터 복원 오류:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: '서버 오류가 발생했습니다.' 
-        });
-    }
-});
-
-// 404 에러 핸들링
-app.use('*', (req, res) => {
-    res.status(404).json({ 
-        success: false, 
-        error: 'API 엔드포인트를 찾을 수 없습니다.' 
-    });
-});
-
-// 에러 핸들링 미들웨어
-app.use((err, req, res, next) => {
-    console.error('서버 에러:', err);
-    res.status(500).json({
-        success: false,
-        error: '서버 내부 오류가 발생했습니다.'
-    });
+// 서버 상태 확인
+app.get('/api/ping', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // 서버 시작
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🏠 초가집 예약 시스템 서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log(`📁 데이터 파일: ${DATA_FILE}`);
-    console.log(`🌐 로컬 접속: http://localhost:${PORT}`);
+    console.log(`🌐 접속: http://localhost:${PORT}`);
     
-    // 시작시 데이터 상태 확인
-    const reservations = readReservations();
-    console.log(`📊 현재 저장된 예약: ${reservations.length}건`);
+    // 데이터베이스 초기화
+    await initDatabase();
 });
 
-// 종료 시그널 처리
 process.on('SIGTERM', () => {
     console.log('🛑 서버 종료 신호를 받았습니다.');
+    pool.end();
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
     console.log('🛑 서버를 종료합니다.');
+    pool.end();
     process.exit(0);
 });
