@@ -136,10 +136,6 @@ function readReservations() {
 function writeReservations(reservations) {
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(reservations, null, 2));
-        
-        // 백업 생성 (간단하게)
-        createBackup(reservations);
-        
         return true;
     } catch (error) {
         console.error('데이터 쓰기 오류:', error);
@@ -154,7 +150,50 @@ app.get('/', (req, res) => {
 
 // 서버 상태 확인
 app.get('/api/ping', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    const reservations = readReservations();
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        reservationCount: reservations.length,
+        hasEnvBackup: !!process.env.BACKUP_DATA
+    });
+});
+
+// 백업 상태 확인 API 추가
+app.get('/api/backup/status', (req, res) => {
+    try {
+        const reservations = readReservations();
+        const envBackup = process.env.BACKUP_DATA;
+        
+        let envCount = 0;
+        try {
+            if (envBackup) {
+                const parsed = JSON.parse(envBackup);
+                envCount = Array.isArray(parsed) ? parsed.length : 0;
+            }
+        } catch (e) {
+            envCount = 0;
+        }
+        
+        res.json({
+            success: true,
+            current: {
+                count: reservations.length,
+                data: reservations.slice(-3) // 최근 3개만
+            },
+            environment: {
+                count: envCount,
+                hasBackup: !!envBackup
+            },
+            message: `현재 ${reservations.length}건, 환경변수 백업 ${envCount}건`
+        });
+    } catch (error) {
+        console.error('백업 상태 확인 오류:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: '백업 상태 확인 실패' 
+        });
+    }
 });
 
 // 예약 목록 조회
@@ -203,23 +242,23 @@ app.post('/api/reservations', (req, res) => {
         // 예약 추가
         reservations.push(newReservation);
         
-        if (writeReservations(reservations)) {
-            console.log(`새 예약 추가: ${newReservation.name}님 (${newReservation.people}명) - ${newReservation.date} ${newReservation.time}`);
-            
-            // 백업 완료 후 응답 (약간의 지연)
-            setTimeout(() => {
-                res.json({ 
-                    success: true, 
-                    message: '예약이 성공적으로 등록되었습니다.',
-                    data: newReservation
-                });
-            }, 200);
-        } else {
-            res.status(500).json({ 
-                success: false, 
-                error: '예약 저장에 실패했습니다.' 
-            });
-        }
+        // 먼저 파일 저장
+        fs.writeFileSync(DATA_FILE, JSON.stringify(reservations, null, 2));
+        
+        // 성공 응답 즉시 전송
+        res.json({ 
+            success: true, 
+            message: '예약이 성공적으로 등록되었습니다.',
+            data: newReservation
+        });
+        
+        // 백업은 응답 후에 비동기로 처리
+        setImmediate(() => {
+            createBackup(reservations);
+        });
+        
+        console.log(`새 예약 추가: ${newReservation.name}님 (${newReservation.people}명) - ${newReservation.date} ${newReservation.time}`);
+        
     } catch (error) {
         console.error('예약 추가 오류:', error);
         res.status(500).json({ 
