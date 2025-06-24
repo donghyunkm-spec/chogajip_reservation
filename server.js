@@ -44,18 +44,31 @@ function saveToEnvironment(data) {
 // 환경변수에서 복원
 function restoreFromEnvironment() {
     try {
+        console.log(`🔍 환경변수 복원 시도 중...`);
         const backupData = process.env.BACKUP_DATA;
-        if (backupData) {
-            const parsed = JSON.parse(backupData);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                console.log(`🔄 환경변수에서 복원: ${parsed.length}건`);
-                return parsed;
-            }
+        
+        if (!backupData) {
+            console.log(`❌ BACKUP_DATA 환경변수가 없음`);
+            return null;
+        }
+        
+        console.log(`📏 환경변수 데이터 길이: ${backupData.length} 문자`);
+        console.log(`📄 데이터 앞부분: ${backupData.substring(0, 200)}...`);
+        
+        const parsed = JSON.parse(backupData);
+        
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            console.log(`✅ 환경변수에서 파싱 성공: ${parsed.length}건`);
+            return parsed;
+        } else {
+            console.log(`❌ 환경변수 데이터가 올바르지 않음: ${typeof parsed}`);
+            return null;
         }
     } catch (error) {
-        console.error('환경변수 복원 실패:', error);
+        console.error('❌ 환경변수 복원 실패:', error.message);
+        console.error('환경변수 내용:', process.env.BACKUP_DATA?.substring(0, 500));
+        return null;
     }
-    return null;
 }
 
 // 간단한 백업 함수 (데이터 쓸 때마다 호출)
@@ -80,23 +93,36 @@ function createBackup(data) {
 // 백업에서 복원 (서버 시작시만)
 function restoreFromBackup() {
     try {
-        // 메인 파일이 비어있거나 없으면 백업에서 복원
+        console.log(`🔄 복원 프로세스 시작...`);
+        
+        // 현재 데이터 확인
         let currentData = [];
         try {
-            currentData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+            if (fs.existsSync(DATA_FILE)) {
+                const fileContent = fs.readFileSync(DATA_FILE, 'utf8');
+                currentData = JSON.parse(fileContent);
+                console.log(`📄 현재 파일 데이터: ${currentData.length}건`);
+            } else {
+                console.log(`📄 데이터 파일이 존재하지 않음`);
+            }
         } catch (e) {
+            console.log(`📄 데이터 파일 읽기 실패:`, e.message);
             currentData = [];
         }
 
         if (currentData.length === 0) {
+            console.log(`🔄 데이터가 비어있음 - 백업에서 복원 시도`);
+            
             // 1. 먼저 환경변수에서 복원 시도
             const envData = restoreFromEnvironment();
             if (envData) {
                 fs.writeFileSync(DATA_FILE, JSON.stringify(envData, null, 2));
+                console.log(`✅ 환경변수에서 복원 완료: ${envData.length}건`);
                 return;
             }
 
             // 2. 파일 백업에서 복원 시도
+            console.log(`🔄 파일 백업에서 복원 시도`);
             const dataDir = path.dirname(DATA_FILE);
             if (fs.existsSync(dataDir)) {
                 const files = fs.readdirSync(dataDir);
@@ -105,19 +131,26 @@ function restoreFromBackup() {
                     .sort()
                     .reverse(); // 최신 순
 
+                console.log(`📂 백업 파일 ${backupFiles.length}개 발견: ${backupFiles.slice(0, 3).join(', ')}`);
+
                 if (backupFiles.length > 0) {
                     const latestBackup = path.join(dataDir, backupFiles[0]);
                     const backupData = JSON.parse(fs.readFileSync(latestBackup, 'utf8'));
                     
                     if (backupData.length > 0) {
                         fs.writeFileSync(DATA_FILE, JSON.stringify(backupData, null, 2));
-                        console.log(`🔄 파일 백업에서 복원: ${backupFiles[0]} (${backupData.length}건)`);
+                        console.log(`✅ 파일 백업에서 복원: ${backupFiles[0]} (${backupData.length}건)`);
+                        return;
                     }
                 }
             }
+            
+            console.log(`❌ 복원할 백업 데이터를 찾지 못함`);
+        } else {
+            console.log(`✅ 기존 데이터 존재 - 복원 불필요`);
         }
     } catch (error) {
-        console.error('백업 복원 실패:', error);
+        console.error('❌ 백업 복원 실패:', error);
     }
 }
 
@@ -430,12 +463,26 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📁 데이터 파일: ${DATA_FILE}`);
     console.log(`🌐 로컬 접속: http://localhost:${PORT}`);
     
+    // 환경변수 확인
+    console.log(`🔍 환경변수 BACKUP_DATA 존재: ${!!process.env.BACKUP_DATA}`);
+    if (process.env.BACKUP_DATA) {
+        console.log(`📏 환경변수 데이터 길이: ${process.env.BACKUP_DATA.length} 문자`);
+        console.log(`📄 환경변수 데이터 앞부분: ${process.env.BACKUP_DATA.substring(0, 100)}...`);
+    }
+    
     // 시작시 백업에서 복원 시도
     restoreFromBackup();
     
     // 시작시 데이터 상태 확인
     const reservations = readReservations();
     console.log(`📊 현재 저장된 예약: ${reservations.length}건`);
+    
+    if (reservations.length > 0) {
+        console.log(`📋 예약 목록:`);
+        reservations.forEach((r, i) => {
+            console.log(`  ${i+1}. ${r.name}님 ${r.people}명 ${r.date} ${r.time}`);
+        });
+    }
 });
 
 // 종료 시그널 처리
