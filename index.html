@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>초가집 예약 시스템</title>
+    <title>초가짚 예약 시스템</title>
     <style>
         * {
             margin: 0;
@@ -581,6 +581,12 @@
             border: 1px solid #bee5eb;
         }
 
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
         .connection-status {
             position: fixed;
             top: 10px;
@@ -603,6 +609,11 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        .alternative-highlight {
+            background: linear-gradient(45deg, #fff3cd, #ffeaa7);
+            border-left: 4px solid #fdcb6e;
+        }
     </style>
 </head>
 <body>
@@ -613,7 +624,7 @@
 
     <div class="container">
         <div class="header">
-            <h1>🏠 초가집 예약 시스템</h1>
+            <h1>🏠 초가짚 예약 시스템</h1>
             <p>간편하고 스마트한 예약 관리</p>
         </div>
 
@@ -784,13 +795,15 @@
             }
         };
 
-        // 단체석 규칙
+        // 단체석 규칙 (더 정확한 조합 추가)
         const GROUP_RULES = [
             { name: '홀 1,2번', tables: ['hall-1', 'hall-2'], maxPeople: 9, minPeople: 6 },
             { name: '홀 4,5번', tables: ['hall-4', 'hall-5'], maxPeople: 8, minPeople: 5 },
             { name: '홀 6,7번', tables: ['hall-6', 'hall-7'], maxPeople: 8, minPeople: 5 },
             { name: '홀 4,5,6,7번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 16, minPeople: 13 },
-            { name: '홀 3,4,5,6,7,8번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 24, minPeople: 17 },
+            { name: '홀 3,4,5,6,7번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 20, minPeople: 17 },
+            { name: '홀 4,5,6,7,8번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 20, minPeople: 17 },
+            { name: '홀 3,4,5,6,7,8번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 24, minPeople: 21 },
             { name: '룸 1,2번', tables: ['room-1', 'room-2'], maxPeople: 8, minPeople: 5 },
             { name: '룸 2,3번', tables: ['room-2', 'room-3'], maxPeople: 8, minPeople: 5 },
             { name: '룸 4,5번', tables: ['room-4', 'room-5'], maxPeople: 8, minPeople: 5 },
@@ -1157,7 +1170,8 @@
                     const dateInput = document.getElementById('date');
                     if (dateInput) dateInput.value = getCurrentDate();
                 } else {
-                    showAlert(`죄송합니다. ${people}명 예약이 어려운 상황입니다. 다른 시간대를 선택해주세요.`, 'error');
+                    // 예약 불가 시 대안 제시
+                    showReservationFailureModal(people, preference, date, time, name);
                 }
             } catch (error) {
                 showAlert('예약 등록 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
@@ -1168,6 +1182,189 @@
                     submitBtn.textContent = '예약 등록';
                 }
             }
+        }
+
+        // 예약 실패 시 대안 제시 모달
+        function showReservationFailureModal(people, preference, date, time, name) {
+            const activeReservations = reservations.filter(r => r.status === 'active');
+            const conflictingReservations = activeReservations.filter(r => 
+                r.date === date && isTimeOverlap(r.time, time)
+            );
+            const usedTables = getUsedTables(conflictingReservations);
+            
+            // 대안 가능성 체크
+            let alternatives = [];
+            
+            if (preference === 'room') {
+                // 룸 선호인데 룸이 불가능한 경우
+                const hallPossible = tryHallAssignment(people, usedTables);
+                if (hallPossible.length > 0) {
+                    alternatives.push({
+                        type: '홀',
+                        tables: hallPossible,
+                        message: `룸이 만석이지만 홀에 자리가 있습니다.\n홀 ${hallPossible.join(', ')}번 테이블 이용 가능합니다.`
+                    });
+                }
+            } else if (preference === 'hall') {
+                // 홀 선호인데 홀이 불가능한 경우
+                const roomPossible = tryRoomAssignment(people, usedTables);
+                if (roomPossible.length > 0) {
+                    alternatives.push({
+                        type: '룸',
+                        tables: roomPossible,
+                        message: `홀이 만석이지만 룸에 자리가 있습니다.\n룸 ${roomPossible.join(', ')}번 테이블 이용 가능합니다.`
+                    });
+                }
+            }
+            
+            // 모달 생성
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 3000;
+            `;
+            
+            let modalContent = `
+                <div style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                    <h3 style="color: #f44336; margin-bottom: 20px;">⚠️ 예약이 어려운 상황입니다</h3>
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                        <strong>${name}님 ${people}명</strong><br>
+                        <span style="color: #856404;">📅 ${date} ${time} (${getPreferenceText(preference)})</span>
+                    </div>
+            `;
+            
+            if (alternatives.length > 0) {
+                modalContent += `
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="color: #28a745; margin-bottom: 15px;">💡 대안이 있습니다!</h4>
+                `;
+                
+                alternatives.forEach((alt, index) => {
+                    modalContent += `
+                        <div style="background: #d4edda; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #28a745;">
+                            <p style="margin: 0; color: #155724; line-height: 1.5;">${alt.message}</p>
+                            <button onclick="acceptAlternative('${alt.type}', '${alt.tables.join(',')}', '${name}', ${people}, '${preference}', '${date}', '${time}')" 
+                                    style="background: #28a745; color: white; padding: 8px 15px; border: none; border-radius: 5px; margin-top: 10px; cursor: pointer; font-weight: bold;">
+                                ${alt.type} 예약하기
+                            </button>
+                        </div>
+                    `;
+                });
+                
+                modalContent += `</div>`;
+            } else {
+                modalContent += `
+                    <div style="background: #f8d7da; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #dc3545;">
+                        <p style="margin: 0; color: #721c24;">현재 시간대에는 ${people}명이 앉을 수 있는 자리가 없습니다.</p>
+                    </div>
+                `;
+            }
+            
+            modalContent += `
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button onclick="checkCurrentStatus('${date}', '${time}')" 
+                                style="background: #007bff; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                            📊 현재 현황 확인
+                        </button>
+                        <button onclick="this.closest('.failure-modal').remove()" 
+                                style="background: #6c757d; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            modal.innerHTML = modalContent;
+            modal.className = 'failure-modal';
+            document.body.appendChild(modal);
+            
+            // 모달 바깥 클릭 시 닫기
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        // 대안 예약 수락
+        async function acceptAlternative(altType, tablesStr, name, people, originalPreference, date, time) {
+            try {
+                const tables = tablesStr.split(',');
+                const newReservation = {
+                    id: Date.now() + Math.floor(Math.random() * 1000),
+                    name: name,
+                    people: people,
+                    preference: originalPreference,
+                    date: date,
+                    time: time,
+                    tables: tables,
+                    timestamp: new Date().toISOString(),
+                    status: 'active',
+                    alternative: true, // 대안 예약 표시
+                    alternativeType: altType
+                };
+                
+                await saveReservation(newReservation);
+                
+                // 모달 닫기
+                document.querySelector('.failure-modal').remove();
+                
+                const successMessage = `대안 예약이 완료되었습니다!\n${name}님 - ${people}명 - ${time}\n${altType} ${tables.join(', ')}번 테이블`;
+                showAlert(successMessage, 'success');
+                showNotification(`✅ 대안 예약: ${name}님 ${altType} ${tables.join(', ')}`);
+                
+                // 폼 초기화
+                document.querySelector('form').reset();
+                const dateInput = document.getElementById('date');
+                if (dateInput) dateInput.value = getCurrentDate();
+                
+            } catch (error) {
+                console.error('대안 예약 오류:', error);
+                showAlert('대안 예약 등록 중 오류가 발생했습니다.', 'error');
+            }
+        }
+
+        // 현재 현황 확인 (예약 현황 탭으로 이동)
+        function checkCurrentStatus(date, time) {
+            // 모달 닫기
+            document.querySelector('.failure-modal').remove();
+            
+            // 예약 현황 탭으로 전환
+            showStatusTab();
+            
+            // 해당 날짜와 시간으로 필터 설정
+            const statusDateInput = document.getElementById('statusDate');
+            const timeFilterSelect = document.getElementById('timeFilter');
+            
+            if (statusDateInput) statusDateInput.value = date;
+            if (timeFilterSelect) timeFilterSelect.value = time;
+            
+            // 현황 업데이트
+            updateStatus();
+            
+            // 해당 시간대 하이라이트 효과
+            setTimeout(() => {
+                const statusContainer = document.querySelector('.status-container');
+                if (statusContainer) {
+                    statusContainer.style.border = '3px solid #007bff';
+                    statusContainer.style.animation = 'pulse 2s ease-in-out 3';
+                    
+                    setTimeout(() => {
+                        statusContainer.style.border = 'none';
+                        statusContainer.style.animation = 'none';
+                    }, 6000);
+                }
+            }, 500);
+            
+            showNotification(`📊 ${date} ${time} 시간대 현황을 확인하세요`, 'info');
         }
 
         // 테이블 배정 함수 (수정됨)
@@ -1198,144 +1395,222 @@
             return [];
         }
 
-        // 직접 배정 시도
+        // 직접 배정 시도 (수정된 로직)
         function tryDirectAssignment(people, preference, conflictingReservations) {
             const usedTables = getUsedTables(conflictingReservations);
             
-            // 룸 선호이거나 관계없음일 때 룸 우선 시도
-            if (preference === 'room' || preference === 'any') {
+            if (preference === 'room') {
+                // 룸 선호는 룸만 시도, 실패하면 바로 실패 반환
+                const roomResult = tryRoomAssignment(people, usedTables);
+                return roomResult; // 룸이 안 되면 홀로 가지 않음
+            } else if (preference === 'hall') {
+                // 홀 선호는 홀만 시도, 실패하면 바로 실패 반환
+                const hallResult = tryHallAssignment(people, usedTables);
+                return hallResult; // 홀이 안 되면 룸으로 가지 않음
+            } else if (preference === 'any') {
+                // 관계없음은 룸 우선, 그 다음 홀
                 const roomResult = tryRoomAssignment(people, usedTables);
                 if (roomResult.length > 0) {
                     return roomResult;
                 }
+                const hallResult = tryHallAssignment(people, usedTables);
+                return hallResult;
             }
             
-            // 홀 선호이거나 관계없음일 때 홀 시도
-            if (preference === 'hall' || preference === 'any') {
-                const hallResult = tryHallAssignment(people, usedTables);
-                if (hallResult.length > 0) {
-                    return hallResult;
+            return [];
+        }
+
+        // 재배정 시도 (완전히 새로운 로직)
+        function tryReassignment(people, preference, conflictingReservations) {
+            console.log(`재배정 시도: ${people}명, 선호도: ${preference}`);
+            
+            // 룸 선호 고객을 위한 재배정
+            if (preference === 'room') {
+                return tryRoomReassignment(people, conflictingReservations);
+            }
+            
+            // 홀 선호 고객을 위한 재배정  
+            if (preference === 'hall') {
+                return tryHallReassignment(people, conflictingReservations);
+            }
+            
+            // 관계없음 고객은 재배정 대상이 아님 (이미 직접 배정에서 처리됨)
+            return [];
+        }
+
+        // 룸 선호 고객을 위한 재배정
+        function tryRoomReassignment(people, conflictingReservations) {
+            // 룸에 앉아있는 'any' 선호도 고객들을 찾기
+            const flexibleInRoom = conflictingReservations.filter(r => 
+                r.preference === 'any' && 
+                r.tables && 
+                r.tables.some(t => t.startsWith('room-'))
+            );
+            
+            console.log(`룸에 있는 유연한 고객: ${flexibleInRoom.length}명`);
+            
+            // 각 유연한 고객을 홀로 이동시켜보고 룸 자리 확보
+            for (const flexibleReservation of flexibleInRoom) {
+                const otherReservations = conflictingReservations.filter(r => r.id !== flexibleReservation.id);
+                const usedTablesWithoutFlexible = getUsedTables(otherReservations);
+                
+                // 이 고객을 홀로 이동 가능한지 확인
+                const hallOptions = tryHallAssignment(flexibleReservation.people, usedTablesWithoutFlexible);
+                
+                if (hallOptions.length > 0) {
+                    // 홀로 이동 후 남은 테이블에서 룸 예약 가능한지 확인
+                    const finalUsedTables = new Set(usedTablesWithoutFlexible);
+                    hallOptions.forEach(table => finalUsedTables.add(table));
+                    
+                    const roomForNewCustomer = tryRoomAssignment(people, finalUsedTables);
+                    
+                    if (roomForNewCustomer.length > 0) {
+                        // 실제로 재배정 실행
+                        flexibleReservation.tables = hallOptions;
+                        console.log(`재배정 성공: ${flexibleReservation.name}님을 룸에서 홀 ${hallOptions.join(', ')}로 이동`);
+                        return roomForNewCustomer;
+                    }
                 }
             }
             
-            // 룸 선호인데 룸이 안되면 홀 시도
-            if (preference === 'room') {
-                const hallResult = tryHallAssignment(people, usedTables);
-                if (hallResult.length > 0) {
-                    return hallResult;
+            // 여러 고객을 동시에 이동시켜서 룸 확보 시도
+            if (flexibleInRoom.length >= 2) {
+                return tryMultipleReassignment(people, flexibleInRoom, conflictingReservations, 'room');
+            }
+            
+            return [];
+        }
+
+        // 홀 선호 고객을 위한 재배정
+        function tryHallReassignment(people, conflictingReservations) {
+            // 특별한 경우: 5명이 홀 1번 테이블 필요
+            if (people === 5) {
+                const flexibleInHall1 = conflictingReservations.find(r => 
+                    r.preference === 'any' && 
+                    r.tables && 
+                    r.tables.includes('hall-1')
+                );
+                
+                if (flexibleInHall1) {
+                    const otherReservations = conflictingReservations.filter(r => r.id !== flexibleInHall1.id);
+                    const usedTablesWithoutFlexible = getUsedTables(otherReservations);
+                    
+                    // 룸 우선 시도
+                    let alternativeOptions = tryRoomAssignment(flexibleInHall1.people, usedTablesWithoutFlexible);
+                    if (alternativeOptions.length === 0) {
+                        alternativeOptions = tryHallAssignment(flexibleInHall1.people, usedTablesWithoutFlexible);
+                    }
+                    
+                    if (alternativeOptions.length > 0) {
+                        flexibleInHall1.tables = alternativeOptions;
+                        console.log(`홀1번 재배정 성공: ${flexibleInHall1.name}님을 ${alternativeOptions.join(', ')}로 이동`);
+                        return ['hall-1'];
+                    }
+                }
+            }
+            
+            // 홀에 있는 'any' 선호도 고객들을 룸으로 이동
+            const flexibleInHall = conflictingReservations.filter(r => 
+                r.preference === 'any' && 
+                r.tables && 
+                r.tables.some(t => t.startsWith('hall-')) &&
+                r.people <= 4 // 룸으로 이동 가능한 인원
+            );
+            
+            for (const flexibleReservation of flexibleInHall) {
+                const otherReservations = conflictingReservations.filter(r => r.id !== flexibleReservation.id);
+                const usedTablesWithoutFlexible = getUsedTables(otherReservations);
+                
+                const roomOptions = tryRoomAssignment(flexibleReservation.people, usedTablesWithoutFlexible);
+                
+                if (roomOptions.length > 0) {
+                    const finalUsedTables = new Set(usedTablesWithoutFlexible);
+                    roomOptions.forEach(table => finalUsedTables.add(table));
+                    
+                    const hallForNewCustomer = tryHallAssignment(people, finalUsedTables);
+                    
+                    if (hallForNewCustomer.length > 0) {
+                        flexibleReservation.tables = roomOptions;
+                        console.log(`재배정 성공: ${flexibleReservation.name}님을 홀에서 룸 ${roomOptions.join(', ')}로 이동`);
+                        return hallForNewCustomer;
+                    }
                 }
             }
             
             return [];
         }
 
-        // 재배정 시도
-        function tryReassignment(people, preference, conflictingReservations) {
-            console.log(`재배정 시도: ${people}명, 선호도: ${preference}`);
+        // 다중 고객 재배정
+        function tryMultipleReassignment(people, flexibleReservations, allReservations, targetType) {
+            const combinations = getCombinations(flexibleReservations, Math.min(3, flexibleReservations.length));
             
-            // 룸 선호 고객을 위한 재배정
-            if (preference === 'room') {
-                // 'any' 선호도로 룸에 배정된 예약을 찾아서 홀로 이동 가능한지 확인
-                const flexibleInRoom = conflictingReservations.filter(r => 
-                    r.preference === 'any' && 
-                    r.tables && 
-                    r.tables.some(t => t.startsWith('room-')) &&
-                    r.people <= 4 // 홀로 이동 가능한 인원
+            for (const combination of combinations) {
+                const remainingReservations = allReservations.filter(r => 
+                    !combination.some(c => c.id === r.id)
                 );
+                const usedTables = getUsedTables(remainingReservations);
                 
-                for (const reservation of flexibleInRoom) {
-                    // 이 예약을 제외한 상태에서 사용 중인 테이블 계산
-                    const otherReservations = conflictingReservations.filter(r => r.id !== reservation.id);
-                    const newUsedTables = getUsedTables(otherReservations);
+                // 선택된 고객들을 모두 다른 곳으로 이동 가능한지 확인
+                let allCanMove = true;
+                const movePlan = [];
+                const tempUsedTables = new Set(usedTables);
+                
+                for (const reservation of combination) {
+                    let newAssignment = [];
                     
-                    // 기존 예약을 홀로 이동 가능한지 확인
-                    const hallOptions = tryHallAssignment(reservation.people, newUsedTables);
-                    
-                    if (hallOptions.length > 0) {
-                        // 홀로 이동 후 남은 테이블에서 새 룸 예약 가능한지 확인
-                        const finalUsedTables = getUsedTables(otherReservations);
-                        hallOptions.forEach(table => finalUsedTables.add(table));
-                        
-                        const roomForNewCustomer = tryRoomAssignment(people, finalUsedTables);
-                        if (roomForNewCustomer.length > 0) {
-                            // 실제로 기존 예약의 테이블을 변경
-                            reservation.tables = hallOptions;
-                            console.log(`재배정 성공: ${reservation.name}님을 ${hallOptions.join(', ')}로 이동`);
-                            return roomForNewCustomer;
-                        }
+                    if (targetType === 'room') {
+                        // 룸 선호 고객을 위해 기존 룸 고객들을 홀로 이동
+                        newAssignment = tryHallAssignment(reservation.people, tempUsedTables);
+                    } else {
+                        // 홀 선호 고객을 위해 기존 홀 고객들을 룸으로 이동
+                        newAssignment = tryRoomAssignment(reservation.people, tempUsedTables);
                     }
+                    
+                    if (newAssignment.length === 0) {
+                        allCanMove = false;
+                        break;
+                    }
+                    
+                    movePlan.push({ reservation, newTables: newAssignment });
+                    newAssignment.forEach(table => tempUsedTables.add(table));
                 }
-            }
-            
-            // 홀 선호 고객을 위한 재배정 (홀 1번 테이블이나 단체석 필요시)
-            if (preference === 'hall' && people === 5) {
-                // 홀 1번 테이블에 'any' 선호도로 배정된 예약 찾기
-                const flexibleInHall1 = conflictingReservations.find(r => 
-                    r.preference === 'any' && 
-                    r.tables && 
-                    r.tables.includes('hall-1') &&
-                    r.people <= 4
-                );
                 
-                if (flexibleInHall1) {
-                    const otherReservations = conflictingReservations.filter(r => r.id !== flexibleInHall1.id);
-                    const newUsedTables = getUsedTables(otherReservations);
-                    
-                    // 다른 테이블로 이동 가능한지 확인 (룸 우선)
-                    let alternativeOptions = tryRoomAssignment(flexibleInHall1.people, newUsedTables);
-                    if (alternativeOptions.length === 0) {
-                        alternativeOptions = tryHallAssignment(flexibleInHall1.people, newUsedTables);
+                if (allCanMove) {
+                    // 새 고객 배정 가능한지 확인
+                    let finalAssignment = [];
+                    if (targetType === 'room') {
+                        finalAssignment = tryRoomAssignment(people, tempUsedTables);
+                    } else {
+                        finalAssignment = tryHallAssignment(people, tempUsedTables);
                     }
                     
-                    if (alternativeOptions.length > 0) {
-                        flexibleInHall1.tables = alternativeOptions;
-                        console.log(`재배정 성공: ${flexibleInHall1.name}님을 ${alternativeOptions.join(', ')}로 이동`);
-                        return ['hall-1'];
-                    }
-                }
-            }
-            
-            // 대규모 단체를 위한 재배정
-            if (people >= 8) {
-                const smallGroups = conflictingReservations.filter(r => 
-                    r.preference === 'any' && 
-                    r.people <= 4 &&
-                    r.tables && r.tables.length === 1
-                );
-                
-                if (smallGroups.length >= 2) {
-                    // 작은 그룹들을 재배정해서 단체석 확보
-                    const reallocationPlan = [];
-                    const tempUsedTables = getUsedTables(conflictingReservations);
-                    
-                    for (const smallGroup of smallGroups.slice(0, 2)) {
-                        tempUsedTables.delete(smallGroup.tables[0]); // 기존 테이블 해제
-                        const newAssignment = tryRoomAssignment(smallGroup.people, tempUsedTables) || 
-                                            tryHallAssignment(smallGroup.people, tempUsedTables);
-                        
-                        if (newAssignment.length > 0) {
-                            newAssignment.forEach(t => tempUsedTables.add(t));
-                            reallocationPlan.push({ reservation: smallGroup, newTables: newAssignment });
-                        }
-                    }
-                    
-                    if (reallocationPlan.length >= 2) {
-                        const groupAssignment = tryRoomAssignment(people, tempUsedTables) || 
-                                              tryHallAssignment(people, tempUsedTables);
-                        
-                        if (groupAssignment.length > 0) {
-                            // 실제 재배정 실행
-                            reallocationPlan.forEach(plan => {
-                                plan.reservation.tables = plan.newTables;
-                            });
-                            console.log(`대규모 재배정 성공: ${reallocationPlan.length}개 예약 이동`);
-                            return groupAssignment;
-                        }
+                    if (finalAssignment.length > 0) {
+                        // 실제 재배정 실행
+                        movePlan.forEach(plan => {
+                            plan.reservation.tables = plan.newTables;
+                        });
+                        console.log(`다중 재배정 성공: ${movePlan.length}명 이동`);
+                        return finalAssignment;
                     }
                 }
             }
             
             return [];
+        }
+
+        // 조합 생성 함수
+        function getCombinations(arr, size) {
+            if (size === 1) return arr.map(item => [item]);
+            if (size === arr.length) return [arr];
+            
+            const combinations = [];
+            for (let i = 0; i <= arr.length - size; i++) {
+                const smallerCombinations = getCombinations(arr.slice(i + 1), size - 1);
+                smallerCombinations.forEach(combination => {
+                    combinations.push([arr[i], ...combination]);
+                });
+            }
+            return combinations;
         }
 
         // 룸 배정 시도
@@ -1694,21 +1969,26 @@
             } else {
                 reservationsDiv.innerHTML = dayReservations
                     .sort((a, b) => a.time.localeCompare(b.time))
-                    .map(r => `
-                        <div class="reservation-item">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-                                <div>
-                                    <strong>${r.name}</strong> - ${r.people}명 - ${r.time}~${addHours(r.time, 3)}
-                                    <br>테이블: ${r.tables ? r.tables.join(', ') : '미배정'}
-                                    <br><small>선호: ${getPreferenceText(r.preference)}</small>
-                                </div>
-                                <div style="display: flex; gap: 5px;">
-                                    <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
-                                    <button class="delete-btn" onclick="cancelReservation(${r.id})">취소</button>
+                    .map(r => {
+                        const isAlternative = r.alternative ? 'alternative-highlight' : '';
+                        const alternativeTag = r.alternative ? `<span style="background: #ffc107; color: #212529; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold;">대안예약</span> ` : '';
+                        
+                        return `
+                            <div class="reservation-item ${isAlternative}">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                                    <div>
+                                        ${alternativeTag}<strong>${r.name}</strong> - ${r.people}명 - ${r.time}~${addHours(r.time, 3)}
+                                        <br>테이블: ${r.tables ? r.tables.join(', ') : '미배정'}
+                                        <br><small>선호: ${getPreferenceText(r.preference)}${r.alternative ? ` → ${r.alternativeType} 대안예약` : ''}</small>
+                                    </div>
+                                    <div style="display: flex; gap: 5px;">
+                                        <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
+                                        <button class="delete-btn" onclick="cancelReservation(${r.id})">취소</button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    `).join('');
+                        `;
+                    }).join('');
             }
         }
 
@@ -1941,7 +2221,7 @@
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
             link.setAttribute('href', url);
-            link.setAttribute('download', `초가집_예약_${getCurrentDate()}.csv`);
+            link.setAttribute('download', `초가짚_예약_${getCurrentDate()}.csv`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
@@ -1972,7 +2252,7 @@
             // 15분 전 알림 체크 시작
             setInterval(checkUpcomingReservations, 60000); // 1분마다 체크
             
-            console.log('🔔 초가집 예약 시스템이 초기화되었습니다.');
+            console.log('🔔 초가짚 예약 시스템이 초기화되었습니다.');
         });
 
         // 서버 연결 상태 주기적 확인
@@ -2012,7 +2292,7 @@
                     // 오류는 무시 (이미 연결 상태 체크에서 처리됨)
                 }
             }
-        }, 10000); // 10초마다 새 예약 체크
+        }, 100000); // 100초마다 새 예약 체크
 
         // 알림 권한 요청 (브라우저 알림 - 옵션)
         if ('Notification' in window && Notification.permission === 'default') {
