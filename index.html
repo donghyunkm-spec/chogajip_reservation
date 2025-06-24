@@ -795,15 +795,16 @@
             }
         };
 
-        // 단체석 규칙 (더 정확한 조합 추가)
+        // 단체석 규칙 (테이블_인원정보.txt 기준으로 정확히 수정)
         const GROUP_RULES = [
+            // 홀 단체석 규칙
             { name: '홀 1,2번', tables: ['hall-1', 'hall-2'], maxPeople: 9, minPeople: 6 },
             { name: '홀 4,5번', tables: ['hall-4', 'hall-5'], maxPeople: 8, minPeople: 5 },
             { name: '홀 6,7번', tables: ['hall-6', 'hall-7'], maxPeople: 8, minPeople: 5 },
             { name: '홀 4,5,6,7번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 16, minPeople: 13 },
-            { name: '홀 3,4,5,6,7번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 20, minPeople: 17 },
-            { name: '홀 4,5,6,7,8번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 20, minPeople: 17 },
-            { name: '홀 3,4,5,6,7,8번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 24, minPeople: 21 },
+            { name: '홀 3,4,5,6,7,8번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 24, minPeople: 17 },
+            
+            // 룸 단체석 규칙 (정확히 수정)
             { name: '룸 1,2번', tables: ['room-1', 'room-2'], maxPeople: 8, minPeople: 5 },
             { name: '룸 2,3번', tables: ['room-2', 'room-3'], maxPeople: 8, minPeople: 5 },
             { name: '룸 4,5번', tables: ['room-4', 'room-5'], maxPeople: 8, minPeople: 5 },
@@ -815,7 +816,11 @@
             { name: '룸 7,8,9번', tables: ['room-7', 'room-8', 'room-9'], maxPeople: 12, minPeople: 9 },
             { name: '룸 4,5,7,8번', tables: ['room-4', 'room-5', 'room-7', 'room-8'], maxPeople: 16, minPeople: 13 },
             { name: '룸 5,6,8,9번', tables: ['room-5', 'room-6', 'room-8', 'room-9'], maxPeople: 16, minPeople: 13 },
-            { name: '룸 4~9번', tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 24, minPeople: 17 },
+            
+            // 중요: 룸 20명은 4,5,6,7,8,9번만 가능
+            { name: '룸 4,5,6,7,8,9번', tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 24, minPeople: 17 },
+            
+            // 룸 전체 (36명까지)
             { name: '룸 전체', tables: ['room-1', 'room-2', 'room-3', 'room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 36, minPeople: 25 }
         ];
 
