@@ -1,74 +1,183 @@
-// server.js - Railway PostgreSQL 연동
+// server.js - 즉시 작동하는 백업 강화 버전
 const express = require('express');
-const { Pool } = require('pg');
-const cors = require('cors');
+const fs = require('fs');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// PostgreSQL 연결 설정
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
-
 // 미들웨어
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static('.'));
 
-// 테이블 생성
-async function initDatabase() {
+// 데이터 디렉토리 설정
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const DATA_FILE = path.join(DATA_DIR, 'reservations.json');
+
+// 디렉토리 생성
+function ensureDirectories() {
     try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS reservations (
-                id BIGINT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                phone VARCHAR(20),
-                company VARCHAR(100),
-                reservation_method VARCHAR(20),
-                people INTEGER NOT NULL,
-                preference VARCHAR(20) NOT NULL,
-                date DATE NOT NULL,
-                time TIME NOT NULL,
-                tables TEXT,
-                status VARCHAR(20) DEFAULT 'active',
-                cancel_reason TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        console.log('✅ 데이터베이스 테이블 초기화 완료');
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+            console.log('📁 데이터 디렉토리 생성:', DATA_DIR);
+        }
+        if (!fs.existsSync(BACKUP_DIR)) {
+            fs.mkdirSync(BACKUP_DIR, { recursive: true });
+            console.log('📁 백업 디렉토리 생성:', BACKUP_DIR);
+        }
     } catch (error) {
-        console.error('❌ 데이터베이스 초기화 실패:', error);
+        console.error('디렉토리 생성 실패:', error);
     }
 }
 
-// 예약 조회
-app.get('/api/reservations', async (req, res) => {
+// 초기 데이터 파일 생성
+function initializeDataFile() {
     try {
-        const result = await pool.query(
-            'SELECT * FROM reservations ORDER BY date DESC, time DESC'
-        );
+        if (!fs.existsSync(DATA_FILE)) {
+            const initialData = [];
+            fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
+            console.log('📄 초기 데이터 파일 생성');
+        }
+    } catch (error) {
+        console.error('데이터 파일 초기화 실패:', error);
+    }
+}
+
+// 데이터 읽기
+function readReservations() {
+    try {
+        if (!fs.existsSync(DATA_FILE)) {
+            return [];
+        }
+        const data = fs.readFileSync(DATA_FILE, 'utf8');
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.error('데이터 읽기 오류:', error);
+        // 백업에서 복원 시도
+        return restoreFromBackup() || [];
+    }
+}
+
+// 데이터 쓰기 (백업 포함)
+function writeReservations(reservations) {
+    try {
+        // 메인 파일 저장
+        fs.writeFileSync(DATA_FILE, JSON.stringify(reservations, null, 2));
         
-        const reservations = result.rows.map(row => ({
-            id: parseInt(row.id),
-            name: row.name,
-            phone: row.phone,
-            company: row.company,
-            reservationMethod: row.reservation_method,
-            people: row.people,
-            preference: row.preference,
-            date: row.date.toISOString().split('T')[0],
-            time: row.time.slice(0, 5),
-            tables: row.tables ? row.tables.split(',') : [],
-            status: row.status,
-            cancelReason: row.cancel_reason,
-            timestamp: row.timestamp.toISOString(),
-            updatedAt: row.updated_at?.toISOString()
-        }));
+        // 백업 생성 (데이터가 있을 때만)
+        if (reservations.length > 0) {
+            createBackup(reservations);
+        }
         
+        return true;
+    } catch (error) {
+        console.error('데이터 쓰기 오류:', error);
+        return false;
+    }
+}
+
+// 백업 생성
+function createBackup(reservations) {
+    try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const backupFile = path.join(BACKUP_DIR, `backup-${timestamp}.json`);
+        
+        const backupData = {
+            timestamp: new Date().toISOString(),
+            count: reservations.length,
+            reservations: reservations
+        };
+        
+        fs.writeFileSync(backupFile, JSON.stringify(backupData, null, 2));
+        
+        // 오래된 백업 정리 (최근 10개만 유지)
+        cleanOldBackups();
+        
+        console.log(`💾 백업 생성: ${path.basename(backupFile)} (${reservations.length}건)`);
+    } catch (error) {
+        console.error('백업 생성 실패:', error);
+    }
+}
+
+// 백업에서 복원
+function restoreFromBackup() {
+    try {
+        if (!fs.existsSync(BACKUP_DIR)) return null;
+        
+        const files = fs.readdirSync(BACKUP_DIR);
+        const backupFiles = files
+            .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+            .sort()
+            .reverse(); // 최신 순
+        
+        for (const file of backupFiles) {
+            try {
+                const backupPath = path.join(BACKUP_DIR, file);
+                const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+                
+                if (backupData.reservations && Array.isArray(backupData.reservations)) {
+                    console.log(`🔄 백업에서 복원: ${file} (${backupData.reservations.length}건)`);
+                    return backupData.reservations;
+                }
+            } catch (err) {
+                console.error(`백업 파일 ${file} 읽기 실패:`, err);
+            }
+        }
+    } catch (error) {
+        console.error('백업 복원 실패:', error);
+    }
+    return null;
+}
+
+// 오래된 백업 정리
+function cleanOldBackups() {
+    try {
+        const files = fs.readdirSync(BACKUP_DIR);
+        const backupFiles = files
+            .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+            .map(f => ({
+                name: f,
+                path: path.join(BACKUP_DIR, f),
+                mtime: fs.statSync(path.join(BACKUP_DIR, f)).mtime
+            }))
+            .sort((a, b) => b.mtime - a.mtime); // 최신 순 정렬
+        
+        // 10개 이상이면 오래된 것 삭제
+        if (backupFiles.length > 10) {
+            const filesToDelete = backupFiles.slice(10);
+            filesToDelete.forEach(file => {
+                fs.unlinkSync(file.path);
+                console.log(`🗑️ 오래된 백업 삭제: ${file.name}`);
+            });
+        }
+    } catch (error) {
+        console.error('백업 정리 실패:', error);
+    }
+}
+
+// API 엔드포인트들
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/api/ping', (req, res) => {
+    const reservations = readReservations();
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        reservationCount: reservations.length,
+        dataFile: DATA_FILE
+    });
+});
+
+app.get('/api/reservations', (req, res) => {
+    try {
+        const reservations = readReservations();
+        console.log(`📋 예약 조회: ${reservations.length}건`);
         res.json({ 
             success: true, 
             data: reservations,
@@ -84,134 +193,160 @@ app.get('/api/reservations', async (req, res) => {
     }
 });
 
-// 새 예약 추가
-app.post('/api/reservations', async (req, res) => {
+app.post('/api/reservations', (req, res) => {
     try {
-        const {
-            id, name, phone, company, reservationMethod,
-            people, preference, date, time, tables, status
-        } = req.body;
+        const newReservation = req.body;
         
-        if (!name || !people || !date || !time) {
+        // 필수 필드 검증
+        if (!newReservation.name || !newReservation.people || !newReservation.date || !newReservation.time) {
             return res.status(400).json({ 
                 success: false, 
                 error: '필수 정보가 누락되었습니다.' 
             });
         }
 
-        const reservationId = id || Date.now();
-        const tablesStr = tables ? tables.join(',') : '';
+        const reservations = readReservations();
         
-        await pool.query(`
-            INSERT INTO reservations 
-            (id, name, phone, company, reservation_method, people, preference, date, time, tables, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        `, [
-            reservationId, name, phone || '', company || '', reservationMethod || '',
-            people, preference, date, time, tablesStr, status || 'active'
-        ]);
+        // ID 생성 및 중복 체크
+        if (!newReservation.id) {
+            newReservation.id = Date.now();
+        }
         
-        console.log(`새 예약 추가: ${name}님 (${people}명) - ${date} ${time}`);
-        res.json({ 
-            success: true, 
-            message: '예약이 성공적으로 등록되었습니다.',
-            data: { id: reservationId, name, people, date, time }
-        });
+        while (reservations.find(r => r.id === newReservation.id)) {
+            newReservation.id = Date.now() + Math.floor(Math.random() * 1000);
+        }
+
+        // 예약 추가
+        reservations.push(newReservation);
+        
+        if (writeReservations(reservations)) {
+            console.log(`✅ 새 예약 추가: ${newReservation.name}님 (${newReservation.people}명) - ${newReservation.date} ${newReservation.time}`);
+            res.json({ 
+                success: true, 
+                message: '예약이 성공적으로 등록되었습니다.',
+                data: newReservation
+            });
+        } else {
+            res.status(500).json({ 
+                success: false, 
+                error: '예약 저장에 실패했습니다.' 
+            });
+        }
     } catch (error) {
         console.error('예약 추가 오류:', error);
         res.status(500).json({ 
             success: false, 
-            error: '예약 저장에 실패했습니다.' 
+            error: '서버 오류가 발생했습니다.' 
         });
     }
 });
 
-// 예약 수정
-app.put('/api/reservations/:id', async (req, res) => {
+app.put('/api/reservations/:id', (req, res) => {
     try {
-        const reservationId = req.params.id;
+        const reservationId = parseInt(req.params.id);
         const updates = req.body;
         
-        const setClause = [];
-        const values = [];
-        let valueIndex = 1;
+        const reservations = readReservations();
+        const reservationIndex = reservations.findIndex(r => r.id === reservationId);
         
-        Object.entries(updates).forEach(([key, value]) => {
-            if (key === 'tables') {
-                setClause.push(`tables = $${valueIndex}`);
-                values.push(Array.isArray(value) ? value.join(',') : value);
-            } else if (key === 'reservationMethod') {
-                setClause.push(`reservation_method = $${valueIndex}`);
-                values.push(value);
-            } else if (key === 'cancelReason') {
-                setClause.push(`cancel_reason = $${valueIndex}`);
-                values.push(value);
-            } else {
-                setClause.push(`${key} = $${valueIndex}`);
-                values.push(value);
-            }
-            valueIndex++;
-        });
-        
-        setClause.push(`updated_at = CURRENT_TIMESTAMP`);
-        values.push(reservationId);
-        
-        const query = `
-            UPDATE reservations 
-            SET ${setClause.join(', ')}
-            WHERE id = $${valueIndex}
-        `;
-        
-        const result = await pool.query(query, values);
-        
-        if (result.rowCount === 0) {
+        if (reservationIndex === -1) {
             return res.status(404).json({ 
                 success: false, 
                 error: '예약을 찾을 수 없습니다.' 
             });
         }
+
+        // 예약 정보 업데이트
+        reservations[reservationIndex] = { 
+            ...reservations[reservationIndex], 
+            ...updates,
+            updatedAt: new Date().toISOString()
+        };
         
-        console.log(`예약 수정: ID ${reservationId}`);
-        res.json({ 
-            success: true, 
-            message: '예약이 성공적으로 수정되었습니다.'
-        });
+        if (writeReservations(reservations)) {
+            console.log(`✏️ 예약 수정: ID ${reservationId}`);
+            res.json({ 
+                success: true, 
+                message: '예약이 성공적으로 수정되었습니다.',
+                data: reservations[reservationIndex]
+            });
+        } else {
+            res.status(500).json({ 
+                success: false, 
+                error: '예약 수정에 실패했습니다.' 
+            });
+        }
     } catch (error) {
         console.error('예약 수정 오류:', error);
         res.status(500).json({ 
             success: false, 
-            error: '예약 수정에 실패했습니다.' 
+            error: '서버 오류가 발생했습니다.' 
         });
     }
 });
 
-// 메인 페이지
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// 서버 상태 확인
-app.get('/api/ping', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// 백업 다운로드
+app.get('/api/backup', (req, res) => {
+    try {
+        const reservations = readReservations();
+        const backup = {
+            timestamp: new Date().toISOString(),
+            count: reservations.length,
+            reservations: reservations
+        };
+        
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="초가집_백업_${new Date().toISOString().split('T')[0]}.json"`);
+        res.json(backup);
+    } catch (error) {
+        console.error('백업 다운로드 오류:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: '백업 생성에 실패했습니다.' 
+        });
+    }
 });
 
 // 서버 시작
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🏠 초가집 예약 시스템 서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log(`🌐 접속: http://localhost:${PORT}`);
+    console.log(`📁 데이터 저장 위치: ${DATA_FILE}`);
+    console.log(`💾 백업 저장 위치: ${BACKUP_DIR}`);
     
-    // 데이터베이스 초기화
-    await initDatabase();
+    // 초기화
+    ensureDirectories();
+    initializeDataFile();
+    
+    // 시작시 데이터 상태 확인
+    const reservations = readReservations();
+    console.log(`📊 현재 저장된 예약: ${reservations.length}건`);
+    
+    // 주기적 백업 (30분마다)
+    setInterval(() => {
+        const currentReservations = readReservations();
+        if (currentReservations.length > 0) {
+            createBackup(currentReservations);
+        }
+    }, 30 * 60 * 1000);
 });
 
+// 종료 시 마지막 백업
 process.on('SIGTERM', () => {
     console.log('🛑 서버 종료 신호를 받았습니다.');
-    pool.end();
+    const reservations = readReservations();
+    if (reservations.length > 0) {
+        createBackup(reservations);
+        console.log('💾 종료 전 마지막 백업 완료');
+    }
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
     console.log('🛑 서버를 종료합니다.');
-    pool.end();
+    const reservations = readReservations();
+    if (reservations.length > 0) {
+        createBackup(reservations);
+        console.log('💾 종료 전 마지막 백업 완료');
+    }
     process.exit(0);
 });
