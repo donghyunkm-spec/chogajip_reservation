@@ -1,4 +1,4 @@
-// server.js - Railway용 Node.js 서버 (백업 기능 추가)
+// server.js - Railway용 Node.js 서버
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -8,27 +8,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 미들웨어
-app.use(cors({
-    origin: true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors());
 app.use(express.json());
-app.use(express.static('.'));  // public 폴더 대신 현재 디렉토리
+app.use(express.static(path.join(__dirname, 'public')));
 
 // 데이터 파일 경로
 const DATA_FILE = path.join(__dirname, 'data', 'reservations.json');
-const BACKUP_DIR = path.join(__dirname, 'data', 'backups');
 
 // 데이터 디렉토리 생성
 if (!fs.existsSync(path.dirname(DATA_FILE))) {
     fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-}
-
-// 백업 디렉토리 생성
-if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 
 // 초기 데이터 파일 생성
@@ -36,79 +25,57 @@ if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(DATA_FILE, JSON.stringify([], null, 2));
 }
 
-// 백업 생성 함수
-function createAutoBackup(reservations) {
+// 백업 파일명 생성
+function getBackupFileName() {
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    return `backup-${timestamp}.json`;
+}
+
+// 간단한 백업 함수 (데이터 쓸 때마다 호출)
+function createBackup(data) {
     try {
-        if (reservations && reservations.length > 0) {
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const backupFile = path.join(BACKUP_DIR, `backup-${timestamp}.json`);
-            const backupData = {
-                timestamp: new Date().toISOString(),
-                reservations: reservations
-            };
-            fs.writeFileSync(backupFile, JSON.stringify(backupData, null, 2));
-            
-            // 오래된 백업 파일 정리 (10개만 유지)
-            cleanOldBackups();
-            
-            console.log(`💾 백업 생성: backup-${timestamp}.json (${reservations.length}건)`);
+        if (data && data.length > 0) {
+            const backupFile = path.join(__dirname, 'data', getBackupFileName());
+            fs.writeFileSync(backupFile, JSON.stringify(data, null, 2));
+            console.log(`💾 백업 생성: ${path.basename(backupFile)} (${data.length}건)`);
         }
     } catch (error) {
         console.error('백업 생성 실패:', error);
     }
 }
 
-// 오래된 백업 정리
-function cleanOldBackups() {
+// 백업에서 복원 (서버 시작시만)
+function restoreFromBackup() {
     try {
-        const files = fs.readdirSync(BACKUP_DIR);
-        const backupFiles = files
-            .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
-            .map(f => ({
-                name: f,
-                path: path.join(BACKUP_DIR, f),
-                mtime: fs.statSync(path.join(BACKUP_DIR, f)).mtime
-            }))
-            .sort((a, b) => b.mtime - a.mtime);
-        
-        if (backupFiles.length > 10) {
-            const filesToDelete = backupFiles.slice(10);
-            filesToDelete.forEach(file => {
-                fs.unlinkSync(file.path);
-                console.log(`🗑️ 오래된 백업 삭제: ${file.name}`);
-            });
+        // 메인 파일이 비어있거나 없으면 백업에서 복원
+        let currentData = [];
+        try {
+            currentData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        } catch (e) {
+            currentData = [];
         }
-    } catch (error) {
-        console.error('백업 정리 실패:', error);
-    }
-}
 
-// 최신 백업에서 복원
-function restoreFromLatestBackup() {
-    try {
-        const currentReservations = readReservations();
-        if (currentReservations.length === 0) {
-            const files = fs.readdirSync(BACKUP_DIR);
+        if (currentData.length === 0) {
+            const dataDir = path.dirname(DATA_FILE);
+            const files = fs.readdirSync(dataDir);
             const backupFiles = files
                 .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
                 .sort()
-                .reverse();
-            
+                .reverse(); // 최신 순
+
             if (backupFiles.length > 0) {
-                const latestBackup = path.join(BACKUP_DIR, backupFiles[0]);
+                const latestBackup = path.join(dataDir, backupFiles[0]);
                 const backupData = JSON.parse(fs.readFileSync(latestBackup, 'utf8'));
                 
-                if (backupData.reservations && backupData.reservations.length > 0) {
-                    writeReservations(backupData.reservations);
-                    console.log(`🔄 최신 백업에서 복원: ${backupFiles[0]} (${backupData.reservations.length}건)`);
-                    return backupData.reservations;
+                if (backupData.length > 0) {
+                    fs.writeFileSync(DATA_FILE, JSON.stringify(backupData, null, 2));
+                    console.log(`🔄 백업에서 복원: ${backupFiles[0]} (${backupData.length}건)`);
                 }
             }
         }
-        return currentReservations;
     } catch (error) {
         console.error('백업 복원 실패:', error);
-        return [];
     }
 }
 
@@ -128,8 +95,8 @@ function writeReservations(reservations) {
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(reservations, null, 2));
         
-        // 백업 생성
-        createAutoBackup(reservations);
+        // 백업 생성 (간단하게)
+        createBackup(reservations);
         
         return true;
     } catch (error) {
@@ -140,17 +107,12 @@ function writeReservations(reservations) {
 
 // 메인 페이지 제공
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // 서버 상태 확인
 app.get('/api/ping', (req, res) => {
-    const reservations = readReservations();
-    res.json({ 
-        status: 'ok', 
-        timestamp: new Date().toISOString(),
-        reservationCount: reservations.length
-    });
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // 예약 목록 조회
@@ -174,14 +136,11 @@ app.get('/api/reservations', (req, res) => {
 
 // 새 예약 추가
 app.post('/api/reservations', (req, res) => {
-    console.log(`📥 예약 등록 요청 받음:`, req.body);
-    
     try {
         const newReservation = req.body;
         
         // 데이터 검증
         if (!newReservation.name || !newReservation.people || !newReservation.date || !newReservation.time) {
-            console.log(`❌ 필수 정보 누락:`, { name: newReservation.name, people: newReservation.people, date: newReservation.date, time: newReservation.time });
             return res.status(400).json({ 
                 success: false, 
                 error: '필수 정보가 누락되었습니다.' 
@@ -203,26 +162,20 @@ app.post('/api/reservations', (req, res) => {
         reservations.push(newReservation);
         
         if (writeReservations(reservations)) {
-            console.log(`✅ 새 예약 추가: ${newReservation.name}님 (${newReservation.people}명) - ${newReservation.date} ${newReservation.time}`);
-            
-            // 응답 전에 잠시 대기 (백업 완료 대기)
-            setTimeout(() => {
-                console.log(`📤 성공 응답 전송:`, { success: true, message: '예약 등록 완료' });
-                res.json({ 
-                    success: true, 
-                    message: '예약이 성공적으로 등록되었습니다.',
-                    data: newReservation
-                });
-            }, 100);
+            console.log(`새 예약 추가: ${newReservation.name}님 (${newReservation.people}명) - ${newReservation.date} ${newReservation.time}`);
+            res.json({ 
+                success: true, 
+                message: '예약이 성공적으로 등록되었습니다.',
+                data: newReservation
+            });
         } else {
-            console.log(`❌ 예약 저장 실패`);
             res.status(500).json({ 
                 success: false, 
                 error: '예약 저장에 실패했습니다.' 
             });
         }
     } catch (error) {
-        console.error('❌ 예약 추가 오류:', error);
+        console.error('예약 추가 오류:', error);
         res.status(500).json({ 
             success: false, 
             error: '서버 오류가 발생했습니다.' 
@@ -254,7 +207,7 @@ app.put('/api/reservations/:id', (req, res) => {
         };
         
         if (writeReservations(reservations)) {
-            console.log(`✏️ 예약 수정: ID ${reservationId} - ${JSON.stringify(updates)}`);
+            console.log(`예약 수정: ID ${reservationId} - ${JSON.stringify(updates)}`);
             res.json({ 
                 success: true, 
                 message: '예약이 성공적으로 수정되었습니다.',
@@ -293,7 +246,7 @@ app.delete('/api/reservations/:id', (req, res) => {
         const deletedReservation = reservations.splice(reservationIndex, 1)[0];
         
         if (writeReservations(reservations)) {
-            console.log(`🗑️ 예약 삭제: ${deletedReservation.name}님 - ID ${reservationId}`);
+            console.log(`예약 삭제: ${deletedReservation.name}님 - ID ${reservationId}`);
             res.json({ 
                 success: true, 
                 message: '예약이 성공적으로 삭제되었습니다.',
@@ -348,7 +301,7 @@ app.post('/api/restore', (req, res) => {
         }
 
         if (writeReservations(reservations)) {
-            console.log(`🔄 데이터 복원 완료: ${reservations.length}건의 예약`);
+            console.log(`데이터 복원 완료: ${reservations.length}건의 예약`);
             res.json({ 
                 success: true, 
                 message: `${reservations.length}건의 예약이 복원되었습니다.`,
@@ -390,39 +343,23 @@ app.use((err, req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🏠 초가집 예약 시스템 서버가 포트 ${PORT}에서 실행 중입니다.`);
     console.log(`📁 데이터 파일: ${DATA_FILE}`);
-    console.log(`💾 백업 디렉토리: ${BACKUP_DIR}`);
     console.log(`🌐 로컬 접속: http://localhost:${PORT}`);
     
     // 시작시 백업에서 복원 시도
-    const reservations = restoreFromLatestBackup();
-    console.log(`📊 현재 저장된 예약: ${reservations.length}건`);
+    restoreFromBackup();
     
-    // 30분마다 자동 백업
-    setInterval(() => {
-        const currentReservations = readReservations();
-        if (currentReservations.length > 0) {
-            createAutoBackup(currentReservations);
-        }
-    }, 30 * 60 * 1000);
+    // 시작시 데이터 상태 확인
+    const reservations = readReservations();
+    console.log(`📊 현재 저장된 예약: ${reservations.length}건`);
 });
 
-// 종료 시그널 처리 (마지막 백업)
+// 종료 시그널 처리
 process.on('SIGTERM', () => {
     console.log('🛑 서버 종료 신호를 받았습니다.');
-    const reservations = readReservations();
-    if (reservations.length > 0) {
-        createAutoBackup(reservations);
-        console.log('💾 종료 전 마지막 백업 완료');
-    }
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
     console.log('🛑 서버를 종료합니다.');
-    const reservations = readReservations();
-    if (reservations.length > 0) {
-        createAutoBackup(reservations);
-        console.log('💾 종료 전 마지막 백업 완료');
-    }
     process.exit(0);
 });
