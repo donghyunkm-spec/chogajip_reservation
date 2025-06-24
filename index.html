@@ -449,6 +449,62 @@
             background: #d32f2f;
         }
 
+        /* 알림 스타일 */
+        .notification {
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 2000;
+            animation: slideIn 0.3s ease-out;
+            max-width: 300px;
+            font-weight: bold;
+        }
+
+        .notification.warning {
+            background: #ff9800;
+        }
+
+        .notification.error {
+            background: #f44336;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .sound-control {
+            position: fixed;
+            top: 60px;
+            right: 10px;
+            z-index: 1000;
+        }
+
+        .sound-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .sound-btn.muted {
+            background: #666;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 5px;
@@ -491,6 +547,12 @@
             input, select {
                 padding: 12px;
                 font-size: 16px;
+            }
+
+            .notification {
+                top: 80px;
+                right: 10px;
+                max-width: calc(100vw - 20px);
             }
         }
 
@@ -545,6 +607,9 @@
 </head>
 <body>
     <div class="connection-status" id="connectionStatus">🔗 연결 확인중...</div>
+    <div class="sound-control">
+        <button class="sound-btn" id="soundToggle" onclick="toggleSound()">🔊 알림음</button>
+    </div>
 
     <div class="container">
         <div class="header">
@@ -701,6 +766,8 @@
     <script>
         // 전역 변수
         let reservations = [];
+        let soundEnabled = true;
+        let lastNotificationTime = 0;
         const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
         
         // 테이블 정보
@@ -719,23 +786,127 @@
 
         // 단체석 규칙
         const GROUP_RULES = [
-            { name: '홀 1,2번', tables: ['hall-1', 'hall-2'], maxPeople: 9 },
-            { name: '홀 4,5번', tables: ['hall-4', 'hall-5'], maxPeople: 8 },
-            { name: '홀 6,7번', tables: ['hall-6', 'hall-7'], maxPeople: 8 },
-            { name: '홀 4,5,6,7번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 16 },
-            { name: '홀 3,4,5,6,7,8번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 24 },
-            { name: '룸 1,2번', tables: ['room-1', 'room-2'], maxPeople: 8 },
-            { name: '룸 2,3번', tables: ['room-2', 'room-3'], maxPeople: 8 },
-            { name: '룸 4,5번', tables: ['room-4', 'room-5'], maxPeople: 8 },
-            { name: '룸 5,6번', tables: ['room-5', 'room-6'], maxPeople: 8 },
-            { name: '룸 7,8번', tables: ['room-7', 'room-8'], maxPeople: 8 },
-            { name: '룸 8,9번', tables: ['room-8', 'room-9'], maxPeople: 8 },
-            { name: '룸 1,2,3번', tables: ['room-1', 'room-2', 'room-3'], maxPeople: 12 },
-            { name: '룸 4,5,6번', tables: ['room-4', 'room-5', 'room-6'], maxPeople: 12 },
-            { name: '룸 7,8,9번', tables: ['room-7', 'room-8', 'room-9'], maxPeople: 12 },
-            { name: '룸 4~9번', tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 24 },
-            { name: '룸 전체', tables: ['room-1', 'room-2', 'room-3', 'room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 36 }
+            { name: '홀 1,2번', tables: ['hall-1', 'hall-2'], maxPeople: 9, minPeople: 6 },
+            { name: '홀 4,5번', tables: ['hall-4', 'hall-5'], maxPeople: 8, minPeople: 5 },
+            { name: '홀 6,7번', tables: ['hall-6', 'hall-7'], maxPeople: 8, minPeople: 5 },
+            { name: '홀 4,5,6,7번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 16, minPeople: 13 },
+            { name: '홀 3,4,5,6,7,8번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 24, minPeople: 17 },
+            { name: '룸 1,2번', tables: ['room-1', 'room-2'], maxPeople: 8, minPeople: 5 },
+            { name: '룸 2,3번', tables: ['room-2', 'room-3'], maxPeople: 8, minPeople: 5 },
+            { name: '룸 4,5번', tables: ['room-4', 'room-5'], maxPeople: 8, minPeople: 5 },
+            { name: '룸 5,6번', tables: ['room-5', 'room-6'], maxPeople: 8, minPeople: 5 },
+            { name: '룸 7,8번', tables: ['room-7', 'room-8'], maxPeople: 8, minPeople: 5 },
+            { name: '룸 8,9번', tables: ['room-8', 'room-9'], maxPeople: 8, minPeople: 5 },
+            { name: '룸 1,2,3번', tables: ['room-1', 'room-2', 'room-3'], maxPeople: 12, minPeople: 9 },
+            { name: '룸 4,5,6번', tables: ['room-4', 'room-5', 'room-6'], maxPeople: 12, minPeople: 9 },
+            { name: '룸 7,8,9번', tables: ['room-7', 'room-8', 'room-9'], maxPeople: 12, minPeople: 9 },
+            { name: '룸 4,5,7,8번', tables: ['room-4', 'room-5', 'room-7', 'room-8'], maxPeople: 16, minPeople: 13 },
+            { name: '룸 5,6,8,9번', tables: ['room-5', 'room-6', 'room-8', 'room-9'], maxPeople: 16, minPeople: 13 },
+            { name: '룸 4~9번', tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 24, minPeople: 17 },
+            { name: '룸 전체', tables: ['room-1', 'room-2', 'room-3', 'room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 36, minPeople: 25 }
         ];
+
+        // 알림 함수들
+        function playNotificationSound() {
+            if (!soundEnabled) return;
+            
+            try {
+                // 알림 소리 생성 (간단한 비프음)
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.2);
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.4);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.6);
+            } catch (error) {
+                console.log('알림음 재생 실패:', error);
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            // 중복 알림 방지 (1초 내)
+            const now = Date.now();
+            if (now - lastNotificationTime < 1000) return;
+            lastNotificationTime = now;
+
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // 소리 재생
+            playNotificationSound();
+            
+            // 5초 후 제거
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('soundToggle');
+            if (btn) {
+                btn.textContent = soundEnabled ? '🔊 알림음' : '🔇 음소거';
+                btn.className = soundEnabled ? 'sound-btn' : 'sound-btn muted';
+            }
+            localStorage.setItem('soundEnabled', soundEnabled);
+        }
+
+        // 15분 전 알림 체크
+        function checkUpcomingReservations() {
+            const now = new Date();
+            const currentDate = now.toISOString().split('T')[0];
+            const currentTime = now.toTimeString().slice(0, 5);
+            
+            const todayReservations = reservations.filter(r => 
+                r.status === 'active' && 
+                r.date === currentDate
+            );
+            
+            todayReservations.forEach(reservation => {
+                const reservationTime = new Date(`${reservation.date}T${reservation.time}:00`);
+                const timeDiff = reservationTime.getTime() - now.getTime();
+                const minutesDiff = Math.floor(timeDiff / (1000 * 60));
+                
+                // 15분 전 알림 (14~16분 사이로 여유 있게)
+                if (minutesDiff >= 14 && minutesDiff <= 16) {
+                    const key = `reminder_${reservation.id}_15min`;
+                    if (!localStorage.getItem(key)) {
+                        showNotification(
+                            `⏰ 15분 후 예약: ${reservation.name}님 ${reservation.people}명 (${reservation.tables?.join(', ')})`,
+                            'warning'
+                        );
+                        localStorage.setItem(key, 'shown');
+                    }
+                }
+                
+                // 예약 시간 알림
+                if (minutesDiff >= -1 && minutesDiff <= 1) {
+                    const key = `arrival_${reservation.id}_now`;
+                    if (!localStorage.getItem(key)) {
+                        showNotification(
+                            `🎉 예약 시간: ${reservation.name}님 도착 예정 (${reservation.tables?.join(', ')})`,
+                            'success'
+                        );
+                        localStorage.setItem(key, 'shown');
+                    }
+                }
+            });
+        }
 
         // 유틸리티 함수들
         function getCurrentDate() {
@@ -823,7 +994,15 @@
             try {
                 showLoading(true);
                 const response = await apiCall('reservations');
-                reservations = response.data || [];
+                const newReservations = response.data || [];
+                
+                // 새 예약 알림 체크
+                if (reservations.length > 0 && newReservations.length > reservations.length) {
+                    const newCount = newReservations.length - reservations.length;
+                    showNotification(`🎉 새 예약 ${newCount}건이 등록되었습니다!`);
+                }
+                
+                reservations = newReservations;
                 updateConnectionStatus(true);
                 window.offlineMode = false;
                 console.log('서버에서 예약 데이터 로드:', reservations.length, '건');
@@ -864,6 +1043,10 @@
                     });
                     // 서버에서 저장된 예약 정보를 추가
                     reservations.push(response.data || reservation);
+                    
+                    // 새 예약 등록 알림
+                    showNotification(`🎉 새 예약: ${reservation.name}님 ${reservation.people}명`);
+                    
                     return response;
                 } catch (error) {
                     // 서버 실패시 로컬에 저장
@@ -1048,27 +1231,105 @@
 
         // 재배정 시도
         function tryReassignment(people, preference, conflictingReservations) {
+            console.log(`재배정 시도: ${people}명, 선호도: ${preference}`);
+            
             // 룸 선호 고객을 위한 재배정
             if (preference === 'room') {
+                // 'any' 선호도로 룸에 배정된 예약을 찾아서 홀로 이동 가능한지 확인
                 const flexibleInRoom = conflictingReservations.filter(r => 
                     r.preference === 'any' && 
                     r.tables && 
-                    r.tables.some(t => t.startsWith('room-'))
+                    r.tables.some(t => t.startsWith('room-')) &&
+                    r.people <= 4 // 홀로 이동 가능한 인원
                 );
                 
                 for (const reservation of flexibleInRoom) {
-                    const newUsedTables = getUsedTables(conflictingReservations.filter(r => r.id !== reservation.id));
+                    // 이 예약을 제외한 상태에서 사용 중인 테이블 계산
+                    const otherReservations = conflictingReservations.filter(r => r.id !== reservation.id);
+                    const newUsedTables = getUsedTables(otherReservations);
+                    
+                    // 기존 예약을 홀로 이동 가능한지 확인
                     const hallOptions = tryHallAssignment(reservation.people, newUsedTables);
                     
                     if (hallOptions.length > 0) {
-                        const finalUsedTables = getUsedTables(conflictingReservations.filter(r => r.id !== reservation.id));
+                        // 홀로 이동 후 남은 테이블에서 새 룸 예약 가능한지 확인
+                        const finalUsedTables = getUsedTables(otherReservations);
                         hallOptions.forEach(table => finalUsedTables.add(table));
                         
                         const roomForNewCustomer = tryRoomAssignment(people, finalUsedTables);
                         if (roomForNewCustomer.length > 0) {
                             // 실제로 기존 예약의 테이블을 변경
                             reservation.tables = hallOptions;
+                            console.log(`재배정 성공: ${reservation.name}님을 ${hallOptions.join(', ')}로 이동`);
                             return roomForNewCustomer;
+                        }
+                    }
+                }
+            }
+            
+            // 홀 선호 고객을 위한 재배정 (홀 1번 테이블이나 단체석 필요시)
+            if (preference === 'hall' && people === 5) {
+                // 홀 1번 테이블에 'any' 선호도로 배정된 예약 찾기
+                const flexibleInHall1 = conflictingReservations.find(r => 
+                    r.preference === 'any' && 
+                    r.tables && 
+                    r.tables.includes('hall-1') &&
+                    r.people <= 4
+                );
+                
+                if (flexibleInHall1) {
+                    const otherReservations = conflictingReservations.filter(r => r.id !== flexibleInHall1.id);
+                    const newUsedTables = getUsedTables(otherReservations);
+                    
+                    // 다른 테이블로 이동 가능한지 확인 (룸 우선)
+                    let alternativeOptions = tryRoomAssignment(flexibleInHall1.people, newUsedTables);
+                    if (alternativeOptions.length === 0) {
+                        alternativeOptions = tryHallAssignment(flexibleInHall1.people, newUsedTables);
+                    }
+                    
+                    if (alternativeOptions.length > 0) {
+                        flexibleInHall1.tables = alternativeOptions;
+                        console.log(`재배정 성공: ${flexibleInHall1.name}님을 ${alternativeOptions.join(', ')}로 이동`);
+                        return ['hall-1'];
+                    }
+                }
+            }
+            
+            // 대규모 단체를 위한 재배정
+            if (people >= 8) {
+                const smallGroups = conflictingReservations.filter(r => 
+                    r.preference === 'any' && 
+                    r.people <= 4 &&
+                    r.tables && r.tables.length === 1
+                );
+                
+                if (smallGroups.length >= 2) {
+                    // 작은 그룹들을 재배정해서 단체석 확보
+                    const reallocationPlan = [];
+                    const tempUsedTables = getUsedTables(conflictingReservations);
+                    
+                    for (const smallGroup of smallGroups.slice(0, 2)) {
+                        tempUsedTables.delete(smallGroup.tables[0]); // 기존 테이블 해제
+                        const newAssignment = tryRoomAssignment(smallGroup.people, tempUsedTables) || 
+                                            tryHallAssignment(smallGroup.people, tempUsedTables);
+                        
+                        if (newAssignment.length > 0) {
+                            newAssignment.forEach(t => tempUsedTables.add(t));
+                            reallocationPlan.push({ reservation: smallGroup, newTables: newAssignment });
+                        }
+                    }
+                    
+                    if (reallocationPlan.length >= 2) {
+                        const groupAssignment = tryRoomAssignment(people, tempUsedTables) || 
+                                              tryHallAssignment(people, tempUsedTables);
+                        
+                        if (groupAssignment.length > 0) {
+                            // 실제 재배정 실행
+                            reallocationPlan.forEach(plan => {
+                                plan.reservation.tables = plan.newTables;
+                            });
+                            console.log(`대규모 재배정 성공: ${reallocationPlan.length}개 예약 이동`);
+                            return groupAssignment;
                         }
                     }
                 }
@@ -1079,7 +1340,7 @@
 
         // 룸 배정 시도
         function tryRoomAssignment(people, usedTables) {
-            // 개별 룸 테이블
+            // 개별 룸 테이블 (4명 이하)
             if (people <= 4) {
                 for (let i = 1; i <= 9; i++) {
                     const tableId = `room-${i}`;
@@ -1089,11 +1350,12 @@
                 }
             }
             
-            // 단체석 시도
+            // 단체석 시도 (5명 이상)
             if (people >= 5) {
                 const roomGroupRules = GROUP_RULES.filter(rule => 
                     rule.tables.every(t => t.startsWith('room-')) && 
-                    rule.maxPeople >= people
+                    rule.maxPeople >= people &&
+                    (rule.minPeople ? rule.minPeople <= people : true)
                 ).sort((a, b) => a.maxPeople - b.maxPeople);
                 
                 for (const rule of roomGroupRules) {
@@ -1102,7 +1364,7 @@
                     }
                 }
                 
-                // 개별 조합으로 시도
+                // 개별 조합으로 시도 (단체석이 안 될 때)
                 const neededTables = Math.ceil(people / 4);
                 const availableRooms = [];
                 for (let i = 1; i <= 9; i++) {
@@ -1122,16 +1384,17 @@
 
         // 홀 배정 시도
         function tryHallAssignment(people, usedTables) {
-            // 5명이고 홀 1번 테이블 사용 가능한 경우
+            // 5명이고 홀 1번 테이블 사용 가능한 경우 (1번 테이블은 5명까지 수용)
             if (people === 5 && !usedTables.has('hall-1')) {
                 return ['hall-1'];
             }
             
-            // 단체석 시도
+            // 단체석 시도 (5명 이상)
             if (people >= 5) {
                 const hallGroupRules = GROUP_RULES.filter(rule => 
                     rule.tables.every(t => t.startsWith('hall-')) && 
-                    rule.maxPeople >= people
+                    rule.maxPeople >= people &&
+                    (rule.minPeople ? rule.minPeople <= people : true)
                 ).sort((a, b) => a.maxPeople - b.maxPeople);
                 
                 for (const rule of hallGroupRules) {
@@ -1143,24 +1406,34 @@
                 // 개별 조합으로 시도
                 const neededTables = Math.ceil(people / 4);
                 const availableHalls = [];
-                for (let i = 1; i <= 16; i++) {
-                    const tableId = `hall-${i}`;
-                    if (!usedTables.has(tableId)) {
-                        availableHalls.push(tableId);
-                    }
-                }
                 
-                if (availableHalls.length >= neededTables) {
-                    return availableHalls.slice(0, neededTables);
+                // 홀 9~16번은 단체 불가, 개별 4명까지만
+                if (people <= 4 * neededTables && neededTables <= 2) {
+                    for (let i = 1; i <= 16; i++) {
+                        const tableId = `hall-${i}`;
+                        if (!usedTables.has(tableId)) {
+                            // 9~16번 테이블은 단체 예약 시 제외
+                            if (people > 4 && i >= 9) continue;
+                            availableHalls.push(tableId);
+                        }
+                    }
+                    
+                    if (availableHalls.length >= neededTables) {
+                        return availableHalls.slice(0, neededTables);
+                    }
                 }
             }
             
-            // 개별 홀 테이블
+            // 개별 홀 테이블 (4명 이하)
             if (people <= 4) {
                 for (let i = 1; i <= 16; i++) {
                     const tableId = `hall-${i}`;
                     if (!usedTables.has(tableId)) {
-                        return [tableId];
+                        // 1번 테이블은 5명까지, 나머지는 4명까지
+                        const capacity = i === 1 ? 5 : 4;
+                        if (people <= capacity) {
+                            return [tableId];
+                        }
                     }
                 }
             }
@@ -1371,20 +1644,50 @@
                 return checkGroupAvailability(rule, dayReservations);
             });
             
-            let html = '';
+            const unavailableGroups = GROUP_RULES.filter(rule => {
+                return !checkGroupAvailability(rule, dayReservations);
+            });
             
+            let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
+            
+            // 예약 가능한 단체석
+            html += '<div><h4 style="color: #4CAF50; margin-bottom: 10px;">🟢 예약 가능</h4>';
             if (availableGroups.length > 0) {
-                html = availableGroups
+                html += availableGroups
                     .sort((a, b) => a.maxPeople - b.maxPeople)
                     .map(rule => `
-                        <div class="group-item available">
+                        <div class="group-item available" style="margin-bottom: 8px; padding: 8px; background: #e8f5e8; border-radius: 5px;">
                             <strong>${rule.name}</strong><br>
-                            최대 ${rule.maxPeople}명 - ✅ 예약 가능
+                            <small>${rule.minPeople || rule.maxPeople}~${rule.maxPeople}명</small>
                         </div>
                     `).join('');
             } else {
-                html = '<div style="text-align: center; color: #666; padding: 20px;">현재 예약 가능한 단체석이 없습니다.</div>';
+                html += '<div style="color: #666; font-style: italic;">예약 가능한 단체석이 없습니다.</div>';
             }
+            html += '</div>';
+            
+            // 예약 불가능한 단체석
+            html += '<div><h4 style="color: #f44336; margin-bottom: 10px;">🔴 예약 불가</h4>';
+            if (unavailableGroups.length > 0) {
+                html += unavailableGroups
+                    .sort((a, b) => a.maxPeople - b.maxPeople)
+                    .map(rule => `
+                        <div class="group-item unavailable" style="margin-bottom: 8px; padding: 8px; background: #ffebee; border-radius: 5px;">
+                            <strong>${rule.name}</strong><br>
+                            <small>${rule.minPeople || rule.maxPeople}~${rule.maxPeople}명</small>
+                        </div>
+                    `).join('');
+            } else {
+                html += '<div style="color: #666; font-style: italic;">모든 단체석이 예약 가능합니다.</div>';
+            }
+            html += '</div></div>';
+            
+            // 전체 현황 요약
+            html += `<div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; text-align: center;">
+                        <strong>단체석 현황 요약</strong><br>
+                        <span style="color: #4CAF50;">✅ 예약가능: ${availableGroups.length}개</span> | 
+                        <span style="color: #f44336;">❌ 예약불가: ${unavailableGroups.length}개</span>
+                     </div>`;
             
             groupDiv.innerHTML = html;
         }
@@ -1475,8 +1778,18 @@
             if (statusDateInput) statusDateInput.value = getCurrentDate();
             if (timeFilterSelect) timeFilterSelect.value = 'all';
             
+            // 소리 설정 로드
+            const savedSoundSetting = localStorage.getItem('soundEnabled');
+            if (savedSoundSetting !== null) {
+                soundEnabled = savedSoundSetting === 'true';
+                toggleSound(); // UI 업데이트
+            }
+            
             // 데이터 로드
             await loadReservations();
+            
+            // 15분 전 알림 체크 시작
+            setInterval(checkUpcomingReservations, 60000); // 1분마다 체크
             
             console.log('🔔 초가집 예약 시스템이 초기화되었습니다.');
         });
@@ -1494,6 +1807,36 @@
                 }
             }
         }, 30000);
+
+        // 데이터 변경 감지 (새 예약 알림용)
+        setInterval(async () => {
+            if (!window.offlineMode) {
+                try {
+                    const response = await apiCall('reservations');
+                    const newReservations = response.data || [];
+                    
+                    // 새 예약이 있으면 알림
+                    if (newReservations.length > reservations.length) {
+                        const newCount = newReservations.length - reservations.length;
+                        const latestReservation = newReservations[newReservations.length - 1];
+                        
+                        showNotification(
+                            `🎉 새 예약: ${latestReservation.name}님 ${latestReservation.people}명 (${latestReservation.time})`
+                        );
+                        
+                        reservations = newReservations;
+                        updateStatus(); // 화면 업데이트
+                    }
+                } catch (error) {
+                    // 오류는 무시 (이미 연결 상태 체크에서 처리됨)
+                }
+            }
+        }, 10000); // 10초마다 새 예약 체크
+
+        // 알림 권한 요청 (브라우저 알림 - 옵션)
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
     </script>
 </body>
 </html>
