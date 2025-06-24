@@ -1189,74 +1189,191 @@
         }
 
         // 예약 등록 처리
-        async function handleReservation(event) {
-            event.preventDefault();
+        // 예약 등록 처리 (디버깅 강화 버전)
+async function handleReservation(event) {
+    event.preventDefault();
+    
+    console.log('🎯 예약 등록 시작');
+    
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '처리 중...';
+    }
+    
+    try {
+        const people = parseInt(document.getElementById('people').value);
+        const preference = document.getElementById('preference').value;
+        const date = document.getElementById('date').value;
+        const time = document.getElementById('time').value;
+        const name = document.getElementById('name').value;
+        const phone = document.getElementById('phone').value || '';
+        const company = document.getElementById('company').value || '';
+        const reservationMethod = document.getElementById('reservationMethod').value || '';
+        
+        console.log('📋 입력 데이터 수집:', {
+            people, preference, date, time, name, phone, company, reservationMethod
+        });
+        
+        // 스마트 테이블 배정
+        const assignedTables = assignTables(people, preference, date, time);
+        console.log('🪑 테이블 배정 결과:', assignedTables);
+        
+        if (assignedTables.length > 0) {
+            const newReservation = {
+                id: Date.now(),
+                name: name,
+                phone: phone,
+                company: company,
+                reservationMethod: reservationMethod,
+                people: people,
+                preference: preference,
+                date: date,
+                time: time,
+                tables: assignedTables,
+                timestamp: new Date().toISOString(),
+                status: 'active'
+            };
             
-            const submitBtn = document.getElementById('submitBtn');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = '처리 중...';
-            }
+            console.log('📤 서버로 전송할 예약 데이터:', newReservation);
             
-            try {
-                const people = parseInt(document.getElementById('people').value);
-                const preference = document.getElementById('preference').value;
-                const date = document.getElementById('date').value;
-                const time = document.getElementById('time').value;
-                const name = document.getElementById('name').value;
-                const phone = document.getElementById('phone').value || '';
-                const company = document.getElementById('company').value || '';
-                const reservationMethod = document.getElementById('reservationMethod').value || '';
+            // API 호출
+            console.log('🌐 API 호출 시작');
+            const response = await saveReservation(newReservation);
+            console.log('📥 서버 응답 받음:', response);
+            
+            if (response && response.success) {
+                const successMessage = `예약이 완료되었습니다!\n${name}님 - ${people}명 - ${time}\n배정 테이블: ${assignedTables.join(', ')}`;
+                showAlert(successMessage, 'success');
+                console.log('✅ 예약 등록 성공');
                 
-                // 스마트 테이블 배정
-                const assignedTables = assignTables(people, preference, date, time);
+                // 소리 알림 (현재 사용자가 직접 등록한 경우)
+                playNewReservationSound();
                 
-                if (assignedTables.length > 0) {
-                    const newReservation = {
-                        id: Date.now(),
-                        name: name,
-                        phone: phone,
-                        company: company,
-                        reservationMethod: reservationMethod,
-                        people: people,
-                        preference: preference,
-                        date: date,
-                        time: time,
-                        tables: assignedTables,
-                        timestamp: new Date().toISOString(),
-                        status: 'active'
-                    };
-                    
-                    await saveReservation(newReservation);
-                    
-                    const successMessage = `예약이 완료되었습니다!\n${name}님 - ${people}명 - ${time}\n배정 테이블: ${assignedTables.join(', ')}`;
-                    showAlert(successMessage, 'success');
-                    
-                    // 소리 알림 (현재 사용자가 직접 등록한 경우)
-                    playNewReservationSound();
-                    
-                    // 브라우저 알림 보내기
-                    sendNotification('새 예약 등록', `${name}님 ${people}명 ${time} 예약 완료`);
-                    
-                    // 폼 초기화
-                    event.target.reset();
-                    const dateInput = document.getElementById('date');
-                    if (dateInput) dateInput.value = getCurrentDate();
-                } else {
-                    // 더 상세한 예약 불가 메시지
-                    const detailedMessage = getDetailedAvailabilityMessage(people, preference, date, time);
-                    showAlert(detailedMessage, 'error');
-                }
-            } catch (error) {
-                showAlert('예약 등록 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
-                console.error('예약 등록 오류:', error);
-            } finally {
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = '예약 등록';
-                }
+                // 브라우저 알림 보내기
+                sendNotification('새 예약 등록', `${name}님 ${people}명 ${time} 예약 완료`);
+                
+                // 폼 초기화
+                event.target.reset();
+                const dateInput = document.getElementById('date');
+                if (dateInput) dateInput.value = getCurrentDate();
+                
+                console.log('🔄 폼 초기화 완료');
+            } else {
+                console.error('❌ 서버 응답이 성공이 아님:', response);
+                const errorMessage = response?.error || '예약 등록에 실패했습니다.';
+                showAlert(errorMessage, 'error');
             }
+        } else {
+            // 더 상세한 예약 불가 메시지
+            console.log('❌ 테이블 배정 실패');
+            const detailedMessage = getDetailedAvailabilityMessage(people, preference, date, time);
+            showAlert(detailedMessage, 'error');
         }
+    } catch (error) {
+        console.error('❌ 예약 등록 중 오류:', error);
+        console.error('오류 스택:', error.stack);
+        showAlert('예약 등록 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '예약 등록';
+        }
+        console.log('🏁 예약 등록 프로세스 종료');
+    }
+}
+
+// API 호출 함수도 디버깅 강화
+async function saveReservation(reservation) {
+    console.log('🔗 saveReservation 함수 호출, 오프라인 모드:', window.offlineMode);
+    
+    if (window.offlineMode) {
+        // 오프라인 모드
+        console.log('💾 오프라인 모드: 로컬 저장');
+        reservations.push(reservation);
+        localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+        return { success: true };
+    } else {
+        // 온라인 모드
+        try {
+            console.log('🌐 온라인 모드: 서버 API 호출');
+            console.log('📡 API 요청 URL:', `${API_BASE}/api/reservations`);
+            
+            const response = await apiCall('reservations', {
+                method: 'POST',
+                body: JSON.stringify(reservation)
+            });
+            
+            console.log('📨 API 응답:', response);
+            
+            // 성공시 로컬 배열에도 추가
+            reservations.push(reservation);
+            return response;
+            
+        } catch (error) {
+            console.error('❌ 서버 API 호출 실패:', error);
+            console.log('💾 서버 실패 → 로컬 저장으로 대체');
+            
+            // 서버 실패시 로컬에 저장
+            reservations.push(reservation);
+            localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+            
+            // 에러를 다시 던져서 상위에서 처리하도록 함
+            throw error;
+        }
+    }
+}
+
+// API 호출 함수도 디버깅 강화
+async function apiCall(endpoint, options = {}) {
+    const url = `${API_BASE}/api/${endpoint}`;
+    console.log('🔌 API 호출:', url, options);
+    
+    try {
+        const requestOptions = {
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            },
+            ...options
+        };
+        
+        console.log('📤 Fetch 요청 옵션:', requestOptions);
+        
+        const response = await fetch(url, requestOptions);
+        
+        console.log('📡 Fetch 응답 상태:', response.status, response.statusText);
+        console.log('📡 Fetch 응답 헤더:', [...response.headers.entries()]);
+
+        if (!response.ok) {
+            console.error(`❌ HTTP 오류: ${response.status} ${response.statusText}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ 파싱된 JSON 응답:', result);
+        
+        updateConnectionStatus(true);
+        window.offlineMode = false;
+        
+        return result;
+        
+    } catch (error) {
+        console.error(`❌ API 호출 실패 (${endpoint}):`, error);
+        console.error('오류 타입:', error.constructor.name);
+        console.error('오류 메시지:', error.message);
+        
+        updateConnectionStatus(false);
+        
+        // 오프라인 모드로 전환
+        if (!window.offlineMode) {
+            showAlert('서버 연결에 실패했습니다. 오프라인 모드로 전환합니다.', 'error');
+            window.offlineMode = true;
+            loadOfflineData();
+        }
+        throw error;
+    }
+}
 
         // 상세한 예약 불가 메시지 생성
         function getDetailedAvailabilityMessage(people, preference, date, time) {

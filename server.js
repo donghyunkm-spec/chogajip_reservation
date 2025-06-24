@@ -8,9 +8,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 미들웨어
-app.use(cors());
+app.use(cors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('.'));  // public 폴더 대신 현재 디렉토리
 
 // 데이터 파일 경로
 const DATA_FILE = path.join(__dirname, 'data', 'reservations.json');
@@ -169,11 +174,14 @@ app.get('/api/reservations', (req, res) => {
 
 // 새 예약 추가
 app.post('/api/reservations', (req, res) => {
+    console.log(`📥 예약 등록 요청 받음:`, req.body);
+    
     try {
         const newReservation = req.body;
         
         // 데이터 검증
         if (!newReservation.name || !newReservation.people || !newReservation.date || !newReservation.time) {
+            console.log(`❌ 필수 정보 누락:`, { name: newReservation.name, people: newReservation.people, date: newReservation.date, time: newReservation.time });
             return res.status(400).json({ 
                 success: false, 
                 error: '필수 정보가 누락되었습니다.' 
@@ -196,19 +204,25 @@ app.post('/api/reservations', (req, res) => {
         
         if (writeReservations(reservations)) {
             console.log(`✅ 새 예약 추가: ${newReservation.name}님 (${newReservation.people}명) - ${newReservation.date} ${newReservation.time}`);
-            res.json({ 
-                success: true, 
-                message: '예약이 성공적으로 등록되었습니다.',
-                data: newReservation
-            });
+            
+            // 응답 전에 잠시 대기 (백업 완료 대기)
+            setTimeout(() => {
+                console.log(`📤 성공 응답 전송:`, { success: true, message: '예약 등록 완료' });
+                res.json({ 
+                    success: true, 
+                    message: '예약이 성공적으로 등록되었습니다.',
+                    data: newReservation
+                });
+            }, 100);
         } else {
+            console.log(`❌ 예약 저장 실패`);
             res.status(500).json({ 
                 success: false, 
                 error: '예약 저장에 실패했습니다.' 
             });
         }
     } catch (error) {
-        console.error('예약 추가 오류:', error);
+        console.error('❌ 예약 추가 오류:', error);
         res.status(500).json({ 
             success: false, 
             error: '서버 오류가 발생했습니다.' 
