@@ -182,6 +182,38 @@ const GROUP_RULES = [
     }
 ];
 
+// 예약 불가 테이블 조합 정의
+const INVALID_TABLE_COMBINATIONS = [
+    ['room-3', 'room-6'],  // 룸 3,6 떨어져있어서 예약 불가
+    ['room-1', 'room-4'],  // 룸 1,4 떨어져있어서 예약 불가
+    ['room-2', 'room-5'],  // 룸 2,5 떨어져있어서 예약 불가
+    ['room-4', 'room-7'],  // 룸 4,7 테이블을 등지고 있어서 예약 불가
+    ['room-5', 'room-8'],  // 룸 5,8 테이블을 등지고 있어서 예약 불가
+    ['room-6', 'room-9']   // 룸 6,9 테이블을 등지고 있어서 예약 불가
+];
+
+// 우선 배정 규칙
+const PRIORITY_RULES = [
+    { people: [9, 10, 11, 12], tables: ['room-1', 'room-2', 'room-3'] } // 9명~12명은 룸1,2,3 우선 배정
+];
+
+// 테이블 배정 가능 여부 확인 함수 추가
+function isValidTableCombination(tables) {
+    // 예약 불가 테이블 조합 확인
+    for (const invalidCombo of INVALID_TABLE_COMBINATIONS) {
+        if (invalidCombo.every(table => tables.includes(table))) {
+            console.log(`예약 불가 조합 발견: ${invalidCombo.join(', ')}`);
+            return false;
+        }
+    }
+    return true;
+}
+
+// GROUP_RULES 필터링 - 예약 불가 테이블 조합 제거
+const FILTERED_GROUP_RULES = GROUP_RULES.filter(rule => {
+    return isValidTableCombination(rule.tables);
+});
+
 // 시간 겹침 확인 함수
 function isTimeOverlap(time1, time2) {
     // 같은 시간이면 겹침
@@ -240,7 +272,21 @@ function checkGroupAvailability(groupRule, reservations) {
 }
 
 // 룸 테이블 배정 시도
+// 룸 테이블 배정 시도 함수 수정
 function tryRoomAssignment(people, usedTables) {
+    // 우선 배정 규칙 확인
+    for (const priorityRule of PRIORITY_RULES) {
+        if (people >= priorityRule.people[0] && people <= priorityRule.people[3]) {
+            // 우선 배정 테이블이 모두 비어있는지 확인
+            const allTablesAvailable = priorityRule.tables.every(table => !usedTables.has(table));
+            
+            if (allTablesAvailable) {
+                console.log(`우선 배정 규칙 적용: ${people}명 → ${priorityRule.tables.join(', ')}`);
+                return priorityRule.tables;
+            }
+        }
+    }
+
     // 1명~4명: 기본 룸 테이블 배정
     if (people <= 4) {
         // 비어있는 룸 테이블 찾기
@@ -253,8 +299,8 @@ function tryRoomAssignment(people, usedTables) {
         return []; // 가능한 테이블 없음
     }
     
-    // 5명 이상: 단체석 규칙 적용
-    const suitableRules = GROUP_RULES
+    // 5명 이상: 단체석 규칙 적용 (예약 불가 조합 필터링된 룰 사용)
+    const suitableRules = FILTERED_GROUP_RULES
         .filter(rule => 
             rule.tables.every(t => t.startsWith('room-')) &&
             rule.minPeople <= people && 
@@ -269,13 +315,23 @@ function tryRoomAssignment(people, usedTables) {
     
     // 단체석 규칙에 맞지 않지만 5명~8명을 위한 2개 테이블 배정
     if (people <= 8) {
+        // 가능한 모든 룸 테이블 쌍 조합 생성
         const availableRoomTables = [];
         for (let i = 1; i <= 9; i++) {
             const tableId = `room-${i}`;
             if (!usedTables.has(tableId)) {
                 availableRoomTables.push(tableId);
-                if (availableRoomTables.length === 2) {
-                    return availableRoomTables;
+            }
+        }
+        
+        // 가능한 2개 테이블 조합 확인
+        for (let i = 0; i < availableRoomTables.length; i++) {
+            for (let j = i + 1; j < availableRoomTables.length; j++) {
+                const tablePair = [availableRoomTables[i], availableRoomTables[j]];
+                
+                // 예약 불가 조합이 아닌지 확인
+                if (isValidTableCombination(tablePair)) {
+                    return tablePair;
                 }
             }
         }
@@ -430,6 +486,25 @@ function assignTables(people, preference, date, time, allReservations) {
     }
     
     console.log(`모든 배정 시도 실패`);
+	// 아무 테이블도 배정되지 않았을 때 호출되는 부분
+    console.log(`모든 배정 시도 실패, 예약 불가 조합 규칙 확인 중...`);
+    
+    // 최종적으로 배정 실패한 경우, 그 이유가 예약 불가 조합 때문인지 확인
+    if (preference === 'room' && people >= 5 && people <= 8) {
+        // 5-8명이 룸을 원할 경우, 예약 불가 조합 때문일 수 있음
+        const suitableRules = GROUP_RULES.filter(rule => 
+            rule.tables.every(t => t.startsWith('room-')) &&
+            rule.minPeople <= people && 
+            rule.maxPeople >= people
+        );
+        
+        const invalidRules = suitableRules.filter(rule => !isValidTableCombination(rule.tables));
+        
+        if (invalidRules.length > 0) {
+            console.log(`예약 불가 조합 룰로 인한 실패: ${invalidRules.map(r => r.name).join(', ')}`);
+        }
+    }
+    
     return []; // 배정 실패
 }
 
