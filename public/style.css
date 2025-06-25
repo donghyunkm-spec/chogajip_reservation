@@ -650,7 +650,7 @@ input:focus, select:focus {
     100% { transform: rotate(360deg); }
 }
 
-/* 반응형 스타일 */
+/* 모바일 최적화 스타일 */
 @media (max-width: 768px) {
     .container {
         padding: 5px;
@@ -677,13 +677,15 @@ input:focus, select:focus {
     }
     
     .room-grid {
-        max-width: 250px;
-        gap: 6px;
+        max-width: 300px;
+        gap: 5px;
     }
     
     .table-cell {
-        min-height: 45px;
+        min-height: 50px;
+        min-width: 50px;
         font-size: 10px;
+        padding: 2px;
     }
     
     .group-status {
@@ -691,38 +693,103 @@ input:focus, select:focus {
     }
 
     input, select {
-        padding: 12px;
+        padding: 14px;
         font-size: 16px;
+    }
+    
+    .number-btn {
+        width: 50px;
+        height: 52px;
     }
 
     .notification {
         top: 80px;
         right: 10px;
         max-width: calc(100vw - 20px);
+        font-size: 14px;
+    }
+    
+    .reservation-item {
+        padding: 12px;
+    }
+    
+    .edit-btn, .delete-btn {
+        padding: 6px 12px;
+        font-size: 11px;
+    }
+    
+    /* 모바일에서 예약 항목 버튼 정렬 개선 */
+    .reservation-item > div {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .reservation-item > div > div:last-child {
+        display: flex;
+        justify-content: flex-end;
+        width: 100%;
     }
 }
 
 @media (max-width: 480px) {
-    .preference-selector, .method-selector {
-        flex-direction: column;
+    .form-group {
+        margin-bottom: 15px;
     }
     
     .number-btn {
-        width: 50px;
-        height: 50px;
+        width: 45px;
+        height: 45px;
     }
     
     .number-input input {
-        width: calc(100% - 100px);
+        width: calc(100% - 90px);
+        font-size: 18px;
+    }
+    
+    /* 모바일에서는 선호도/예약방법 버튼을 가로로 배치하되 크기 조정 */
+    .preference-selector, .method-selector {
+        flex-direction: row;
+        gap: 5px;
     }
     
     .preference-option, .method-option {
-        padding: 12px 5px;
+        padding: 10px 5px;
+        font-size: 12px;
     }
     
     .preference-option .emoji, .method-option .emoji {
-        display: inline-block;
-        margin-right: 5px;
-        margin-bottom: 0;
+        font-size: 16px;
+        margin-bottom: 3px;
+    }
+    
+    .table-cell {
+        min-height: 40px;
+        min-width: 40px;
+        font-size: 9px;
+    }
+    
+    .table-info {
+        font-size: 7px;
+    }
+    
+    .section-title {
+        font-size: 1.2em;
+    }
+    
+    .hall-grid, .room-grid {
+        gap: 2px;
+    }
+    
+    .room-grid {
+        max-width: 250px;
+    }
+    
+    .btn {
+        padding: 14px;
+        font-size: 16px;
+    }
+    
+    .form-container h2, .status-container h2 {
+        font-size: 1.5em;
     }
 }

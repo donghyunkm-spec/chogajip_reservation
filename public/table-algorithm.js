@@ -1,3 +1,403 @@
+// 테이블 정보 (테이블별 수용 인원)
+const TABLE_INFO = {
+    hall: {
+        1: { capacity: 5 },  // 홀 1번 테이블은 5명까지
+        2: { capacity: 4 },
+        3: { capacity: 4 },
+        4: { capacity: 4 },
+        5: { capacity: 4 },
+        6: { capacity: 4 },
+        7: { capacity: 4 },
+        8: { capacity: 4 },
+        9: { capacity: 4 },
+        10: { capacity: 4 },
+        11: { capacity: 4 },
+        12: { capacity: 4 },
+        13: { capacity: 4 },
+        14: { capacity: 4 },
+        15: { capacity: 4 },
+        16: { capacity: 4 }
+    },
+    room: {
+        1: { capacity: 4 },  // 룸 1번 테이블은 4명까지
+        2: { capacity: 4 },
+        3: { capacity: 4 },
+        4: { capacity: 4 },
+        5: { capacity: 4 },
+        6: { capacity: 4 },
+        7: { capacity: 4 },
+        8: { capacity: 4 },
+        9: { capacity: 4 }
+    }
+};
+
+// 단체석 규칙 정의
+const GROUP_RULES = [
+    {
+        id: 'hall-1',
+        name: '홀 1번 테이블',
+        tables: ['hall-1'],
+        maxPeople: 5,
+        minPeople: 5
+    },
+    {
+        id: 'hall-1-2',
+        name: '홀 1-2번 테이블',
+        tables: ['hall-1', 'hall-2'],
+        minPeople: 6,
+        maxPeople: 9
+    },
+    {
+        id: 'hall-4-5',
+        name: '홀 4-5번 테이블',
+        tables: ['hall-4', 'hall-5'],
+        minPeople: 5,
+        maxPeople: 8
+    },
+    {
+        id: 'hall-6-7',
+        name: '홀 6-7번 테이블',
+        tables: ['hall-6', 'hall-7'],
+        minPeople: 5,
+        maxPeople: 8
+    },
+    {
+        id: 'hall-4-5-6-7',
+        name: '홀 4-5-6-7번 테이블',
+        tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7'],
+        minPeople: 13,
+        maxPeople: 16
+    },
+    {
+        id: 'hall-3-4-5-6-7',
+        name: '홀 3-4-5-6-7번 테이블',
+        tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7'],
+        minPeople: 17,
+        maxPeople: 20
+    },
+    {
+        id: 'hall-4-5-6-7-8',
+        name: '홀 4-5-6-7-8번 테이블',
+        tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'],
+        minPeople: 17,
+        maxPeople: 20
+    },
+    {
+        id: 'hall-3-4-5-6-7-8',
+        name: '홀 3-4-5-6-7-8번 테이블',
+        tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'],
+        minPeople: 21,
+        maxPeople: 24
+    },
+    {
+        id: 'room-1-2-3',
+        name: '룸 1-2-3번',
+        tables: ['room-1', 'room-2', 'room-3'],
+        minPeople: 9,
+        maxPeople: 12
+    },
+    {
+        id: 'room-4-5-6',
+        name: '룸 4-5-6번',
+        tables: ['room-4', 'room-5', 'room-6'],
+        minPeople: 9,
+        maxPeople: 12
+    },
+    {
+        id: 'room-7-8-9',
+        name: '룸 7-8-9번',
+        tables: ['room-7', 'room-8', 'room-9'],
+        minPeople: 9,
+        maxPeople: 12
+    },
+    {
+        id: 'room-4-9',
+        name: '룸 4-9번',
+        tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'],
+        minPeople: 13,
+        maxPeople: 24
+    },
+    {
+        id: 'room-1-2',
+        name: '룸 1-2번',
+        tables: ['room-1', 'room-2'],
+        minPeople: 5,
+        maxPeople: 8
+    },
+    {
+        id: 'room-2-3',
+        name: '룸 2-3번',
+        tables: ['room-2', 'room-3'],
+        minPeople: 5,
+        maxPeople: 8
+    },
+    {
+        id: 'room-4-5',
+        name: '룸 4-5번',
+        tables: ['room-4', 'room-5'],
+        minPeople: 5,
+        maxPeople: 8
+    },
+    {
+        id: 'room-5-6',
+        name: '룸 5-6번',
+        tables: ['room-5', 'room-6'],
+        minPeople: 5,
+        maxPeople: 8
+    },
+    {
+        id: 'room-7-8',
+        name: '룸 7-8번',
+        tables: ['room-7', 'room-8'],
+        minPeople: 5,
+        maxPeople: 8
+    },
+    {
+        id: 'room-8-9',
+        name: '룸 8-9번',
+        tables: ['room-8', 'room-9'],
+        minPeople: 5,
+        maxPeople: 8
+    },
+    {
+        id: 'room-4-5-7-8',
+        name: '룸 4-5-7-8번',
+        tables: ['room-4', 'room-5', 'room-7', 'room-8'],
+        minPeople: 13,
+        maxPeople: 16
+    },
+    {
+        id: 'room-5-6-8-9',
+        name: '룸 5-6-8-9번',
+        tables: ['room-5', 'room-6', 'room-8', 'room-9'],
+        minPeople: 13,
+        maxPeople: 16
+    },
+    {
+        id: 'room-all',
+        name: '룸 전체',
+        tables: ['room-1', 'room-2', 'room-3', 'room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'],
+        minPeople: 25,
+        maxPeople: 36
+    }
+];
+
+// 시간 겹침 확인 함수
+function isTimeOverlap(time1, time2) {
+    // 같은 시간이면 겹침
+    if (time1 === time2) return true;
+    
+    // 3시간 이용 기준으로 계산
+    const [hour1, minute1] = time1.split(':').map(Number);
+    const [hour2, minute2] = time2.split(':').map(Number);
+    
+    const startTime1 = hour1 * 60 + minute1;
+    const endTime1 = startTime1 + 180; // 3시간 이용
+    
+    const startTime2 = hour2 * 60 + minute2;
+    const endTime2 = startTime2 + 180; // 3시간 이용
+    
+    // 시간 범위가 겹치는지 확인
+    return (startTime1 < endTime2 && startTime2 < endTime1);
+}
+
+// 시간에 시간 추가하는 함수
+function addHours(timeStr, hours) {
+    const [hourStr, minuteStr] = timeStr.split(':');
+    let hour = parseInt(hourStr);
+    const minute = parseInt(minuteStr);
+    
+    hour = (hour + hours) % 24;
+    
+    return `${hour.toString().padStart(2, '0')}:${minuteStr}`;
+}
+
+// 사용 중인 테이블 목록 가져오기
+function getUsedTables(reservations) {
+    const usedTables = new Set();
+    
+    reservations.forEach(reservation => {
+        if (reservation.tables && reservation.tables.length > 0) {
+            reservation.tables.forEach(table => usedTables.add(table));
+        }
+    });
+    
+    return usedTables;
+}
+
+// 단체석 가용 여부 확인
+function checkGroupAvailability(groupRule, reservations) {
+    const usedTables = getUsedTables(reservations);
+    
+    // 이 단체석의 테이블 중 하나라도 사용 중이면 불가능
+    for (const table of groupRule.tables) {
+        if (usedTables.has(table)) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// 룸 테이블 배정 시도
+function tryRoomAssignment(people, usedTables) {
+    // 1명~4명: 기본 룸 테이블 배정
+    if (people <= 4) {
+        // 비어있는 룸 테이블 찾기
+        for (let i = 1; i <= 9; i++) {
+            const tableId = `room-${i}`;
+            if (!usedTables.has(tableId)) {
+                return [tableId];
+            }
+        }
+        return []; // 가능한 테이블 없음
+    }
+    
+    // 5명 이상: 단체석 규칙 적용
+    const suitableRules = GROUP_RULES
+        .filter(rule => 
+            rule.tables.every(t => t.startsWith('room-')) &&
+            rule.minPeople <= people && 
+            rule.maxPeople >= people && 
+            rule.tables.every(table => !usedTables.has(table))
+        )
+        .sort((a, b) => a.tables.length - b.tables.length); // 최소 테이블 사용
+    
+    if (suitableRules.length > 0) {
+        return suitableRules[0].tables;
+    }
+    
+    // 단체석 규칙에 맞지 않지만 5명~8명을 위한 2개 테이블 배정
+    if (people <= 8) {
+        const availableRoomTables = [];
+        for (let i = 1; i <= 9; i++) {
+            const tableId = `room-${i}`;
+            if (!usedTables.has(tableId)) {
+                availableRoomTables.push(tableId);
+                if (availableRoomTables.length === 2) {
+                    return availableRoomTables;
+                }
+            }
+        }
+    }
+    
+    return []; // 가능한 테이블 없음
+}
+
+// 홀 테이블 배정 시도
+function tryHallAssignment(people, usedTables) {
+    // 1명~4명: 기본 홀 테이블 배정 (9~16번 테이블 우선)
+    if (people <= 4) {
+        // 비어있는 홀 테이블 찾기 (9~16번 우선)
+        for (let i = 9; i <= 16; i++) {
+            const tableId = `hall-${i}`;
+            if (!usedTables.has(tableId)) {
+                return [tableId];
+            }
+        }
+        
+        // 1~8번 테이블 확인
+        for (let i = 1; i <= 8; i++) {
+            // 홀 1번은 5명 전용이므로 4명 이하에게는 마지막에 배정
+            if (i === 1 && people < 5) continue;
+            
+            const tableId = `hall-${i}`;
+            if (!usedTables.has(tableId)) {
+                return [tableId];
+            }
+        }
+        
+        // 홀 1번이 마지막 선택지 (인원이 5명 미만이더라도)
+        if (people < 5 && !usedTables.has('hall-1')) {
+            return ['hall-1'];
+        }
+        
+        return []; // 가능한 테이블 없음
+    }
+    
+    // 5명: 홀 1번 테이블 우선 배정
+    if (people === 5 && !usedTables.has('hall-1')) {
+        return ['hall-1'];
+    }
+    
+    // 5명 이상: 단체석 규칙 적용
+    const suitableRules = GROUP_RULES
+        .filter(rule => 
+            rule.tables.every(t => t.startsWith('hall-')) &&
+            rule.minPeople <= people && 
+            rule.maxPeople >= people && 
+            rule.tables.every(table => !usedTables.has(table))
+        )
+        .sort((a, b) => a.tables.length - b.tables.length); // 최소 테이블 사용
+    
+    if (suitableRules.length > 0) {
+        return suitableRules[0].tables;
+    }
+    
+    return []; // 가능한 테이블 없음
+}
+
+// 메인 테이블 배정 함수
+function assignTables(people, preference, date, time, allReservations) {
+    console.log(`테이블 배정 시작: ${people}명, 선호도: ${preference}, 날짜: ${date}, 시간: ${time}`);
+    
+    // 같은 날짜/시간대 예약 필터링
+    const activeReservations = allReservations.filter(r => r.status === 'active');
+    const conflictingReservations = activeReservations.filter(r => 
+        r.date === date && isTimeOverlap(r.time, time)
+    );
+    
+    // 이미 사용 중인 테이블 파악
+    const usedTables = getUsedTables(conflictingReservations);
+    console.log(`사용 중인 테이블: ${Array.from(usedTables).join(', ')}`);
+    
+    // 선호도에 따른 테이블 배정 시도
+    let assignedTables = [];
+    
+    if (preference === 'room' || preference === 'any') {
+        // 룸 우선 배정 시도
+        assignedTables = tryRoomAssignment(people, usedTables);
+        
+        if (assignedTables.length > 0) {
+            console.log(`룸 배정 성공: ${assignedTables.join(', ')}`);
+            return assignedTables;
+        }
+        
+        // 룸을 선호했지만 불가능한 경우
+        if (preference === 'any') {
+            // 선호도가 '관계없음'인 경우 홀 배정 시도
+            assignedTables = tryHallAssignment(people, usedTables);
+            
+            if (assignedTables.length > 0) {
+                console.log(`홀 배정 성공: ${assignedTables.join(', ')}`);
+                return assignedTables;
+            }
+        }
+    } else if (preference === 'hall') {
+        // 홀 우선 배정 시도
+        assignedTables = tryHallAssignment(people, usedTables);
+        
+        if (assignedTables.length > 0) {
+            console.log(`홀 배정 성공: ${assignedTables.join(', ')}`);
+            return assignedTables;
+        }
+    }
+    
+    // 직접 배정 실패 시 기존 예약 재배정 시도
+    if (assignedTables.length === 0) {
+        console.log(`직접 배정 실패, 재배정 시도...`);
+        assignedTables = tryReassignment(people, preference, conflictingReservations, allReservations);
+        
+        if (assignedTables.length > 0) {
+            console.log(`재배정 성공: ${assignedTables.join(', ')}`);
+            return assignedTables;
+        }
+    }
+    
+    console.log(`모든 배정 시도 실패`);
+    return []; // 배정 실패
+}
+
 // 재배정 시도 (주요 로직)
 function tryReassignment(people, preference, conflictingReservations, allReservations) {
     console.log(`재배정 시도: ${people}명, 선호도: ${preference}`);
