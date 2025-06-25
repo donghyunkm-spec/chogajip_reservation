@@ -35,6 +35,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 새 예약 주기적 확인
     setInterval(checkForNewReservations, 100000); // 100초마다
     
+    // 초기 UI 업데이트
+    updateStatus();
+    
     console.log('🔔 초가짚 예약 시스템이 초기화되었습니다.');
 });
 
@@ -452,6 +455,9 @@ async function handleReservation(event) {
             if (dateInput) dateInput.value = getCurrentDate();
             document.getElementById('people').value = 4;
             selectPreference('any');
+            
+            // 예약 현황 업데이트
+            updateStatus();
         } else {
             // 예약 불가 시 대안 제시
             showReservationFailureModal(people, preference, date, time, name);
@@ -610,6 +616,9 @@ async function acceptAlternative(altType, tablesStr, name, people, originalPrefe
         if (dateInput) dateInput.value = getCurrentDate();
         document.getElementById('people').value = 4;
         selectPreference('any');
+        
+        // 예약 현황 업데이트
+        updateStatus();
     } catch (error) {
         console.error('대안 예약 오류:', error);
         showAlert('대안 예약 등록 중 오류가 발생했습니다.', 'error');
@@ -710,15 +719,19 @@ function renderHallTables(groupedReservations, groupReservations) {
     
     for (const [groupKey, reservation] of Object.entries(groupReservations)) {
         if (reservation.tables && reservation.tables.some(t => t.startsWith('hall-'))) {
-            const hallTablesInGroup = reservation.tables.filter(t => t.startsWith('hall-'));
-            hallTablesInGroup.forEach(tableId => {
-                groupTables.add(tableId);
-                groupInfo.set(tableId, reservation);
+            const hallTablesInGroup = reservation.tables.filter(t => t.startsWith('hall-')).map(t => t.replace('hall-', ''));
+            hallTablesInGroup.forEach(tableNum => {
+                groupTables.add(tableNum);
+                groupInfo.set(tableNum, reservation);
             });
         }
     }
     
     hallLayout.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'hall-row';
+        rowDiv.style.display = 'flex';
+        
         row.forEach(tableNum => {
             const cell = document.createElement('div');
             
@@ -727,8 +740,8 @@ function renderHallTables(groupedReservations, groupReservations) {
             } else {
                 const tableId = `hall-${tableNum}`;
                 
-                if (groupTables.has(tableId)) {
-                    const groupReservation = groupInfo.get(tableId);
+                if (groupTables.has(tableNum.toString())) {
+                    const groupReservation = groupInfo.get(tableNum.toString());
                     cell.className = `table-cell group-reserved group-${(groupReservation.id % 8) + 1}`;
                     cell.innerHTML = `
                         <div class="group-info-cell">
@@ -756,8 +769,10 @@ function renderHallTables(groupedReservations, groupReservations) {
                 }
             }
             
-            hallDiv.appendChild(cell);
+            rowDiv.appendChild(cell);
         });
+        
+        hallDiv.appendChild(rowDiv);
     });
 }
 
@@ -779,21 +794,25 @@ function renderRoomTables(groupedReservations, groupReservations) {
     
     for (const [groupKey, reservation] of Object.entries(groupReservations)) {
         if (reservation.tables && reservation.tables.some(t => t.startsWith('room-'))) {
-            const roomTablesInGroup = reservation.tables.filter(t => t.startsWith('room-'));
-            roomTablesInGroup.forEach(tableId => {
-                groupTables.add(tableId);
-                groupInfo.set(tableId, reservation);
+            const roomTablesInGroup = reservation.tables.filter(t => t.startsWith('room-')).map(t => t.replace('room-', ''));
+            roomTablesInGroup.forEach(tableNum => {
+                groupTables.add(tableNum);
+                groupInfo.set(tableNum, reservation);
             });
         }
     }
     
     roomLayout.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'room-row';
+        rowDiv.style.display = 'flex';
+        
         row.forEach(tableNum => {
             const cell = document.createElement('div');
             const tableId = `room-${tableNum}`;
             
-            if (groupTables.has(tableId)) {
-                const groupReservation = groupInfo.get(tableId);
+            if (groupTables.has(tableNum.toString())) {
+                const groupReservation = groupInfo.get(tableNum.toString());
                 cell.className = `table-cell group-reserved group-${(groupReservation.id % 8) + 1}`;
                 cell.innerHTML = `
                     <div class="group-info-cell">
@@ -820,8 +839,10 @@ function renderRoomTables(groupedReservations, groupReservations) {
                 }
             }
             
-            roomDiv.appendChild(cell);
+            rowDiv.appendChild(cell);
         });
+        
+        roomDiv.appendChild(rowDiv);
     });
 }
 

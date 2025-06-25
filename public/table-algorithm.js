@@ -18,6 +18,7 @@ const TABLE_INFO = {
 // 단체석 규칙 (테이블_인원정보.txt 정확히 반영)
 const GROUP_RULES = [
     // 홀 단체석 규칙
+    { name: '홀 1번', tables: ['hall-1'], maxPeople: 5, minPeople: 5 },
     { name: '홀 1,2번', tables: ['hall-1', 'hall-2'], maxPeople: 9, minPeople: 6 },
     { name: '홀 4,5번', tables: ['hall-4', 'hall-5'], maxPeople: 8, minPeople: 5 },
     { name: '홀 6,7번', tables: ['hall-6', 'hall-7'], maxPeople: 8, minPeople: 5 },
@@ -456,12 +457,4 @@ function addHours(timeStr, hours) {
     const date = new Date();
     date.setHours(hour + hours, minute);
     return date.toTimeString().slice(0, 5);
-}
-
-// 테이블 세트가 동일한지 확인하는 유틸리티 함수
-function isEqualTableSet(tables1, tables2) {
-    if (tables1.length !== tables2.length) return false;
-    
-    const set1 = new Set(tables1);
-    return tables2.every(t => set1.has(t));
 }
