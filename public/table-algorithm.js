@@ -285,6 +285,31 @@ function checkGroupAvailability(groupRule, reservations) {
         }
     }
     
+    // 홀 단체석 체크를 더 엄격하게 (9~16번은 단체석 불가)
+    if (groupRule.tables.some(t => t.startsWith('hall-'))) {
+        for (const table of groupRule.tables) {
+            const tableNum = parseInt(table.split('-')[1]);
+            if (tableNum >= 9 && tableNum <= 16) {
+                console.log(`홀 ${tableNum}번은 단체석으로 사용 불가`);
+                return false;
+            }
+        }
+    }
+    
+    // 룸 단체석의 경우 예약불가 조합 확인
+    if (groupRule.tables.some(t => t.startsWith('room-'))) {
+        if (hasInvalidCombination(groupRule.tables)) {
+            console.log(`단체석 ${groupRule.name}에 예약불가 조합 포함됨`);
+            return false;
+        }
+    }
+    
+    // 룸 선호 고객 인원수 체크 (36명 초과 불가)
+    if (groupRule.tables.some(t => t.startsWith('room-')) && groupRule.maxPeople > 36) {
+        console.log(`룸 단체석 ${groupRule.name}은 36명 초과 예약 불가`);
+        return false;
+    }
+    
     return true;
 }
 
@@ -519,6 +544,12 @@ function analyzeTableMovability(conflictingReservations, usedTables) {
 
 // 룸 테이블 배정 시도
 function tryRoomAssignment(people, usedTables) {
+    // 좌석선호도 룸인 경우 최대 36명까지만 예약 가능 체크
+    if (people > 36) {
+        console.log(`룸 예약 인원 초과: ${people}명 (최대 36명까지 가능)`);
+        return [];
+    }
+    
     // 1명~4명: 기본 룸 테이블 배정
     if (people <= 4) {
         // 비어있는 룸 테이블 찾기
@@ -529,6 +560,15 @@ function tryRoomAssignment(people, usedTables) {
             }
         }
         return []; // 가능한 테이블 없음
+    }
+    
+    // 9~12명: 룸1,2,3 우선 배정 (텍스트 파일 규칙 0번)
+    if (people >= 9 && people <= 12) {
+        const roomGroup = ['room-1', 'room-2', 'room-3'];
+        if (roomGroup.every(t => !usedTables.has(t))) {
+            console.log(`9~12명 룸 단체석 우선 배정: 룸1,2,3 (${people}명)`);
+            return roomGroup;
+        }
     }
     
     // 5명 이상: 단체석 규칙 적용
@@ -648,18 +688,15 @@ function tryHallAssignment(people, usedTables) {
         }
         
         // 1~8번 테이블 확인
-        for (let i = 1; i <= 8; i++) {
-            // 홀 1번은 5명 전용이므로 4명 이하에게는 마지막에 배정
-            if (i === 1 && people < 5) continue;
-            
+        for (let i = 2; i <= 8; i++) {
             const tableId = `hall-${i}`;
             if (!usedTables.has(tableId)) {
                 return [tableId];
             }
         }
         
-        // 홀 1번이 마지막 선택지 (인원이 5명 미만이더라도)
-        if (people < 5 && !usedTables.has('hall-1')) {
+        // 홀 1번은 5명 전용이므로 4명 이하에게는 마지막에 배정
+        if (!usedTables.has('hall-1')) {
             return ['hall-1'];
         }
         
@@ -669,6 +706,11 @@ function tryHallAssignment(people, usedTables) {
     // 5명: 홀 1번 테이블 우선 배정
     if (people === 5 && !usedTables.has('hall-1')) {
         return ['hall-1'];
+    }
+    
+    // 9명: 홀 1,2번 테이블 우선 배정 (규칙 c)
+    if (people === 9 && !usedTables.has('hall-1') && !usedTables.has('hall-2')) {
+        return ['hall-1', 'hall-2'];
     }
     
     // 5명 이상: 단체석 규칙 적용 (홀 9~16번은 단체석 제외)
@@ -1379,6 +1421,12 @@ function getCombinations(arr, n) {
 function assignTables(people, preference, date, time, allReservations) {
     console.log(`테이블 배정 시작: ${people}명, 선호도: ${preference}, 날짜: ${date}, 시간: ${time}`);
     
+    // 룸 선호인 경우 36명 이상이면 예약 불가 (추가된 체크)
+    if (preference === 'room' && people > 36) {
+        console.log(`룸 선호 예약 불가: ${people}명 (최대 36명까지 가능)`);
+        return [];
+    }
+    
     // 같은 날짜/시간대 예약 필터링
     const activeReservations = allReservations.filter(r => r.status === 'active');
     const conflictingReservations = activeReservations.filter(r => 
@@ -1392,8 +1440,124 @@ function assignTables(people, preference, date, time, allReservations) {
     // 선호도에 따른 테이블 배정 시도
     let assignedTables = [];
     
-    // 단체석 고객을 위한 인접 테이블 재배정 먼저 시도
-    if ((preference === 'hall' || preference === 'any') && people >= 5) {
+    // 재배정 제외 조건 체크 (a-g 규칙)
+    let skipReassignment = false;
+    
+    // a. 룸 선호 고객이 9~12명인 경우 (룸1,2,3을 제외한 더 나은 선택지가 없음)
+    if (preference === 'room' && people >= 9 && people <= 12) {
+        const roomGroup = ['room-1', 'room-2', 'room-3'];
+        if (roomGroup.every(t => !usedTables.has(t))) {
+            console.log(`룸 선호 ${people}명 고객에게 룸1,2,3 직접 배정 (재배정 제외 조건 a)`);
+            return roomGroup;
+        }
+        skipReassignment = true;
+    }
+    
+    // b. 룸 선호 고객이 17~24명인 경우 (룸 4,5,6,7,8,9를 제외한 선택지가 없음)
+    if (preference === 'room' && people >= 17 && people <= 24) {
+        const roomGroup = ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'];
+        if (roomGroup.every(t => !usedTables.has(t))) {
+            console.log(`룸 선호 ${people}명 고객에게 룸4-9 직접 배정 (재배정 제외 조건 b)`);
+            return roomGroup;
+        }
+        skipReassignment = true;
+    }
+    
+    // c. 관계없음, 홀 선호 고객이 5명 또는 9명인 경우
+    if ((preference === 'any' || preference === 'hall') && 
+        (people === 5 || people === 9)) {
+        if (people === 5 && !usedTables.has('hall-1')) {
+            console.log(`${preference} 선호 5명 고객에게 홀1 직접 배정 (재배정 제외 조건 c)`);
+            return ['hall-1'];
+        }
+        if (people === 9 && !usedTables.has('hall-1') && !usedTables.has('hall-2')) {
+            console.log(`${preference} 선호 9명 고객에게 홀1,2 직접 배정 (재배정 제외 조건 c)`);
+            return ['hall-1', 'hall-2'];
+        }
+    }
+    
+    // d. 관계없음, 홀 선호 고객이 13~16명인 경우
+    if ((preference === 'any' || preference === 'hall') && 
+        people >= 13 && people <= 16) {
+        // 홀 3,4,5,6 확인
+        const group1 = ['hall-3', 'hall-4', 'hall-5', 'hall-6'];
+        if (group1.every(t => !usedTables.has(t))) {
+            console.log(`${preference} 선호 ${people}명 고객에게 홀3,4,5,6 직접 배정 (재배정 제외 조건 d)`);
+            return group1;
+        }
+        
+        // 홀 5,6,7,8 확인
+        const group2 = ['hall-5', 'hall-6', 'hall-7', 'hall-8'];
+        if (group2.every(t => !usedTables.has(t))) {
+            console.log(`${preference} 선호 ${people}명 고객에게 홀5,6,7,8 직접 배정 (재배정 제외 조건 d)`);
+            return group2;
+        }
+        
+        skipReassignment = true;
+    }
+    
+    // e. 관계없음, 홀 선호 고객이 5~8명인 경우
+    if ((preference === 'any' || preference === 'hall') && 
+        people >= 5 && people <= 8) {
+        // 홀 3,4 확인
+        const group1 = ['hall-3', 'hall-4'];
+        if (group1.every(t => !usedTables.has(t))) {
+            console.log(`${preference} 선호 ${people}명 고객에게 홀3,4 직접 배정 (재배정 제외 조건 e)`);
+            return group1;
+        }
+        
+        // 홀 5,6 확인
+        const group2 = ['hall-5', 'hall-6'];
+        if (group2.every(t => !usedTables.has(t))) {
+            console.log(`${preference} 선호 ${people}명 고객에게 홀5,6 직접 배정 (재배정 제외 조건 e)`);
+            return group2;
+        }
+        
+        // 홀 7,8 확인
+        const group3 = ['hall-7', 'hall-8'];
+        if (group3.every(t => !usedTables.has(t))) {
+            console.log(`${preference} 선호 ${people}명 고객에게 홀7,8 직접 배정 (재배정 제외 조건 e)`);
+            return group3;
+        }
+        
+        skipReassignment = true;
+    }
+    
+    // f. 관계없음, 홀 선호 고객이 17~20명인 경우
+    if ((preference === 'any' || preference === 'hall') && 
+        people >= 17 && people <= 20) {
+        // 홀 3,4,5,6,7 확인
+        const group1 = ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7'];
+        if (group1.every(t => !usedTables.has(t))) {
+            console.log(`${preference} 선호 ${people}명 고객에게 홀3,4,5,6,7 직접 배정 (재배정 제외 조건 f)`);
+            return group1;
+        }
+        
+        // 홀 4,5,6,7,8 확인
+        const group2 = ['hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'];
+        if (group2.every(t => !usedTables.has(t))) {
+            console.log(`${preference} 선호 ${people}명 고객에게 홀4,5,6,7,8 직접 배정 (재배정 제외 조건 f)`);
+            return group2;
+        }
+        
+        skipReassignment = true;
+    }
+    
+    // g. 관계없음, 홀 선호 고객이 21~24명인 경우
+    if ((preference === 'any' || preference === 'hall') && 
+        people >= 21 && people <= 24) {
+        // 홀 3,4,5,6,7,8 확인
+        const group = ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'];
+        if (group.every(t => !usedTables.has(t))) {
+            console.log(`${preference} 선호 ${people}명 고객에게 홀3,4,5,6,7,8 직접 배정 (재배정 제외 조건 g)`);
+            return group;
+        }
+        
+        skipReassignment = true;
+    }
+    
+    // 단체석 고객을 위한 인접 테이블 재배정 시도 (재배정 제외 조건에 해당하지 않는 경우만)
+    if (!skipReassignment && (preference === 'hall' || preference === 'any') && people >= 5) {
         assignedTables = tryAdjacentTableReassignment(people, preference, conflictingReservations, allReservations);
         
         if (assignedTables.length > 0) {
@@ -1402,8 +1566,8 @@ function assignTables(people, preference, date, time, allReservations) {
         }
     }
     
-    // 특수 케이스: 단체석을 위한 재배정 시도
-    if ((preference === 'hall' || preference === 'any') && people >= 5) {
+    // 특수 케이스: 단체석을 위한 재배정 시도 (재배정 제외 조건에 해당하지 않는 경우만)
+    if (!skipReassignment && (preference === 'hall' || preference === 'any') && people >= 5) {
         assignedTables = trySpecialCaseReassignment(people, conflictingReservations, allReservations);
         
         if (assignedTables.length > 0) {
@@ -1434,29 +1598,31 @@ function assignTables(people, preference, date, time, allReservations) {
             }
         }
         
-        // 룸 선호 고객을 위한 적극적인 재배정 시도
-        assignedTables = tryReassignmentForRoomPreference(people, conflictingReservations, allReservations);
-        
-        if (assignedTables.length > 0) {
-            // 예약불가 조합 체크
-            if (!hasInvalidCombination(assignedTables)) {
-                console.log(`룸 선호 고객 재배정 성공: ${assignedTables.join(', ')}`);
-                return assignedTables;
-            } else {
-                console.log(`재배정으로 예약불가 조합 발견: ${assignedTables.join(', ')}`);
+        // 룸 선호 고객을 위한 적극적인 재배정 시도 (재배정 제외 조건에 해당하지 않는 경우만)
+        if (!skipReassignment) {
+            assignedTables = tryReassignmentForRoomPreference(people, conflictingReservations, allReservations);
+            
+            if (assignedTables.length > 0) {
+                // 예약불가 조합 체크
+                if (!hasInvalidCombination(assignedTables)) {
+                    console.log(`룸 선호 고객 재배정 성공: ${assignedTables.join(', ')}`);
+                    return assignedTables;
+                } else {
+                    console.log(`재배정으로 예약불가 조합 발견: ${assignedTables.join(', ')}`);
+                }
             }
-        }
-        
-        // 마지막으로 일반 재배정 시도
-        assignedTables = tryReassignment(people, preference, conflictingReservations, allReservations, true);
-        
-        if (assignedTables.length > 0) {
-            // 예약불가 조합 체크
-            if (!hasInvalidCombination(assignedTables)) {
-                console.log(`재배정 성공 (선호도 고려): ${assignedTables.join(', ')}`);
-                return assignedTables;
-            } else {
-                console.log(`재배정으로 예약불가 조합 발견: ${assignedTables.join(', ')}`);
+            
+            // 마지막으로 일반 재배정 시도
+            assignedTables = tryReassignment(people, preference, conflictingReservations, allReservations, true);
+            
+            if (assignedTables.length > 0) {
+                // 예약불가 조합 체크
+                if (!hasInvalidCombination(assignedTables)) {
+                    console.log(`재배정 성공 (선호도 고려): ${assignedTables.join(', ')}`);
+                    return assignedTables;
+                } else {
+                    console.log(`재배정으로 예약불가 조합 발견: ${assignedTables.join(', ')}`);
+                }
             }
         }
     } 
@@ -1469,12 +1635,14 @@ function assignTables(people, preference, date, time, allReservations) {
             return assignedTables;
         }
         
-        // 홀 선호 고객을 위한 재배정 시도
-        assignedTables = tryReassignment(people, preference, conflictingReservations, allReservations, true);
-        
-        if (assignedTables.length > 0) {
-            console.log(`재배정 성공 (선호도 고려): ${assignedTables.join(', ')}`);
-            return assignedTables;
+        // 홀 선호 고객을 위한 재배정 시도 (재배정 제외 조건에 해당하지 않는 경우만)
+        if (!skipReassignment) {
+            assignedTables = tryReassignment(people, preference, conflictingReservations, allReservations, true);
+            
+            if (assignedTables.length > 0) {
+                console.log(`재배정 성공 (선호도 고려): ${assignedTables.join(', ')}`);
+                return assignedTables;
+            }
         }
     }
     else {
@@ -1507,8 +1675,8 @@ function assignTables(people, preference, date, time, allReservations) {
         }
     }
     
-    // 직접 배정 실패 시 일반적인 재배정 시도
-    if (assignedTables.length === 0) {
+    // 직접 배정 실패 시 일반적인 재배정 시도 (재배정 제외 조건에 해당하지 않는 경우만)
+    if (assignedTables.length === 0 && !skipReassignment) {
         console.log(`직접 배정 실패, 일반 재배정 시도...`);
         assignedTables = tryReassignment(people, preference, conflictingReservations, allReservations, false);
         
@@ -1521,6 +1689,10 @@ function assignTables(people, preference, date, time, allReservations) {
                 console.log(`일반 재배정으로 예약불가 조합 발견: ${assignedTables.join(', ')}`);
             }
         }
+    }
+    
+    if (skipReassignment) {
+        console.log(`재배정 제외 조건에 해당하여 재배정 시도하지 않음`);
     }
     
     console.log(`모든 배정 시도 실패`);
