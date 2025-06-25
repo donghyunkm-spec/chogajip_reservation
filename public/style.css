@@ -29,6 +29,40 @@ body {
     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
+/* 상태 바 스타일 */
+.status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 8px 10px;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.connection-status, .data-status {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.connection-status.online, .data-status.online {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.connection-status.offline, .data-status.offline {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
 /* 탭 스타일 */
 .tabs {
     display: flex;
@@ -157,6 +191,38 @@ label {
     display: block;
     font-size: 24px;
     margin-bottom: 5px;
+}
+
+/* 데이터 상태 패널 */
+.data-status-panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.data-refresh-btn {
+    background: #17a2b8;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.data-refresh-btn:hover {
+    background: #138496;
+}
+
+.data-count {
+    font-size: 14px;
+    font-weight: bold;
+    color: #495057;
 }
 
 /* 버튼 및 입력 필드 */
@@ -305,16 +371,17 @@ input:focus, select:focus {
     min-height: 75px;
     min-width: 75px;
     flex: 1;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .table-cell.available {
-    background: #e8f5e8;
+    background: linear-gradient(135deg, #e8f5e8, #d4edda);
     border-color: #4CAF50;
     color: #2e7d32;
 }
 
 .table-cell.reserved {
-    background: #ffebee;
+    background: linear-gradient(135deg, #ffebee, #f8d7da);
     border-color: #f44336;
     color: #c62828;
 }
@@ -390,7 +457,7 @@ input:focus, select:focus {
 
 .table-cell:hover:not(.empty-cell) {
     transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
 .table-info {
@@ -475,13 +542,84 @@ input:focus, select:focus {
     margin-top: 20px;
 }
 
+/* 예약 항목 스타일 개선 */
 .reservation-item {
     border: 1px solid #ddd;
     border-radius: 8px;
     padding: 15px;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
     background: #f9f9f9;
-    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.reservation-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.reservation-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.reservation-info {
+    flex: 1;
+}
+
+.customer-name {
+    font-size: 16px;
+    color: #333;
+    margin-right: 8px;
+}
+
+.reservation-time {
+    font-weight: bold;
+    color: #0066cc;
+    margin-right: 8px;
+}
+
+.reservation-people {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.reservation-tables {
+    margin-top: 5px;
+    font-size: 14px;
+    color: #555;
+}
+
+.reservation-preference {
+    font-size: 14px;
+    color: #666;
+    font-style: italic;
+    margin-top: 3px;
+}
+
+.reservation-detail {
+    font-size: 13px;
+    color: #666;
+}
+
+.reservation-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* 배지 스타일 */
+.badge {
+    display: inline-block;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+.alternative-badge {
+    background: #ffc107;
+    color: #212529;
 }
 
 .download-btn {
@@ -527,6 +665,35 @@ input:focus, select:focus {
 
 .delete-btn:hover {
     background: #d32f2f;
+}
+
+/* 빈 상태 표시 */
+.empty-state {
+    text-align: center;
+    padding: 30px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.empty-state p {
+    color: #6c757d;
+    margin-bottom: 15px;
+}
+
+.refresh-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.refresh-btn:hover {
+    background: #0069d9;
 }
 
 /* 알림 스타일 */
@@ -599,29 +766,6 @@ input:focus, select:focus {
     border: 1px solid #bee5eb;
 }
 
-.connection-status {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    padding: 8px 15px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: bold;
-    z-index: 1000;
-}
-
-.connection-status.online {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
-
-.connection-status.offline {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
-
 .alternative-highlight {
     background: linear-gradient(45deg, #fff3cd, #ffeaa7);
     border-left: 4px solid #fdcb6e;
@@ -652,8 +796,23 @@ input:focus, select:focus {
 
 /* 모바일 최적화 스타일 */
 @media (max-width: 768px) {
-    .container {
+    .status-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+        position: static;
+        margin-bottom: 10px;
+        box-shadow: none;
         padding: 5px;
+    }
+    
+    .sound-control {
+        position: static;
+        align-self: flex-end;
+    }
+    
+    .container {
+        margin-top: 10px;
     }
     
     .form-container, .status-container {
@@ -709,25 +868,24 @@ input:focus, select:focus {
         font-size: 14px;
     }
     
-    .reservation-item {
-        padding: 12px;
+    .reservation-content {
+        flex-direction: column;
     }
     
-    .edit-btn, .delete-btn {
-        padding: 6px 12px;
-        font-size: 11px;
+    .reservation-actions {
+        margin-top: 10px;
+        width: 100%;
+        justify-content: flex-end;
     }
     
-    /* 모바일에서 예약 항목 버튼 정렬 개선 */
-    .reservation-item > div {
+    .data-status-panel {
         flex-direction: column;
         gap: 10px;
+        align-items: stretch;
     }
     
-    .reservation-item > div > div:last-child {
-        display: flex;
-        justify-content: flex-end;
-        width: 100%;
+    .data-count {
+        text-align: center;
     }
 }
 

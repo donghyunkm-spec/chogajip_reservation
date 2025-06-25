@@ -10,40 +10,64 @@ const PORT = process.env.PORT || 3000;
 // 미들웨어
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));  // public  사용
+app.use(express.static('public'));  // public 사용
 
-// Railway Volume 경로 사용 (영구 저장)
+// Railway Volume 경로 사용 (영구 저장) - 로깅 강화
 const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
 const DATA_FILE = path.join(VOLUME_PATH, 'reservations.json');
 
-console.log(`📁 Volume 경로: ${VOLUME_PATH}`);
-console.log(`📄 데이터 파일: ${DATA_FILE}`);
+console.log(`📁 Volume 경로 설정: ${VOLUME_PATH}`);
+console.log(`📄 데이터 파일 설정: ${DATA_FILE}`);
+console.log(`🔍 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 
-// 볼륨 디렉토리 생성
+// 볼륨 디렉토리 생성 및 권한 확인 강화
 function ensureVolumeDirectory() {
     try {
         if (!fs.existsSync(VOLUME_PATH)) {
+            console.log(`📁 볼륨 경로 미존재, 생성 시도: ${VOLUME_PATH}`);
             fs.mkdirSync(VOLUME_PATH, { recursive: true });
-            console.log(`📁 볼륨 디렉토리 생성: ${VOLUME_PATH}`);
+            console.log(`📁 볼륨 디렉토리 생성 완료: ${VOLUME_PATH}`);
         } else {
-            console.log(`📁 볼륨 디렉토리 존재: ${VOLUME_PATH}`);
+            console.log(`📁 볼륨 디렉토리 존재 확인: ${VOLUME_PATH}`);
+            // 디렉토리 권한 확인
+            try {
+                const stats = fs.statSync(VOLUME_PATH);
+                console.log(`📁 볼륨 디렉토리 권한: ${stats.mode.toString(8)}`);
+            } catch (statError) {
+                console.error(`❌ 볼륨 디렉토리 권한 확인 실패:`, statError);
+            }
         }
         
-        // 볼륨 쓰기 테스트
-        const testFile = path.join(VOLUME_PATH, 'test.txt');
-        fs.writeFileSync(testFile, 'test');
+        // 볼륨 쓰기 테스트 상세화
+        const testFile = path.join(VOLUME_PATH, 'test-write.txt');
+        const testContent = `Test write at ${new Date().toISOString()}`;
+        console.log(`✏️ 볼륨 쓰기 테스트 시작: ${testFile}`);
+        
+        fs.writeFileSync(testFile, testContent);
+        const readBack = fs.readFileSync(testFile, 'utf8');
+        console.log(`✅ 볼륨 쓰기/읽기 테스트 성공! 내용 확인: ${readBack.substring(0, 20)}...`);
+        
         fs.unlinkSync(testFile);
-        console.log(`✅ 볼륨 쓰기 권한 확인됨`);
+        console.log(`🗑️ 테스트 파일 삭제 완료`);
         
     } catch (error) {
         console.error(`❌ 볼륨 디렉토리 오류:`, error);
         
-        // 볼륨이 안 되면 기본 경로로 대체
+        // 볼륨이 안 되면 기본 경로로 대체 (상세 로깅 추가)
         const fallbackPath = path.join(__dirname, 'data');
+        console.log(`⚠️ 볼륨 접근 실패, 기본 경로 사용 시도: ${fallbackPath}`);
+        
         if (!fs.existsSync(fallbackPath)) {
-            fs.mkdirSync(fallbackPath, { recursive: true });
+            try {
+                fs.mkdirSync(fallbackPath, { recursive: true });
+                console.log(`📁 기본 경로 생성 완료: ${fallbackPath}`);
+            } catch (mkdirError) {
+                console.error(`❌ 기본 경로 생성 실패:`, mkdirError);
+            }
+        } else {
+            console.log(`📁 기본 경로 존재 확인: ${fallbackPath}`);
         }
-        console.log(`⚠️ 기본 경로로 대체: ${fallbackPath}`);
+        
         return fallbackPath;
     }
     
@@ -62,89 +86,184 @@ if (!fs.existsSync(FINAL_DATA_FILE)) {
     console.log(`📄 기존 데이터 파일 발견: ${FINAL_DATA_FILE}`);
 }
 
-// 데이터 읽기 함수
+// 데이터 읽기 함수 개선
 function readReservations() {
     try {
-        const data = fs.readFileSync(FINAL_DATA_FILE, 'utf8');
-        const reservations = JSON.parse(data);
-        return Array.isArray(reservations) ? reservations : [];
-    } catch (error) {
-        console.error('데이터 읽기 오류:', error);
+        console.log(`📖 데이터 파일 읽기 시도: ${FINAL_DATA_FILE}`);
         
-        // 백업 파일에서 복원 시도
+        if (!fs.existsSync(FINAL_DATA_FILE)) {
+            console.log(`⚠️ 데이터 파일이 존재하지 않음, 새 파일 생성`);
+            fs.writeFileSync(FINAL_DATA_FILE, JSON.stringify([], null, 2));
+            return [];
+        }
+        
+        const data = fs.readFileSync(FINAL_DATA_FILE, 'utf8');
+        console.log(`📊 데이터 파일 크기: ${data.length} 바이트`);
+        
+        if (!data || data.trim() === '') {
+            console.log(`⚠️ 데이터 파일이 비어있음, 빈 배열 반환`);
+            return [];
+        }
+        
         try {
-            const backupPattern = path.join(actualDataPath, 'backup-*.json');
+            const reservations = JSON.parse(data);
+            console.log(`✅ JSON 파싱 성공: ${Array.isArray(reservations) ? reservations.length : 0}건`);
+            
+            if (!Array.isArray(reservations)) {
+                console.error(`❌ 데이터가 배열이 아님:`, typeof reservations);
+                return [];
+            }
+            
+            return reservations;
+        } catch (parseError) {
+            console.error(`❌ JSON 파싱 오류:`, parseError);
+            throw parseError; // 백업 복원 로직으로 넘김
+        }
+    } catch (error) {
+        console.error('❌ 데이터 읽기 오류:', error);
+        
+        // 백업 파일에서 복원 시도 (로깅 강화)
+        try {
+            console.log(`🔄 백업 파일 검색 시도...`);
             const backupFiles = fs.readdirSync(actualDataPath)
                 .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
                 .sort()
                 .reverse();
                 
+            console.log(`🔍 백업 파일 ${backupFiles.length}개 발견`);
+                
             if (backupFiles.length > 0) {
                 const latestBackup = path.join(actualDataPath, backupFiles[0]);
-                const backupData = JSON.parse(fs.readFileSync(latestBackup, 'utf8'));
-                console.log(`🔄 백업에서 복원: ${backupFiles[0]} (${backupData.length}건)`);
+                console.log(`📂 최신 백업 파일: ${latestBackup}`);
                 
-                // 메인 파일에 복원
-                fs.writeFileSync(FINAL_DATA_FILE, JSON.stringify(backupData, null, 2));
-                return backupData;
+                const backupData = fs.readFileSync(latestBackup, 'utf8');
+                
+                if (!backupData || backupData.trim() === '') {
+                    console.log(`⚠️ 백업 파일이 비어있음`);
+                    return [];
+                }
+                
+                try {
+                    const backupReservations = JSON.parse(backupData);
+                    console.log(`🔄 백업에서 복원: ${backupFiles[0]} (${backupReservations.length}건)`);
+                    
+                    // 메인 파일에 복원
+                    fs.writeFileSync(FINAL_DATA_FILE, JSON.stringify(backupReservations, null, 2));
+                    console.log(`✅ 메인 파일에 백업 데이터 복원 완료`);
+                    
+                    return backupReservations;
+                } catch (backupParseError) {
+                    console.error(`❌ 백업 파일 JSON 파싱 오류:`, backupParseError);
+                }
+            } else {
+                console.log(`⚠️ 사용 가능한 백업 파일 없음`);
             }
         } catch (backupError) {
-            console.error('백업 복원 실패:', backupError);
+            console.error('❌ 백업 복원 실패:', backupError);
         }
         
+        // 모든 시도 실패 시 빈 배열 반환
+        console.log(`⚠️ 모든 복구 시도 실패, 빈 배열 반환`);
         return [];
     }
 }
 
-// 데이터 쓰기 함수 (자동 백업 포함)
+// 데이터 쓰기 함수 개선
 function writeReservations(reservations) {
     try {
+        if (!Array.isArray(reservations)) {
+            console.error(`❌ 유효하지 않은 데이터 형식 (배열 아님):`, typeof reservations);
+            return false;
+        }
+        
+        console.log(`💾 데이터 저장 시도: ${reservations.length}건`);
+        
         // 메인 파일 저장
-        fs.writeFileSync(FINAL_DATA_FILE, JSON.stringify(reservations, null, 2));
+        const dataJson = JSON.stringify(reservations, null, 2);
+        console.log(`📊 저장할 데이터 크기: ${dataJson.length} 바이트`);
+        
+        fs.writeFileSync(FINAL_DATA_FILE, dataJson);
+        console.log(`✅ 메인 파일 저장 완료: ${FINAL_DATA_FILE}`);
         
         // 자동 백업 생성 (최근 5개만 유지)
         if (reservations.length > 0) {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
             const backupFile = path.join(actualDataPath, `backup-${timestamp}.json`);
-            fs.writeFileSync(backupFile, JSON.stringify(reservations, null, 2));
+            
+            fs.writeFileSync(backupFile, dataJson);
+            console.log(`💾 자동 백업 생성: ${backupFile} (${reservations.length}건)`);
             
             // 오래된 백업 정리
-            const backupFiles = fs.readdirSync(actualDataPath)
-                .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
-                .sort();
-                
-            if (backupFiles.length > 5) {
-                const filesToDelete = backupFiles.slice(0, backupFiles.length - 5);
-                filesToDelete.forEach(file => {
-                    fs.unlinkSync(path.join(actualDataPath, file));
-                });
+            try {
+                const backupFiles = fs.readdirSync(actualDataPath)
+                    .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+                    .sort();
+                    
+                if (backupFiles.length > 5) {
+                    const filesToDelete = backupFiles.slice(0, backupFiles.length - 5);
+                    filesToDelete.forEach(file => {
+                        try {
+                            fs.unlinkSync(path.join(actualDataPath, file));
+                            console.log(`🗑️ 오래된 백업 삭제: ${file}`);
+                        } catch (deleteError) {
+                            console.error(`❌ 백업 파일 삭제 실패:`, deleteError);
+                        }
+                    });
+                }
+            } catch (cleanupError) {
+                console.error(`❌ 백업 정리 실패:`, cleanupError);
             }
-            
-            console.log(`💾 자동 백업: backup-${timestamp}.json (${reservations.length}건)`);
         }
         
         return true;
     } catch (error) {
-        console.error('데이터 쓰기 오류:', error);
+        console.error('❌ 데이터 쓰기 오류:', error);
         return false;
     }
 }
 
-// 파일 시스템 상태 체크
+// 파일 시스템 상태 체크 개선
 function checkFileSystemStatus() {
     try {
+        // 먼저 파일 존재 여부 확인
+        if (!fs.existsSync(FINAL_DATA_FILE)) {
+            console.log(`⚠️ 데이터 파일이 존재하지 않음`);
+            return {
+                filePath: FINAL_DATA_FILE,
+                fileExists: false,
+                error: '파일이 존재하지 않습니다',
+                isVolume: FINAL_DATA_FILE.includes('/data'),
+                writable: true
+            };
+        }
+        
         const stats = fs.statSync(FINAL_DATA_FILE);
-        const reservations = readReservations();
+        
+        // 파일 내용 샘플링 (오류 확인용)
+        let fileContent = '';
+        let fileData = [];
+        let validJson = false;
+        
+        try {
+            fileContent = fs.readFileSync(FINAL_DATA_FILE, 'utf8');
+            fileData = JSON.parse(fileContent);
+            validJson = true;
+        } catch (readError) {
+            console.error(`❌ 파일 읽기 오류:`, readError);
+        }
         
         return {
             filePath: FINAL_DATA_FILE,
             fileSize: stats.size,
             lastModified: stats.mtime,
-            recordCount: reservations.length,
+            recordCount: validJson && Array.isArray(fileData) ? fileData.length : 0,
             isVolume: FINAL_DATA_FILE.includes('/data'),
-            writable: true
+            validJson: validJson,
+            writable: true,
+            fileContentSample: fileContent ? fileContent.substring(0, 100) + '...' : ''
         };
     } catch (error) {
+        console.error(`❌ 파일 시스템 상태 확인 오류:`, error);
         return {
             filePath: FINAL_DATA_FILE,
             error: error.message,
@@ -158,31 +277,56 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// API 엔드포인트 - ping 개선
 app.get('/api/ping', (req, res) => {
-    const reservations = readReservations();
-    const fsStatus = checkFileSystemStatus();
-    
-    res.json({ 
-        status: 'ok', 
-        timestamp: new Date().toISOString(),
-        reservationCount: reservations.length,
-        fileSystem: fsStatus
-    });
-});
-
-app.get('/api/reservations', (req, res) => {
     try {
         const reservations = readReservations();
+        const fsStatus = checkFileSystemStatus();
+        
+        // 추가 시스템 정보
+        const systemInfo = {
+            nodeVersion: process.version,
+            platform: process.platform,
+            memory: process.memoryUsage(),
+            uptime: process.uptime(),
+            env: process.env.NODE_ENV || 'development'
+        };
+        
+        res.json({ 
+            status: 'ok', 
+            timestamp: new Date().toISOString(),
+            reservationCount: reservations.length,
+            fileSystem: fsStatus,
+            system: systemInfo
+        });
+    } catch (error) {
+        console.error('❌ Ping 처리 오류:', error);
+        res.status(500).json({
+            status: 'error',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 예약 데이터 API 강화
+app.get('/api/reservations', (req, res) => {
+    try {
+        console.log(`📥 예약 데이터 요청 수신`);
+        const reservations = readReservations();
+        console.log(`📤 예약 데이터 응답: ${reservations.length}건`);
+        
         res.json({ 
             success: true, 
             data: reservations,
-            count: reservations.length
+            count: reservations.length,
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('예약 조회 오류:', error);
+        console.error('❌ 예약 조회 오류:', error);
         res.status(500).json({ 
             success: false, 
-            error: '예약 데이터를 불러올 수 없습니다.',
+            error: '예약 데이터를 불러올 수 없습니다: ' + error.message,
             data: []
         });
     }

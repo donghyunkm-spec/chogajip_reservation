@@ -255,8 +255,11 @@ async function apiCall(endpoint, options = {}) {
 async function loadReservations() {
     try {
         showLoading(true);
+        console.log('서버에서 예약 데이터 로드 시도...');
         const response = await apiCall('reservations');
         const newReservations = response.data || [];
+        
+        console.log(`서버에서 받은 예약 데이터: ${newReservations.length}건`, newReservations);
         
         // 새 예약 알림 체크
         if (reservations.length > 0 && newReservations.length > reservations.length) {
@@ -267,12 +270,40 @@ async function loadReservations() {
         reservations = newReservations;
         updateConnectionStatus(true);
         window.offlineMode = false;
-        console.log('서버에서 예약 데이터 로드:', reservations.length, '건');
+        
+        // 예약 데이터 로컬 저장 (오프라인 모드 대비)
+        localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+        console.log('서버에서 예약 데이터 로드 완료:', reservations.length, '건');
+        
+        // 예약 데이터 상태 확인
+        checkReservationStatus();
     } catch (error) {
         console.error('서버 데이터 로드 실패:', error);
         loadOfflineData();
     } finally {
         showLoading(false);
+    }
+}
+
+// 예약 데이터 상태 검사 함수 추가
+function checkReservationStatus() {
+    if (reservations.length === 0) {
+        console.log('⚠️ 예약 데이터가 없습니다.');
+        showAlert('현재 예약 데이터가 없습니다. 새 예약을 등록해보세요.', 'info');
+    } else {
+        // 활성 예약 수 확인
+        const activeReservations = reservations.filter(r => r.status === 'active');
+        console.log(`활성 예약: ${activeReservations.length}/${reservations.length}건`);
+        
+        if (activeReservations.length === 0 && reservations.length > 0) {
+            console.log('⚠️ 활성 상태의 예약이 없습니다.');
+            showAlert('활성 상태의 예약이 없습니다. 모든 예약이 취소되었거나 상태가 변경되었습니다.', 'warning');
+        }
+        
+        // 오늘 예약 확인
+        const today = getCurrentDate();
+        const todayReservations = activeReservations.filter(r => r.date === today);
+        console.log(`오늘(${today}) 예약: ${todayReservations.length}건`);
     }
 }
 
@@ -690,21 +721,72 @@ function updateStatus() {
     const selectedDate = document.getElementById('statusDate')?.value || getCurrentDate();
     const selectedTime = document.getElementById('timeFilter')?.value || 'all';
     
-    let activeReservations = reservations.filter(r => r.status === 'active');
-    let dayReservations = activeReservations.filter(r => r.date === selectedDate);
+    console.log(`예약 현황 업데이트: 날짜=${selectedDate}, 시간=${selectedTime}`);
     
+    // 먼저 전체 예약 확인
+    console.log(`전체 예약 수: ${reservations.length}건`);
+    
+    // 활성 예약만 필터링
+    let activeReservations = reservations.filter(r => r.status === 'active' || !r.status);
+    console.log(`활성 예약 수: ${activeReservations.length}건`);
+    
+    // 선택한 날짜의 예약만 필터링
+    let dayReservations = activeReservations.filter(r => r.date === selectedDate);
+    console.log(`선택 날짜(${selectedDate}) 예약 수: ${dayReservations.length}건`);
+    
+    // 선택한 시간대 필터링 (선택된 경우)
     if (selectedTime !== 'all') {
-        dayReservations = dayReservations.filter(r => 
+        const filteredByTime = dayReservations.filter(r => 
             isTimeOverlap(r.time, selectedTime)
         );
+        console.log(`선택 시간대(${selectedTime}) 예약 수: ${filteredByTime.length}건`);
+        dayReservations = filteredByTime;
     }
     
+    // 예약이 없는 경우 메시지 표시
+    if (dayReservations.length === 0) {
+        const reservationsDiv = document.getElementById('reservations');
+        if (reservationsDiv) {
+            reservationsDiv.innerHTML = `
+                <div class="empty-state">
+                    <p>선택한 날짜(${selectedDate})${selectedTime !== 'all' ? `, 시간(${selectedTime})` : ''}에 예약이 없습니다.</p>
+                    <button onclick="refreshData()" class="refresh-btn">새로고침</button>
+                </div>
+            `;
+        }
+    }
+    
+    // 총 예약 수 표시 업데이트
+    const totalCountElement = document.getElementById('totalReservationCount');
+    if (totalCountElement) {
+        totalCountElement.textContent = activeReservations.length;
+    }
+    
+    // 예약 테이블 그룹화
     const { individual: groupedReservations, groups: groupReservations } = groupReservationsByTables(dayReservations);
     
+    // UI 업데이트
     renderHallTables(groupedReservations, groupReservations);
     renderRoomTables(groupedReservations, groupReservations);
     updateGroupStatus(selectedDate, selectedTime);
     updateReservationList(dayReservations);
+    
+    // 데이터 저장 위치 표시
+    updateDataStorageStatus();
+}
+
+// 데이터 저장 위치 상태 표시 함수 추가
+function updateDataStorageStatus() {
+    const statusElement = document.getElementById('dataStorageStatus');
+    if (statusElement) {
+        if (window.offlineMode) {
+            statusElement.textContent = '📱 로컬 스토리지 모드';
+            statusElement.className = 'data-status offline';
+        } else {
+            statusElement.textContent = '☁️ Railway 볼륨 저장 모드';
+            statusElement.className = 'data-status online';
+        }
+    }
 }
 
 // 예약 그룹핑
@@ -923,36 +1005,45 @@ function updateReservationList(dayReservations) {
     const reservationsDiv = document.getElementById('reservations');
     if (!reservationsDiv) return;
     
+    console.log(`예약 목록 UI 업데이트: ${dayReservations.length}건`);
+    
     if (dayReservations.length === 0) {
-        reservationsDiv.innerHTML = '<p>해당 조건에 예약이 없습니다.</p>';
+        reservationsDiv.innerHTML = '<div class="empty-state"><p>해당 조건에 예약이 없습니다.</p></div>';
     } else {
-        reservationsDiv.innerHTML = dayReservations
-            .sort((a, b) => a.time.localeCompare(b.time))
-            .map(r => {
-                const isAlternative = r.alternative ? 'alternative-highlight' : '';
-                const alternativeTag = r.alternative ? `<span style="background: #ffc107; color: #212529; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold;">대안예약</span> ` : '';
-                const phone = r.phone ? `<br>연락처: ${r.phone}` : '';
-                const method = r.reservationMethod && r.reservationMethod !== 'none' ? 
-                    `<br>예약방법: ${getMethodText(r.reservationMethod)}` : '';
+        const sortedReservations = dayReservations.sort((a, b) => a.time.localeCompare(b.time));
+        
+        let html = '';
+        sortedReservations.forEach(r => {
+            const isAlternative = r.alternative ? 'alternative-highlight' : '';
+            const alternativeTag = r.alternative ? 
+                `<span class="badge alternative-badge">대안예약</span> ` : '';
                 
-                return `
-                    <div class="reservation-item ${isAlternative}">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-                            <div>
-                                ${alternativeTag}<strong>${r.name}</strong> - ${r.people}명 - ${r.time}~${addHours(r.time, 3)}
-                                <br>테이블: ${r.tables ? r.tables.join(', ') : '미배정'}
-                                <br><small>선호: ${getPreferenceText(r.preference)}${r.alternative ? ` → ${r.alternativeType} 대안예약` : ''}</small>
-                                ${phone}
-                                ${method}
-                            </div>
-                            <div style="display: flex; gap: 5px;">
-                                <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
-                                <button class="delete-btn" onclick="cancelReservation(${r.id})">취소</button>
-                            </div>
+            const phone = r.phone ? `<br><span class="reservation-detail">📞 연락처: ${r.phone}</span>` : '';
+            const method = r.reservationMethod && r.reservationMethod !== 'none' ? 
+                `<br><span class="reservation-detail">📝 예약방법: ${getMethodText(r.reservationMethod)}</span>` : '';
+            
+            html += `
+                <div class="reservation-item ${isAlternative}">
+                    <div class="reservation-content">
+                        <div class="reservation-info">
+                            ${alternativeTag}<strong class="customer-name">${r.name}</strong>
+                            <span class="reservation-time">${r.time}~${addHours(r.time, 3)}</span>
+                            <span class="reservation-people">${r.people}명</span>
+                            <div class="reservation-tables">테이블: ${r.tables ? r.tables.join(', ') : '미배정'}</div>
+                            <div class="reservation-preference">선호: ${getPreferenceText(r.preference)}${r.alternative ? ` → ${r.alternativeType || '대안'} 예약` : ''}</div>
+                            ${phone}
+                            ${method}
+                        </div>
+                        <div class="reservation-actions">
+                            <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
+                            <button class="delete-btn" onclick="cancelReservation(${r.id})">취소</button>
                         </div>
                     </div>
-                `;
-            }).join('');
+                </div>
+            `;
+        });
+        
+        reservationsDiv.innerHTML = html;
     }
 }
 
@@ -1179,9 +1270,22 @@ function assignTablesForEdit(people, preference, date, time, excludeId, allReser
 
 // 데이터 새로고침
 async function refreshData() {
-    await loadReservations();
-    updateStatus();
-    showAlert('데이터가 새로고침되었습니다.', 'success');
+    try {
+        showLoading(true);
+        showAlert('데이터를 새로고침 중입니다...', 'info');
+        
+        // 명시적으로 오프라인 모드 해제 시도
+        window.offlineMode = false;
+        
+        await loadReservations();
+        updateStatus();
+        showAlert('데이터가 새로고침되었습니다.', 'success');
+    } catch (error) {
+        console.error('데이터 새로고침 실패:', error);
+        showAlert('데이터 새로고침 실패. 네트워크 연결을 확인해주세요.', 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // CSV 다운로드
