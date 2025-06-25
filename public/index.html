@@ -95,6 +95,29 @@
                         <input type="text" id="name" required placeholder="예약자 성함을 입력해주세요" inputmode="text">
                     </div>
                     
+                    <!-- 전화번호 필드 추가 -->
+                    <div class="form-group">
+                        <label for="phone">전화번호</label>
+                        <input type="tel" id="phone" placeholder="연락 가능한 전화번호" inputmode="tel">
+                    </div>
+                    
+                    <!-- 예약방법 필드 추가 -->
+                    <div class="form-group">
+                        <label for="reservationMethod">예약방법</label>
+                        <div class="method-selector">
+                            <div class="method-option selected" onclick="selectMethod('none')" id="method-none">
+                                <span class="emoji">📝</span>선택안함
+                            </div>
+                            <div class="method-option" onclick="selectMethod('phone')" id="method-phone">
+                                <span class="emoji">📞</span>전화
+                            </div>
+                            <div class="method-option" onclick="selectMethod('naver')" id="method-naver">
+                                <span class="emoji">💻</span>네이버
+                            </div>
+                        </div>
+                        <input type="hidden" id="reservationMethod" value="none">
+                    </div>
+                    
                     <button type="submit" class="btn pulse-btn" id="submitBtn">예약 등록</button>
                 </form>
             </div>

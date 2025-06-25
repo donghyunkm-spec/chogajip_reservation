@@ -123,13 +123,13 @@ label {
     padding: 0;
 }
 
-.preference-selector {
+.preference-selector, .method-selector {
     display: flex;
     gap: 10px;
     margin-bottom: 10px;
 }
 
-.preference-option {
+.preference-option, .method-option {
     flex: 1;
     text-align: center;
     padding: 15px 5px;
@@ -142,18 +142,18 @@ label {
     background: #f8f9fa;
 }
 
-.preference-option:hover {
+.preference-option:hover, .method-option:hover {
     background: #e9ecef;
 }
 
-.preference-option.selected {
+.preference-option.selected, .method-option.selected {
     background: #4CAF50;
     color: white;
     border-color: #388E3C;
     transform: scale(1.05);
 }
 
-.preference-option .emoji {
+.preference-option .emoji, .method-option .emoji {
     display: block;
     font-size: 24px;
     margin-bottom: 5px;
@@ -703,7 +703,7 @@ input:focus, select:focus {
 }
 
 @media (max-width: 480px) {
-    .preference-selector {
+    .preference-selector, .method-selector {
         flex-direction: column;
     }
     
@@ -716,11 +716,11 @@ input:focus, select:focus {
         width: calc(100% - 100px);
     }
     
-    .preference-option {
+    .preference-option, .method-option {
         padding: 12px 5px;
     }
     
-    .preference-option .emoji {
+    .preference-option .emoji, .method-option .emoji {
         display: inline-block;
         margin-right: 5px;
         margin-bottom: 0;

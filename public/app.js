@@ -411,6 +411,23 @@ function selectPreference(value) {
     });
 }
 
+// 예약방법 선택 함수
+function selectMethod(value) {
+    document.getElementById('reservationMethod').value = value;
+    
+    const options = ['none', 'phone', 'naver'];
+    options.forEach(opt => {
+        const element = document.getElementById(`method-${opt}`);
+        if (element) {
+            if (opt === value) {
+                element.classList.add('selected');
+            } else {
+                element.classList.remove('selected');
+            }
+        }
+    });
+}
+
 // 예약 등록 처리
 async function handleReservation(event) {
     event.preventDefault();
@@ -427,6 +444,8 @@ async function handleReservation(event) {
         const date = document.getElementById('date').value;
         const time = document.getElementById('time').value;
         const name = document.getElementById('name').value;
+        const phone = document.getElementById('phone').value || '';
+        const reservationMethod = document.getElementById('reservationMethod').value || 'none';
         
         // 스마트 테이블 배정
         const assignedTables = assignTables(people, preference, date, time, reservations);
@@ -439,6 +458,8 @@ async function handleReservation(event) {
                 preference: preference,
                 date: date,
                 time: time,
+                phone: phone,
+                reservationMethod: reservationMethod,
                 tables: assignedTables,
                 timestamp: new Date().toISOString(),
                 status: 'active'
@@ -455,12 +476,13 @@ async function handleReservation(event) {
             if (dateInput) dateInput.value = getCurrentDate();
             document.getElementById('people').value = 4;
             selectPreference('any');
+            selectMethod('none');
             
             // 예약 현황 업데이트
             updateStatus();
         } else {
             // 예약 불가 시 대안 제시
-            showReservationFailureModal(people, preference, date, time, name);
+            showReservationFailureModal(people, preference, date, time, name, phone, reservationMethod);
         }
     } catch (error) {
         showAlert('예약 등록 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
@@ -474,7 +496,7 @@ async function handleReservation(event) {
 }
 
 // 예약 실패 시 대안 제시 모달
-function showReservationFailureModal(people, preference, date, time, name) {
+function showReservationFailureModal(people, preference, date, time, name, phone, reservationMethod) {
     const activeReservations = reservations.filter(r => r.status === 'active');
     const conflictingReservations = activeReservations.filter(r => 
         r.date === date && isTimeOverlap(r.time, time)
@@ -540,7 +562,7 @@ function showReservationFailureModal(people, preference, date, time, name) {
             modalContent += `
                 <div style="background: #d4edda; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #28a745;">
                     <p style="margin: 0; color: #155724; line-height: 1.5;">${alt.message}</p>
-                    <button onclick="acceptAlternative('${alt.type}', '${alt.tables.join(',')}', '${name}', ${people}, '${preference}', '${date}', '${time}')" 
+                    <button onclick="acceptAlternative('${alt.type}', '${alt.tables.join(',')}', '${name}', ${people}, '${preference}', '${date}', '${time}', '${phone}', '${reservationMethod}')" 
                             style="background: #28a745; color: white; padding: 8px 15px; border: none; border-radius: 5px; margin-top: 10px; cursor: pointer; font-weight: bold;">
                         ${alt.type} 예약하기
                     </button>
@@ -584,7 +606,7 @@ function showReservationFailureModal(people, preference, date, time, name) {
 }
 
 // 대안 예약 수락
-async function acceptAlternative(altType, tablesStr, name, people, originalPreference, date, time) {
+async function acceptAlternative(altType, tablesStr, name, people, originalPreference, date, time, phone, reservationMethod) {
     try {
         const tables = tablesStr.split(',');
         const newReservation = {
@@ -594,6 +616,8 @@ async function acceptAlternative(altType, tablesStr, name, people, originalPrefe
             preference: originalPreference,
             date: date,
             time: time,
+            phone: phone,
+            reservationMethod: reservationMethod,
             tables: tables,
             timestamp: new Date().toISOString(),
             status: 'active',
@@ -616,6 +640,7 @@ async function acceptAlternative(altType, tablesStr, name, people, originalPrefe
         if (dateInput) dateInput.value = getCurrentDate();
         document.getElementById('people').value = 4;
         selectPreference('any');
+        selectMethod('none');
         
         // 예약 현황 업데이트
         updateStatus();
@@ -906,6 +931,9 @@ function updateReservationList(dayReservations) {
             .map(r => {
                 const isAlternative = r.alternative ? 'alternative-highlight' : '';
                 const alternativeTag = r.alternative ? `<span style="background: #ffc107; color: #212529; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold;">대안예약</span> ` : '';
+                const phone = r.phone ? `<br>연락처: ${r.phone}` : '';
+                const method = r.reservationMethod && r.reservationMethod !== 'none' ? 
+                    `<br>예약방법: ${getMethodText(r.reservationMethod)}` : '';
                 
                 return `
                     <div class="reservation-item ${isAlternative}">
@@ -914,6 +942,8 @@ function updateReservationList(dayReservations) {
                                 ${alternativeTag}<strong>${r.name}</strong> - ${r.people}명 - ${r.time}~${addHours(r.time, 3)}
                                 <br>테이블: ${r.tables ? r.tables.join(', ') : '미배정'}
                                 <br><small>선호: ${getPreferenceText(r.preference)}${r.alternative ? ` → ${r.alternativeType} 대안예약` : ''}</small>
+                                ${phone}
+                                ${method}
                             </div>
                             <div style="display: flex; gap: 5px;">
                                 <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
@@ -1013,7 +1043,7 @@ function editReservation(reservationId) {
                     <input type="date" id="editDate" value="${reservation.date}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
                 </div>
                 
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 시간</label>
                     <select id="editTime" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
                         <option value="14:30" ${reservation.time === '14:30' ? 'selected' : ''}>오후 2:30</option>
@@ -1038,6 +1068,22 @@ function editReservation(reservationId) {
                     </select>
                 </div>
                 
+                <!-- 전화번호 필드 -->
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">전화번호</label>
+                    <input type="tel" id="editPhone" value="${reservation.phone || ''}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" placeholder="연락 가능한 전화번호">
+                </div>
+                
+                <!-- 예약방법 필드 -->
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약방법</label>
+                    <select id="editReservationMethod" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;">
+                        <option value="none" ${(!reservation.reservationMethod || reservation.reservationMethod === 'none') ? 'selected' : ''}>선택안함</option>
+                        <option value="phone" ${reservation.reservationMethod === 'phone' ? 'selected' : ''}>전화</option>
+                        <option value="naver" ${reservation.reservationMethod === 'naver' ? 'selected' : ''}>네이버</option>
+                    </select>
+                </div>
+                
                 <div style="display: flex; gap: 10px;">
                     <button type="submit" style="flex: 1; background: #4CAF50; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">수정 완료</button>
                     <button type="button" onclick="this.closest('.modal').remove()" style="flex: 1; background: #666; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">취소</button>
@@ -1058,7 +1104,9 @@ function editReservation(reservationId) {
             people: parseInt(document.getElementById('editPeople').value),
             preference: document.getElementById('editPreference').value,
             date: document.getElementById('editDate').value,
-            time: document.getElementById('editTime').value
+            time: document.getElementById('editTime').value,
+            phone: document.getElementById('editPhone').value || '',
+            reservationMethod: document.getElementById('editReservationMethod').value
         };
         
         // 새로운 테이블 배정
@@ -1135,14 +1183,16 @@ function downloadReservations() {
         return;
     }
     
-    let csv = '\uFEFF날짜,시간,이용종료시간,성명,인원,선호도,배정테이블,상태,등록시간\n';
+    let csv = '\uFEFF날짜,시간,이용종료시간,성명,인원,선호도,배정테이블,전화번호,예약방법,상태,등록시간\n';
     
     reservations
         .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
         .forEach(r => {
             const endTime = addHours(r.time, 3);
             const status = r.status === 'active' ? '활성' : '취소';
-            csv += `${r.date},${r.time},${endTime},${r.name},${r.people},${getPreferenceText(r.preference)},"${r.tables ? r.tables.join(' + ') : '미배정'}",${status},${new Date(r.timestamp).toLocaleString('ko-KR')}\n`;
+            const phone = r.phone || '';
+            const method = r.reservationMethod ? getMethodText(r.reservationMethod) : '';
+            csv += `${r.date},${r.time},${endTime},${r.name},${r.people},${getPreferenceText(r.preference)},"${r.tables ? r.tables.join(' + ') : '미배정'}",${phone},${method},${status},${new Date(r.timestamp).toLocaleString('ko-KR')}\n`;
         });
     
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1162,5 +1212,14 @@ function getPreferenceText(preference) {
         case 'room': return '룸 선호';
         case 'hall': return '홀 선호';
         default: return '관계없음';
+    }
+}
+
+// 예약방법 텍스트 변환
+function getMethodText(method) {
+    switch(method) {
+        case 'phone': return '전화';
+        case 'naver': return '네이버';
+        default: return '선택안함';
     }
 }
