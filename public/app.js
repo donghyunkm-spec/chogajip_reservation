@@ -1096,57 +1096,65 @@ function editReservation(reservationId) {
     document.body.appendChild(modal);
     
     // 폼 제출 처리
-    document.getElementById('editForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const updatedData = {
-            name: document.getElementById('editName').value,
-            people: parseInt(document.getElementById('editPeople').value),
-            preference: document.getElementById('editPreference').value,
-            date: document.getElementById('editDate').value,
-            time: document.getElementById('editTime').value,
-            phone: document.getElementById('editPhone').value || '',
-            reservationMethod: document.getElementById('editReservationMethod').value
-        };
-        
-        // 새로운 테이블 배정
-        const newTables = assignTablesForEdit(updatedData.people, updatedData.preference, updatedData.date, updatedData.time, reservationId, reservations);
-        
-        if (newTables.length > 0) {
-            updatedData.tables = newTables;
-            
-            try {
-                if (window.offlineMode) {
-                    // 오프라인 모드
-                    const index = reservations.findIndex(r => r.id === reservationId);
-                    if (index !== -1) {
-                        reservations[index] = { ...reservations[index], ...updatedData };
-                        localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+    setTimeout(() => {
+        // DOM이 완전히 렌더링된 후 이벤트 리스너 추가
+        const editForm = document.getElementById('editForm');
+        if (editForm) {
+            editForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const updatedData = {
+                    name: document.getElementById('editName').value,
+                    people: parseInt(document.getElementById('editPeople').value),
+                    preference: document.getElementById('editPreference').value,
+                    date: document.getElementById('editDate').value,
+                    time: document.getElementById('editTime').value,
+                    phone: document.getElementById('editPhone').value || '',
+                    reservationMethod: document.getElementById('editReservationMethod').value
+                };
+                
+                // 새로운 테이블 배정
+                const newTables = assignTablesForEdit(updatedData.people, updatedData.preference, updatedData.date, updatedData.time, reservationId, reservations);
+                
+                if (newTables.length > 0) {
+                    updatedData.tables = newTables;
+                    
+                    try {
+                        if (window.offlineMode) {
+                            // 오프라인 모드
+                            const index = reservations.findIndex(r => r.id === reservationId);
+                            if (index !== -1) {
+                                reservations[index] = { ...reservations[index], ...updatedData };
+                                localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
+                            }
+                        } else {
+                            // 온라인 모드
+                            await apiCall(`reservations/${reservationId}`, {
+                                method: 'PUT',
+                                body: JSON.stringify(updatedData)
+                            });
+                            
+                            const index = reservations.findIndex(r => r.id === reservationId);
+                            if (index !== -1) {
+                                reservations[index] = { ...reservations[index], ...updatedData };
+                            }
+                        }
+                        
+                        modal.remove();
+                        showAlert('예약이 수정되었습니다.', 'success');
+                        updateStatus();
+                    } catch (error) {
+                        console.error('예약 수정 오류:', error);
+                        showAlert('예약 수정 중 오류가 발생했습니다.', 'error');
                     }
                 } else {
-                    // 온라인 모드
-                    await apiCall(`reservations/${reservationId}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(updatedData)
-                    });
-                    
-                    const index = reservations.findIndex(r => r.id === reservationId);
-                    if (index !== -1) {
-                        reservations[index] = { ...reservations[index], ...updatedData };
-                    }
+                    showAlert('해당 조건으로 예약 수정이 어렵습니다. 다른 시간대를 선택해주세요.', 'error');
                 }
-                
-                modal.remove();
-                showAlert('예약이 수정되었습니다.', 'success');
-                updateStatus();
-            } catch (error) {
-                console.error('예약 수정 오류:', error);
-                showAlert('예약 수정 중 오류가 발생했습니다.', 'error');
-            }
+            });
         } else {
-            showAlert('해당 조건으로 예약 수정이 어렵습니다. 다른 시간대를 선택해주세요.', 'error');
+            console.error('수정 폼을 찾을 수 없습니다.');
         }
-    });
+    }, 100); // 100ms 지연 추가
     
     // 모달 바깥 클릭 시 닫기
     modal.addEventListener('click', (e) => {
