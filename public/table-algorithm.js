@@ -1,290 +1,106 @@
-// 테이블 배정 알고리즘
-// public/table-algorithm.js
-
-// 테이블 정보
-const TABLE_INFO = {
-    hall: {
-        1: { capacity: 5 }, 2: { capacity: 4 }, 3: { capacity: 4 }, 4: { capacity: 4 },
-        5: { capacity: 4 }, 6: { capacity: 4 }, 7: { capacity: 4 }, 8: { capacity: 4 },
-        9: { capacity: 4 }, 10: { capacity: 4 }, 11: { capacity: 4 }, 12: { capacity: 4 },
-        13: { capacity: 4 }, 14: { capacity: 4 }, 15: { capacity: 4 }, 16: { capacity: 4 }
-    },
-    room: {
-        1: { capacity: 4 }, 2: { capacity: 4 }, 3: { capacity: 4 }, 4: { capacity: 4 },
-        5: { capacity: 4 }, 6: { capacity: 4 }, 7: { capacity: 4 }, 8: { capacity: 4 }, 9: { capacity: 4 }
-    }
-};
-
-// 단체석 규칙 (테이블_인원정보.txt 정확히 반영)
-const GROUP_RULES = [
-    // 홀 단체석 규칙
-    { name: '홀 1번', tables: ['hall-1'], maxPeople: 5, minPeople: 5 },
-    { name: '홀 1,2번', tables: ['hall-1', 'hall-2'], maxPeople: 9, minPeople: 6 },
-    { name: '홀 4,5번', tables: ['hall-4', 'hall-5'], maxPeople: 8, minPeople: 5 },
-    { name: '홀 6,7번', tables: ['hall-6', 'hall-7'], maxPeople: 8, minPeople: 5 },
-    { name: '홀 4,5,6,7번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 16, minPeople: 13 },
-    { name: '홀 3,4,5,6,7번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7'], maxPeople: 20, minPeople: 17 },
-    { name: '홀 4,5,6,7,8번', tables: ['hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 20, minPeople: 17 },
-    { name: '홀 3,4,5,6,7,8번', tables: ['hall-3', 'hall-4', 'hall-5', 'hall-6', 'hall-7', 'hall-8'], maxPeople: 24, minPeople: 21 },
-    
-    // 룸 단체석 규칙
-    { name: '룸 1,2번', tables: ['room-1', 'room-2'], maxPeople: 8, minPeople: 5 },
-    { name: '룸 2,3번', tables: ['room-2', 'room-3'], maxPeople: 8, minPeople: 5 },
-    { name: '룸 4,5번', tables: ['room-4', 'room-5'], maxPeople: 8, minPeople: 5 },
-    { name: '룸 5,6번', tables: ['room-5', 'room-6'], maxPeople: 8, minPeople: 5 },
-    { name: '룸 7,8번', tables: ['room-7', 'room-8'], maxPeople: 8, minPeople: 5 },
-    { name: '룸 8,9번', tables: ['room-8', 'room-9'], maxPeople: 8, minPeople: 5 },
-    { name: '룸 1,2,3번', tables: ['room-1', 'room-2', 'room-3'], maxPeople: 12, minPeople: 9 },
-    { name: '룸 4,5,6번', tables: ['room-4', 'room-5', 'room-6'], maxPeople: 12, minPeople: 9 },
-    { name: '룸 7,8,9번', tables: ['room-7', 'room-8', 'room-9'], maxPeople: 12, minPeople: 9 },
-    { name: '룸 4,5,7,8번', tables: ['room-4', 'room-5', 'room-7', 'room-8'], maxPeople: 16, minPeople: 13 },
-    { name: '룸 5,6,8,9번', tables: ['room-5', 'room-6', 'room-8', 'room-9'], maxPeople: 16, minPeople: 13 },
-    { name: '룸 4~9번', tables: ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 24, minPeople: 17 },
-    { name: '룸 전체', tables: ['room-1', 'room-2', 'room-3', 'room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'], maxPeople: 36, minPeople: 25 }
-];
-
-// 테이블 배정 메인 함수
-function assignTables(people, preference, date, time, allReservations) {
-    // 현재 활성 예약 중 시간이 겹치는 예약만 필터링
-    const activeReservations = allReservations.filter(r => r.status === 'active');
-    const conflictingReservations = activeReservations.filter(r => 
-        r.date === date && isTimeOverlap(r.time, time)
-    );
-    
-    console.log(`테이블 배정: ${people}명, 선호도: ${preference}, 날짜: ${date}, 시간: ${time}`);
-    console.log(`기존 예약: ${conflictingReservations.length}건`);
-    
-    // 1단계: 직접 배정 시도
-    let result = tryDirectAssignment(people, preference, conflictingReservations);
-    if (result.length > 0) {
-        console.log(`직접 배정 성공: ${result.join(', ')}`);
-        return result;
-    }
-    
-    // 2단계: 재배정을 통한 배정
-    result = tryReassignment(people, preference, conflictingReservations, allReservations);
-    if (result.length > 0) {
-        console.log(`재배정 후 배정 성공: ${result.join(', ')}`);
-        return result;
-    }
-    
-    console.log('배정 실패: 수용 불가');
-    return [];
-}
-
-// 직접 배정 시도
-function tryDirectAssignment(people, preference, conflictingReservations) {
-    const usedTables = getUsedTables(conflictingReservations);
-    
-    if (preference === 'room') {
-        // 룸 선호는 룸만 시도
-        return tryRoomAssignment(people, usedTables);
-    } else if (preference === 'hall') {
-        // 홀 선호는 홀만 시도
-        return tryHallAssignment(people, usedTables);
-    } else if (preference === 'any') {
-        // 관계없음은 룸 우선, 그 다음 홀
-        const roomResult = tryRoomAssignment(people, usedTables);
-        if (roomResult.length > 0) {
-            return roomResult;
-        }
-        return tryHallAssignment(people, usedTables);
-    }
-    
-    return [];
-}
-
-// 사용 중인 테이블 가져오기
-function getUsedTables(conflictingReservations) {
-    const usedTables = new Set();
-    conflictingReservations.forEach(r => {
-        if (r.tables) {
-            r.tables.forEach(table => usedTables.add(table));
-        }
-    });
-    return usedTables;
-}
-
-// 룸 배정 시도
-function tryRoomAssignment(people, usedTables) {
-    // 개별 룸 테이블 (4명 이하)
-    if (people <= 4) {
-        for (let i = 1; i <= 9; i++) {
-            const tableId = `room-${i}`;
-            if (!usedTables.has(tableId)) {
-                console.log(`룸 개별 테이블 배정: ${tableId} (${people}명)`);
-                return [tableId];
-            }
-        }
-        console.log(`룸 개별 테이블 불가: 사용 가능한 테이블 없음`);
-    }
-    
-    // 단체석 시도 (5명 이상)
-    if (people >= 5) {
-        // 1. 정확히 맞는 단체석 규칙 적용
-        const roomGroupRules = GROUP_RULES.filter(rule => 
-            rule.tables.every(t => t.startsWith('room-')) && 
-            rule.maxPeople >= people &&
-            rule.minPeople <= people
-        ).sort((a, b) => a.maxPeople - b.maxPeople); // 작은 단체석부터
-        
-        for (const rule of roomGroupRules) {
-            if (rule.tables.every(table => !usedTables.has(table))) {
-                console.log(`룸 단체석 배정: ${rule.name} (${people}명)`);
-                return rule.tables;
-            }
-        }
-        
-        // 2. 최소 인원 조건 완화 시도
-        const potentialRules = GROUP_RULES.filter(rule => 
-            rule.tables.every(t => t.startsWith('room-')) && 
-            rule.maxPeople >= people
-        ).sort((a, b) => a.maxPeople - b.maxPeople);
-        
-        for (const rule of potentialRules) {
-            if (rule.tables.every(table => !usedTables.has(table))) {
-                console.log(`룸 단체석 배정(최소 인원 미달): ${rule.name} (${people}명)`);
-                return rule.tables;
-            }
-        }
-        
-        // 3. 인접 테이블 조합 시도 (8명까지)
-        if (people <= 8) {
-            const adjacentPairs = [
-                ['room-1', 'room-2'], 
-                ['room-2', 'room-3'],
-                ['room-4', 'room-5'],
-                ['room-5', 'room-6'],
-                ['room-7', 'room-8'],
-                ['room-8', 'room-9']
-            ];
-            
-            for (const pair of adjacentPairs) {
-                if (pair.every(table => !usedTables.has(table))) {
-                    console.log(`룸 인접 테이블 배정: ${pair.join(', ')} (${people}명)`);
-                    return pair;
-                }
-            }
-            
-            // 4. 비인접 테이블도 시도
-            const availableTables = [];
-            for (let i = 1; i <= 9; i++) {
-                const tableId = `room-${i}`;
-                if (!usedTables.has(tableId)) {
-                    availableTables.push(tableId);
-                }
-            }
-            
-            if (availableTables.length >= 2) {
-                console.log(`룸 개별 테이블 2개 배정: ${availableTables.slice(0, 2).join(', ')} (${people}명)`);
-                return availableTables.slice(0, 2);
-            }
-        }
-        
-        console.log(`룸 단체석 불가: ${people}명 (사용 가능한 단체석 없음)`);
-    }
-    
-    return [];
-}
-
-// 홀 배정 시도
-function tryHallAssignment(people, usedTables) {
-    // 5명이고 홀 1번 테이블 사용 가능한 경우 (1번 테이블은 5명까지 수용)
-    if (people === 5 && !usedTables.has('hall-1')) {
-        console.log(`홀 1번 테이블 배정 (5명 전용)`);
-        return ['hall-1'];
-    }
-    
-    // 4명 이하 개별 테이블 배정
-    if (people <= 4) {
-        // 홀 1번은 5명 테이블이지만 4명 이하도 앉을 수 있음
-        for (let i = 1; i <= 16; i++) {
-            const tableId = `hall-${i}`;
-            if (!usedTables.has(tableId)) {
-                console.log(`홀 개별 테이블 배정: ${tableId} (${people}명)`);
-                return [tableId];
-            }
-        }
-        console.log(`홀 개별 테이블 불가: 사용 가능한 테이블 없음`);
-        return [];
-    }
-    
-    // 단체석 시도 (5명 이상)
-    if (people >= 5) {
-        // 1. 정확히 맞는 단체석 규칙 적용
-        const hallGroupRules = GROUP_RULES.filter(rule => 
-            rule.tables.every(t => t.startsWith('hall-')) && 
-            rule.maxPeople >= people &&
-            rule.minPeople <= people
-        ).sort((a, b) => a.maxPeople - b.maxPeople);
-        
-        for (const rule of hallGroupRules) {
-            if (rule.tables.every(table => !usedTables.has(table))) {
-                console.log(`홀 단체석 배정: ${rule.name} (${people}명)`);
-                return rule.tables;
-            }
-        }
-        
-        // 2. 최소 인원 조건 완화 시도
-        const potentialRules = GROUP_RULES.filter(rule => 
-            rule.tables.every(t => t.startsWith('hall-')) && 
-            rule.maxPeople >= people
-        ).sort((a, b) => a.maxPeople - b.maxPeople);
-        
-        for (const rule of potentialRules) {
-            if (rule.tables.every(table => !usedTables.has(table))) {
-                console.log(`홀 단체석 배정(최소 인원 미달): ${rule.name} (${people}명)`);
-                return rule.tables;
-            }
-        }
-        
-        // 3. 홀 1번 테이블 특별 케이스 (6~9명)
-        if (people >= 6 && people <= 9 && !usedTables.has('hall-1') && !usedTables.has('hall-2')) {
-            console.log(`홀 1,2번 테이블 배정 (6-9명)`);
-            return ['hall-1', 'hall-2'];
-        }
-        
-        // 4. 인접 테이블 조합 시도 (8명까지) - 9번 이후 테이블은 단체 불가
-        if (people <= 8) {
-            const adjacentPairs = [
-                ['hall-3', 'hall-4'],
-                ['hall-4', 'hall-5'],
-                ['hall-5', 'hall-6'],
-                ['hall-6', 'hall-7'],
-                ['hall-7', 'hall-8']
-            ];
-            
-            for (const pair of adjacentPairs) {
-                if (pair.every(table => !usedTables.has(table))) {
-                    console.log(`홀 인접 테이블 배정: ${pair.join(', ')} (${people}명)`);
-                    return pair;
-                }
-            }
-            
-            // 5. 비인접 테이블도 시도 - 단, 9번 이후 테이블은 단체 불가
-            const availableTables = [];
-            for (let i = 1; i <= 8; i++) { // 1~8번만 고려
-                const tableId = `hall-${i}`;
-                if (!usedTables.has(tableId)) {
-                    availableTables.push(tableId);
-                }
-            }
-            
-            if (availableTables.length >= 2) {
-                console.log(`홀 개별 테이블 2개 배정: ${availableTables.slice(0, 2).join(', ')} (${people}명)`);
-                return availableTables.slice(0, 2);
-            }
-        }
-        
-        console.log(`홀 단체석 불가: ${people}명 (사용 가능한 단체석 없음)`);
-    }
-    
-    return [];
-}
-
 // 재배정 시도 (주요 로직)
 function tryReassignment(people, preference, conflictingReservations, allReservations) {
     console.log(`재배정 시도: ${people}명, 선호도: ${preference}`);
+    
+    // 단체석 대응을 위한 특별 로직 (17명 이상 대규모 단체)
+    if (people >= 17 && preference === 'room') {
+        console.log(`대규모 단체(${people}명) 재배정 특별 로직 시작`);
+        
+        // 단체석 규칙 찾기
+        const largeGroupRules = GROUP_RULES.filter(rule => 
+            rule.tables.every(t => t.startsWith('room-')) && 
+            rule.maxPeople >= people &&
+            rule.minPeople <= people
+        ).sort((a, b) => a.maxPeople - b.maxPeople);
+        
+        if (largeGroupRules.length > 0) {
+            const targetRule = largeGroupRules[0]; // 가장 적합한 단체석 규칙
+            console.log(`목표 단체석: ${targetRule.name} (${targetRule.minPeople}~${targetRule.maxPeople}명)`);
+            
+            // 이 단체석에 있는 테이블들을 사용중인 고객들 찾기
+            const reservationsToMove = conflictingReservations.filter(r => 
+                r.tables && r.tables.some(t => targetRule.tables.includes(t))
+            );
+            
+            // 선호도가 '관계없음'인 고객들 먼저 이동 시도
+            const flexibleCustomers = reservationsToMove.filter(r => r.preference === 'any');
+            const roomPreferCustomers = reservationsToMove.filter(r => r.preference === 'room');
+            
+            // 정렬된 이동 대상 (선호도 없는 고객 우선, 그 다음 룸 선호 고객)
+            const sortedCustomers = [...flexibleCustomers, ...roomPreferCustomers];
+            
+            if (sortedCustomers.length === 0) {
+                console.log(`해당 단체석에 이동 가능한 고객이 없음`);
+            } else {
+                console.log(`${sortedCustomers.length}명의 고객 이동 시도`);
+                
+                // 각 고객을 이동시킬 수 있는지 확인
+                const movedCustomers = [];
+                const failedCustomers = [];
+                
+                // 이동 과정에서 점진적으로 사용된 테이블 추적
+                let currentUsedTables = getUsedTables(conflictingReservations);
+                
+                // 각 고객을 순차적으로 이동 시도
+                for (const customer of sortedCustomers) {
+                    // 이미 이동된 고객들과 현재 고객을 제외한 나머지 예약
+                    const remainingReservations = conflictingReservations.filter(r => 
+                        !movedCustomers.includes(r) && r.id !== customer.id
+                    );
+                    
+                    // 업데이트된 사용중 테이블 (이동된 고객들 제외)
+                    const updatedUsedTables = getUsedTables(remainingReservations);
+                    
+                    // 홀 테이블로 이동 시도
+                    const hallOptions = tryHallAssignment(customer.people, updatedUsedTables);
+                    
+                    if (hallOptions.length > 0) {
+                        console.log(`${customer.name}님(${customer.people}명) 홀로 이동 가능: ${hallOptions.join(', ')}`);
+                        
+                        // 이동 성공, 사용 테이블 업데이트
+                        movedCustomers.push(customer);
+                        hallOptions.forEach(table => currentUsedTables.add(table));
+                        
+                        // 고객의 테이블 예약 업데이트
+                        const index = allReservations.findIndex(r => r.id === customer.id);
+                        if (index !== -1) {
+                            allReservations[index].tables = hallOptions;
+                            allReservations[index].reassigned = true;
+                        }
+                    } else {
+                        // 이동 실패한 고객 기록
+                        failedCustomers.push(customer);
+                    }
+                }
+                
+                console.log(`${movedCustomers.length}명 이동 성공, ${failedCustomers.length}명 이동 실패`);
+                
+                // 모든 필요 테이블이 비워졌는지 확인
+                const stillOccupiedTables = targetRule.tables.filter(table => 
+                    failedCustomers.some(r => r.tables && r.tables.includes(table))
+                );
+                
+                if (stillOccupiedTables.length === 0) {
+                    // 모든 테이블 확보 성공!
+                    console.log(`✅ 단체석 확보 성공: ${targetRule.name}`);
+                    return targetRule.tables;
+                } else {
+                    console.log(`단체석 확보 실패: ${stillOccupiedTables.length}개 테이블 여전히 사용중`);
+                    
+                    // 부분적으로 이동한 고객들 롤백
+                    movedCustomers.forEach(customer => {
+                        const index = allReservations.findIndex(r => r.id === customer.id);
+                        if (index !== -1) {
+                            // 원래 테이블로 복원
+                            const originalTables = conflictingReservations.find(r => r.id === customer.id)?.tables || [];
+                            allReservations[index].tables = [...originalTables];
+                            delete allReservations[index].reassigned;
+                        }
+                    });
+                }
+            }
+        }
+    }
     
     // 룸 선호 고객을 위한 재배정
     if (preference === 'room' || preference === 'any') {
@@ -332,6 +148,111 @@ function tryReassignment(people, preference, conflictingReservations, allReserva
                 }
             } else {
                 console.log(`${flexibleReservation.name}님 홀 이동 불가`);
+            }
+        }
+        
+        // 3. 더 복잡한 재배정: 여러 고객 동시 이동 시도 (단체 고객 수용을 위해)
+        if (people >= 8) {
+            console.log(`${people}명 단체 고객 수용을 위한 다중 재배정 시도...`);
+            
+            // 필요한 테이블 개수 추정 (대략적으로 인원수/4)
+            const tablesNeeded = Math.ceil(people / 4);
+            
+            // 선호도 없는 고객들 중에서 룸에 있는 고객들
+            const flexibleCustomers = conflictingReservations.filter(r => 
+                r.preference === 'any' && 
+                r.tables && 
+                r.tables.some(t => t.startsWith('room-'))
+            );
+            
+            // 이동 가능한 조합을 시도 (최대 3명까지 동시 이동 시도)
+            for (let count = 1; count <= Math.min(3, flexibleCustomers.length); count++) {
+                // 가능한 모든 조합 생성
+                const combinations = getCombinations(flexibleCustomers, count);
+                
+                for (const combo of combinations) {
+                    // 이 조합의 고객들이 사용하는 테이블 목록
+                    const tablesUsedByCombo = [];
+                    combo.forEach(customer => {
+                        if (customer.tables) {
+                            customer.tables.forEach(table => {
+                                if (table.startsWith('room-')) {
+                                    tablesUsedByCombo.push(table);
+                                }
+                            });
+                        }
+                    });
+                    
+                    // 이 조합이 충분한 테이블을 제공하는지 확인
+                    if (tablesUsedByCombo.length >= tablesNeeded) {
+                        console.log(`가능한 조합 발견: ${combo.map(c => c.name).join(', ')} (${tablesUsedByCombo.length}개 테이블)`);
+                        
+                        // 이 조합의 모든 고객을 홀로 이동할 수 있는지 확인
+                        let allCanMove = true;
+                        const movedCustomers = [];
+                        
+                        // 이 조합의 고객들을 제외한 나머지 예약
+                        const remainingReservations = conflictingReservations.filter(r => 
+                            !combo.some(c => c.id === r.id)
+                        );
+                        
+                        // 단계적으로 고객 이동 시도
+                        let currentUsedTables = getUsedTables(remainingReservations);
+                        
+                        for (const customer of combo) {
+                            const hallOptions = tryHallAssignment(customer.people, currentUsedTables);
+                            
+                            if (hallOptions.length > 0) {
+                                // 이 고객은 이동 가능
+                                movedCustomers.push({
+                                    customer: customer,
+                                    newTables: hallOptions
+                                });
+                                
+                                // 사용 테이블 업데이트
+                                hallOptions.forEach(table => currentUsedTables.add(table));
+                            } else {
+                                allCanMove = false;
+                                break;
+                            }
+                        }
+                        
+                        if (allCanMove) {
+                            // 모든 고객 이동 가능!
+                            console.log(`✅ 다중 재배정 성공: ${movedCustomers.length}명 이동`);
+                            
+                            // 실제 예약 데이터 수정
+                            movedCustomers.forEach(moved => {
+                                const index = allReservations.findIndex(r => r.id === moved.customer.id);
+                                if (index !== -1) {
+                                    allReservations[index].tables = moved.newTables;
+                                    allReservations[index].reassigned = true;
+                                }
+                            });
+                            
+                            // 새 예약을 위한 룸 테이블 준비
+                            const roomAssignment = tryRoomAssignment(people, currentUsedTables);
+                            if (roomAssignment.length > 0) {
+                                return roomAssignment;
+                            } else {
+                                // 충분한 테이블을 확보했지만 단체석 규칙에 맞지 않는 경우
+                                // 개별 테이블 반환
+                                const availableRoomTables = [];
+                                for (let i = 1; i <= 9; i++) {
+                                    const tableId = `room-${i}`;
+                                    if (!currentUsedTables.has(tableId)) {
+                                        availableRoomTables.push(tableId);
+                                    }
+                                }
+                                
+                                // 필요한 개수만큼 반환
+                                return availableRoomTables.slice(0, tablesNeeded);
+                            }
+                        } else {
+                            console.log(`조합 이동 실패: 일부 고객 이동 불가`);
+                        }
+                    }
+                }
             }
         }
     }
@@ -429,32 +350,23 @@ function tryReassignment(people, preference, conflictingReservations, allReserva
     return [];
 }
 
-// 단체석 사용 가능 여부 체크 함수
-function checkGroupAvailability(rule, dayReservations) {
-    const usedTables = new Set();
-    dayReservations.forEach(r => {
-        if (r.tables) {
-            r.tables.forEach(table => usedTables.add(table));
-        }
-    });
-    return rule.tables.every(table => !usedTables.has(table));
-}
-
-// 시간 겹침 체크
-function isTimeOverlap(time1, time2) {
-    if (time2 === 'all') return true;
+// 배열에서 n개 요소 조합 생성 함수
+function getCombinations(arr, n) {
+    const result = [];
     
-    const start1 = time1;
-    const end1 = addHours(time1, 3);
-    const start2 = time2;
-    const end2 = addHours(time2, 3);
-    return !(end1 <= start2 || end2 <= start1);
-}
-
-// 시간에 시간 더하기
-function addHours(timeStr, hours) {
-    const [hour, minute] = timeStr.split(':').map(Number);
-    const date = new Date();
-    date.setHours(hour + hours, minute);
-    return date.toTimeString().slice(0, 5);
+    function combine(start, current) {
+        if (current.length === n) {
+            result.push([...current]);
+            return;
+        }
+        
+        for (let i = start; i < arr.length; i++) {
+            current.push(arr[i]);
+            combine(i + 1, current);
+            current.pop();
+        }
+    }
+    
+    combine(0, []);
+    return result;
 }
