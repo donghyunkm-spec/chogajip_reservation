@@ -314,6 +314,7 @@ function checkGroupAvailability(groupRule, reservations) {
 }
 
 // 예약불가 조합 체크 함수 (수정됨 - 룸 4~9 전체는 예외)
+// 예약불가 조합 체크 함수 (수정됨)
 function hasInvalidCombination(tables) {
     if (tables.length <= 1) return false;
     
@@ -324,6 +325,24 @@ function hasInvalidCombination(tables) {
         tables.every(t => room4to9.includes(t))) {
         console.log(`룸 4~9 전체 조합은 예약불가 조합 예외 처리`);
         return false; // 룸 4~9 전체 조합은 허용
+    }
+    
+    // 룸 4,5,7,8 조합 예외 처리 (13~16명)
+    const room4578 = ['room-4', 'room-5', 'room-7', 'room-8'];
+    if (tables.length === 4 &&
+        room4578.every(t => tables.includes(t)) &&
+        tables.every(t => room4578.includes(t))) {
+        console.log(`룸 4,5,7,8 조합은 예약불가 조합 예외 처리`);
+        return false; // 룸 4,5,7,8 조합은 허용
+    }
+    
+    // 룸 5,6,8,9 조합 예외 처리 (13~16명)
+    const room5689 = ['room-5', 'room-6', 'room-8', 'room-9'];
+    if (tables.length === 4 &&
+        room5689.every(t => tables.includes(t)) &&
+        tables.every(t => room5689.includes(t))) {
+        console.log(`룸 5,6,8,9 조합은 예약불가 조합 예외 처리`);
+        return false; // 룸 5,6,8,9 조합은 허용
     }
     
     for (const invalidCombo of INVALID_COMBINATIONS) {
