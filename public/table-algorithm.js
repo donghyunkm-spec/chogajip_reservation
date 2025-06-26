@@ -296,7 +296,7 @@ function checkGroupAvailability(groupRule, reservations) {
         }
     }
     
-    // 룸 단체석의 경우 예약불가 조합 확인
+    // 룸 단체석의 경우 예약불가 조합 확인 (단, 룸 4~9 전체는 예외)
     if (groupRule.tables.some(t => t.startsWith('room-'))) {
         if (hasInvalidCombination(groupRule.tables)) {
             console.log(`단체석 ${groupRule.name}에 예약불가 조합 포함됨`);
@@ -313,9 +313,18 @@ function checkGroupAvailability(groupRule, reservations) {
     return true;
 }
 
-// 예약불가 조합 체크 함수
+// 예약불가 조합 체크 함수 (수정됨 - 룸 4~9 전체는 예외)
 function hasInvalidCombination(tables) {
     if (tables.length <= 1) return false;
+    
+    // 룸 4~9 전체 조합인 경우 예외 처리 (24명까지 수용 가능)
+    const room4to9 = ['room-4', 'room-5', 'room-6', 'room-7', 'room-8', 'room-9'];
+    if (tables.length === 6 && 
+        room4to9.every(t => tables.includes(t)) && 
+        tables.every(t => room4to9.includes(t))) {
+        console.log(`룸 4~9 전체 조합은 예약불가 조합 예외 처리`);
+        return false; // 룸 4~9 전체 조합은 허용
+    }
     
     for (const invalidCombo of INVALID_COMBINATIONS) {
         const hasFirstTable = tables.includes(invalidCombo[0]);
@@ -542,7 +551,7 @@ function analyzeTableMovability(conflictingReservations, usedTables) {
     return tableMobility;
 }
 
-// 룸 테이블 배정 시도
+// 룸 테이블 배정 시도 (수정됨)
 function tryRoomAssignment(people, usedTables) {
     // 좌석선호도 룸인 경우 최대 36명까지만 예약 가능 체크
     if (people > 36) {
@@ -582,8 +591,9 @@ function tryRoomAssignment(people, usedTables) {
         .sort((a, b) => a.tables.length - b.tables.length); // 최소 테이블 사용
     
     for (const rule of suitableRules) {
-        // 예약불가 조합이 없는지 확인
+        // 예약불가 조합이 없는지 확인 (수정됨 - 룸 4~9 전체는 예외)
         if (!hasInvalidCombination(rule.tables)) {
+            console.log(`룸 단체석 배정 성공: ${rule.name} (${people}명)`);
             return rule.tables;
         }
     }
@@ -625,7 +635,7 @@ function tryRoomAssignment(people, usedTables) {
     return []; // 가능한 테이블 없음
 }
 
-// 대체 룸 배정 시도 함수
+// 대체 룸 배정 시도 함수 (수정됨)
 function tryAlternativeRoomAssignment(people, usedTables) {
     // 예약불가 조합을 피하는 배정 시도
     
@@ -657,18 +667,19 @@ function tryAlternativeRoomAssignment(people, usedTables) {
         }
     }
     
-    // 9명 이상: 기존 단체석 규칙 사용하되 예약불가 조합 필터링
+    // 9명 이상: 기존 단체석 규칙 사용하되 예약불가 조합 필터링 (수정됨)
     const suitableRules = GROUP_RULES
         .filter(rule => 
             rule.tables.every(t => t.startsWith('room-')) &&
             rule.minPeople <= people && 
             rule.maxPeople >= people && 
             rule.tables.every(table => !usedTables.has(table)) &&
-            !hasInvalidCombination(rule.tables)
+            !hasInvalidCombination(rule.tables) // 룸 4~9 전체는 예외 처리됨
         )
         .sort((a, b) => a.tables.length - b.tables.length);
     
     if (suitableRules.length > 0) {
+        console.log(`대체 룸 배정 성공: ${suitableRules[0].name} (${people}명)`);
         return suitableRules[0].tables;
     }
     
@@ -893,7 +904,7 @@ function trySecureHallGroup(targetTables, tablesToFree, conflictingReservations,
             // 룸 테이블 찾기
             alternativeOptions = tryRoomAssignment(customer.people, currentUsedTables);
             
-            // 예약불가 조합 체크
+            // 예약불가 조합 체크 (수정됨)
             if (alternativeOptions.length > 0 && hasInvalidCombination(alternativeOptions)) {
                 alternativeOptions = tryAlternativeRoomAssignment(customer.people, currentUsedTables);
             }
@@ -1027,7 +1038,7 @@ function tryAdjacentTableReassignment(people, preference, conflictingReservation
                         // 룸 테이블 찾기
                         alternativeOptions = tryRoomAssignment(customerPeople, otherUsedTables);
                         
-                        // 예약불가 조합 확인
+                        // 예약불가 조합 확인 (수정됨)
                         if (alternativeOptions.length > 0 && hasInvalidCombination(alternativeOptions)) {
                             alternativeOptions = tryAlternativeRoomAssignment(customerPeople, otherUsedTables);
                         }
@@ -1063,7 +1074,7 @@ function tryAdjacentTableReassignment(people, preference, conflictingReservation
     return []; // 적합한 재배정 방법 찾지 못함
 }
 
-// 룸 선호 고객을 위한 적극적인 재배정 시도 함수
+// 룸 선호 고객을 위한 적극적인 재배정 시도 함수 (수정됨)
 function tryReassignmentForRoomPreference(people, conflictingReservations, allReservations) {
     console.log(`룸 선호 고객을 위한 적극적인 재배정 시도 (${people}명)`);
     
@@ -1143,7 +1154,7 @@ function tryReassignmentForRoomPreference(people, conflictingReservations, allRe
         
         // 각 단체석 규칙에 대해 시도
         for (const rule of suitableRules) {
-            // 예약불가 조합 체크
+            // 예약불가 조합 체크 (수정됨 - 룸 4~9는 예외)
             if (hasInvalidCombination(rule.tables)) {
                 console.log(`단체석 규칙 ${rule.name}은 예약불가 조합 포함, 건너뜀`);
                 continue;
@@ -1417,7 +1428,7 @@ function getCombinations(arr, n) {
     return result;
 }
 
-// 메인 테이블 배정 함수
+// 메인 테이블 배정 함수 (수정됨)
 function assignTables(people, preference, date, time, allReservations) {
     console.log(`테이블 배정 시작: ${people}명, 선호도: ${preference}, 날짜: ${date}, 시간: ${time}`);
     
@@ -1582,7 +1593,7 @@ function assignTables(people, preference, date, time, allReservations) {
         assignedTables = tryRoomAssignment(people, usedTables);
         
         if (assignedTables.length > 0) {
-            // 예약불가 조합 체크
+            // 예약불가 조합 체크 (수정됨)
             if (!hasInvalidCombination(assignedTables)) {
                 console.log(`룸 배정 성공: ${assignedTables.join(', ')}`);
                 return assignedTables;
@@ -1603,7 +1614,7 @@ function assignTables(people, preference, date, time, allReservations) {
             assignedTables = tryReassignmentForRoomPreference(people, conflictingReservations, allReservations);
             
             if (assignedTables.length > 0) {
-                // 예약불가 조합 체크
+                // 예약불가 조합 체크 (수정됨)
                 if (!hasInvalidCombination(assignedTables)) {
                     console.log(`룸 선호 고객 재배정 성공: ${assignedTables.join(', ')}`);
                     return assignedTables;
@@ -1616,7 +1627,7 @@ function assignTables(people, preference, date, time, allReservations) {
             assignedTables = tryReassignment(people, preference, conflictingReservations, allReservations, true);
             
             if (assignedTables.length > 0) {
-                // 예약불가 조합 체크
+                // 예약불가 조합 체크 (수정됨)
                 if (!hasInvalidCombination(assignedTables)) {
                     console.log(`재배정 성공 (선호도 고려): ${assignedTables.join(', ')}`);
                     return assignedTables;
@@ -1650,7 +1661,7 @@ function assignTables(people, preference, date, time, allReservations) {
         assignedTables = tryRoomAssignment(people, usedTables);
         
         if (assignedTables.length > 0) {
-            // 예약불가 조합 체크
+            // 예약불가 조합 체크 (수정됨)
             if (!hasInvalidCombination(assignedTables)) {
                 console.log(`선호도 없음, 룸 배정 성공: ${assignedTables.join(', ')}`);
                 return assignedTables;
@@ -1681,7 +1692,7 @@ function assignTables(people, preference, date, time, allReservations) {
         assignedTables = tryReassignment(people, preference, conflictingReservations, allReservations, false);
         
         if (assignedTables.length > 0) {
-            // 예약불가 조합 체크 (룸 선호 시만)
+            // 예약불가 조합 체크 (룸 선호 시만) (수정됨)
             if (preference !== 'room' || !hasInvalidCombination(assignedTables)) {
                 console.log(`일반 재배정 성공: ${assignedTables.join(', ')}`);
                 return assignedTables;
