@@ -1,4 +1,4 @@
-// server.js - Google Calendar 연동 + 테이블 배정 알고리즘
+// server.js - Google Calendar 연동 + 수동 테이블 배정
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -11,23 +11,6 @@ const PORT = process.env.PORT || 3000;
 // Google Calendar API 설정
 let calendar = null;
 let calendarInitialized = false;
-
-// 테이블 정보 (테이블별 수용 인원)
-const TABLE_INFO = {
-    hall: {
-        1: { capacity: 5 },  // 홀 1번 테이블은 5명까지
-        2: { capacity: 4 }, 3: { capacity: 4 }, 4: { capacity: 4 },
-        5: { capacity: 4 }, 6: { capacity: 4 }, 7: { capacity: 4 },
-        8: { capacity: 4 }, 9: { capacity: 4 }, 10: { capacity: 4 },
-        11: { capacity: 4 }, 12: { capacity: 4 }, 13: { capacity: 4 },
-        14: { capacity: 4 }, 15: { capacity: 4 }, 16: { capacity: 4 }
-    },
-    room: {
-        1: { capacity: 4 }, 2: { capacity: 4 }, 3: { capacity: 4 },
-        4: { capacity: 4 }, 5: { capacity: 4 }, 6: { capacity: 4 },
-        7: { capacity: 4 }, 8: { capacity: 4 }, 9: { capacity: 4 }
-    }
-};
 
 // 시간 겹침 확인 함수
 function isTimeOverlap(time1, time2) {
@@ -45,143 +28,25 @@ function isTimeOverlap(time1, time2) {
     return (startTime1 < endTime2 && startTime2 < endTime1);
 }
 
-// 사용 중인 테이블 목록 가져오기
-function getUsedTables(reservations) {
-    const usedTables = new Set();
-    reservations.forEach(reservation => {
-        if (reservation.tables && reservation.tables.length > 0) {
-            reservation.tables.forEach(table => usedTables.add(table));
-        }
-    });
-    return usedTables;
-}
-
-// 기본 테이블 배정 함수
-function assignTables(people, preference, date, time, allReservations) {
-    console.log(`테이블 배정 시작: ${people}명, 선호도: ${preference}, 날짜: ${date}, 시간: ${time}`);
-    
-    // 같은 날짜/시간대 예약 필터링
-    const activeReservations = allReservations.filter(r => r.status === 'active' || !r.status);
-    const conflictingReservations = activeReservations.filter(r => 
-        r.date === date && isTimeOverlap(r.time, time)
+// 테이블 충돌 검사 함수
+function checkTableConflict(newReservation, existingReservations) {
+    const conflictingReservations = existingReservations.filter(r => 
+        r.status === 'active' && 
+        r.date === newReservation.date && 
+        isTimeOverlap(r.time, newReservation.time)
     );
     
-    const usedTables = getUsedTables(conflictingReservations);
-    console.log(`사용 중인 테이블: ${Array.from(usedTables).join(', ')}`);
-    
-    // 1명~4명: 개별 테이블 배정
-    if (people <= 4) {
-        // 선호도에 따른 배정
-        if (preference === 'room') {
-            // 룸 우선
-            for (let i = 1; i <= 9; i++) {
-                const tableId = `room-${i}`;
-                if (!usedTables.has(tableId)) {
-                    console.log(`룸 배정 성공: ${tableId}`);
-                    return [tableId];
-                }
-            }
-            // 룸이 없으면 홀
-            for (let i = 9; i <= 16; i++) {
-                const tableId = `hall-${i}`;
-                if (!usedTables.has(tableId)) {
-                    console.log(`홀 배정 (룸 대안): ${tableId}`);
-                    return [tableId];
-                }
-            }
-        } else if (preference === 'hall') {
-            // 홀 우선 (9~16번)
-            for (let i = 9; i <= 16; i++) {
-                const tableId = `hall-${i}`;
-                if (!usedTables.has(tableId)) {
-                    console.log(`홀 배정 성공: ${tableId}`);
-                    return [tableId];
-                }
-            }
-            // 홀이 없으면 룸
-            for (let i = 1; i <= 9; i++) {
-                const tableId = `room-${i}`;
-                if (!usedTables.has(tableId)) {
-                    console.log(`룸 배정 (홀 대안): ${tableId}`);
-                    return [tableId];
-                }
-            }
-        } else {
-            // 관계없음: 룸 우선
-            for (let i = 1; i <= 9; i++) {
-                const tableId = `room-${i}`;
-                if (!usedTables.has(tableId)) {
-                    console.log(`룸 배정 성공 (관계없음): ${tableId}`);
-                    return [tableId];
-                }
-            }
-            for (let i = 9; i <= 16; i++) {
-                const tableId = `hall-${i}`;
-                if (!usedTables.has(tableId)) {
-                    console.log(`홀 배정 성공 (관계없음): ${tableId}`);
-                    return [tableId];
-                }
-            }
+    const usedTables = new Set();
+    conflictingReservations.forEach(r => {
+        if (r.tables) {
+            r.tables.forEach(t => usedTables.add(t));
         }
-    }
+    });
     
-    // 5명: 홀 1번 우선
-    if (people === 5 && !usedTables.has('hall-1')) {
-        console.log(`5명 홀1번 배정: hall-1`);
-        return ['hall-1'];
-    }
+    // 새 예약의 테이블 중 이미 사용 중인 테이블이 있는지 확인
+    const conflictTables = newReservation.tables.filter(t => usedTables.has(t));
     
-    // 5명 이상: 단체석 배정
-    if (people >= 5) {
-        // 룸 선호 단체석
-        if (preference === 'room') {
-            if (people <= 8) {
-                // 룸 2개 테이블 조합
-                const roomPairs = [
-                    ['room-1', 'room-2'], ['room-2', 'room-3'],
-                    ['room-4', 'room-5'], ['room-5', 'room-6'],
-                    ['room-7', 'room-8'], ['room-8', 'room-9']
-                ];
-                for (const pair of roomPairs) {
-                    if (!usedTables.has(pair[0]) && !usedTables.has(pair[1])) {
-                        console.log(`룸 단체석 배정: ${pair.join(', ')}`);
-                        return pair;
-                    }
-                }
-            }
-            if (people >= 9 && people <= 12) {
-                // 룸 3개 테이블 조합
-                const roomGroups = [
-                    ['room-1', 'room-2', 'room-3'],
-                    ['room-4', 'room-5', 'room-6'],
-                    ['room-7', 'room-8', 'room-9']
-                ];
-                for (const group of roomGroups) {
-                    if (group.every(t => !usedTables.has(t))) {
-                        console.log(`룸 단체석 배정: ${group.join(', ')}`);
-                        return group;
-                    }
-                }
-            }
-        }
-        
-        // 홀 단체석 (5~8명)
-        if (people >= 5 && people <= 8) {
-            const hallPairs = [
-                ['hall-1', 'hall-2'], ['hall-3', 'hall-4'], 
-                ['hall-5', 'hall-6'], ['hall-7', 'hall-8']
-            ];
-            for (const pair of hallPairs) {
-                if (!usedTables.has(pair[0]) && !usedTables.has(pair[1])) {
-                    console.log(`홀 단체석 배정: ${pair.join(', ')}`);
-                    return pair;
-                }
-            }
-        }
-    }
-    
-    console.log(`모든 배정 시도 실패`);
-    return []; // 배정 실패
+    return conflictTables;
 }
 
 // 미들웨어
@@ -245,10 +110,20 @@ async function createCalendarEvent(reservation) {
         const endTime = addHours(reservation.time, 3);
         const endDateTime = `${reservation.date}T${endTime}:00`;
         
+        // 테이블 표시를 T/R 형식으로 변환
+        const displayTables = reservation.tables ? reservation.tables.map(t => {
+            if (t.startsWith('hall-')) {
+                return 'T' + t.split('-')[1];
+            } else if (t.startsWith('room-')) {
+                return 'R' + t.split('-')[1];
+            }
+            return t;
+        }).join(', ') : '미배정';
+        
         const event = {
             summary: `🏠 ${reservation.name}님 ${reservation.people}명`,
             description: `
-📍 테이블: ${reservation.tables ? reservation.tables.join(', ') : '미배정'}
+📍 테이블: ${displayTables}
 👥 인원: ${reservation.people}명
 🪑 좌석선호: ${getPreferenceText(reservation.preference)}
 📞 연락처: ${reservation.phone || '미입력'}
@@ -299,10 +174,20 @@ async function updateCalendarEvent(reservation) {
         const endTime = addHours(reservation.time, 3);
         const endDateTime = `${reservation.date}T${endTime}:00`;
         
+        // 테이블 표시를 T/R 형식으로 변환
+        const displayTables = reservation.tables ? reservation.tables.map(t => {
+            if (t.startsWith('hall-')) {
+                return 'T' + t.split('-')[1];
+            } else if (t.startsWith('room-')) {
+                return 'R' + t.split('-')[1];
+            }
+            return t;
+        }).join(', ') : '미배정';
+        
         const event = {
             summary: `🏠 ${reservation.name}님 ${reservation.people}명`,
             description: `
-📍 테이블: ${reservation.tables ? reservation.tables.join(', ') : '미배정'}
+📍 테이블: ${displayTables}
 👥 인원: ${reservation.people}명
 🪑 좌석선호: ${getPreferenceText(reservation.preference)}
 📞 연락처: ${reservation.phone || '미입력'}
@@ -363,6 +248,7 @@ async function deleteCalendarEvent(eventId) {
         return false;
     }
 }
+
 function addHours(timeStr, hours) {
     const [hourStr, minuteStr] = timeStr.split(':');
     let hour = parseInt(hourStr);
@@ -482,55 +368,76 @@ app.post('/api/reservations', async (req, res) => {
     try {
         const newReservation = req.body;
         
-        if (!newReservation.name || !newReservation.people || !newReservation.date || !newReservation.time) {
+        // 필수 정보 검증
+        if (!newReservation.name || !newReservation.people || !newReservation.date || !newReservation.time || !newReservation.tables) {
             return res.status(400).json({ 
                 success: false, 
-                error: '필수 정보가 누락되었습니다.' 
+                error: '필수 정보가 누락되었습니다. (이름, 인원수, 날짜, 시간, 테이블)' 
+            });
+        }
+
+        // 테이블이 배열인지 확인
+        if (!Array.isArray(newReservation.tables) || newReservation.tables.length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                error: '테이블을 선택해주세요.' 
             });
         }
 
         const reservations = readReservations();
+        
+        // 테이블 충돌 검사
+        const conflictTables = checkTableConflict(newReservation, reservations);
+        if (conflictTables.length > 0) {
+            const displayConflictTables = conflictTables.map(t => {
+                if (t.startsWith('hall-')) {
+                    return 'T' + t.split('-')[1];
+                } else if (t.startsWith('room-')) {
+                    return 'R' + t.split('-')[1];
+                }
+                return t;
+            }).join(', ');
+            
+            return res.status(400).json({
+                success: false,
+                error: `선택한 테이블 중 일부가 이미 예약되어 있습니다: ${displayConflictTables}`
+            });
+        }
+
+        // 예약 정보 설정
         newReservation.id = Date.now();
         newReservation.timestamp = new Date().toISOString();
         newReservation.status = 'active';
 
-        // 스마트 테이블 배정
-        const assignedTables = assignTables(
-            newReservation.people, 
-            newReservation.preference || 'any', 
-            newReservation.date, 
-            newReservation.time, 
-            reservations
-        );
-
-        if (assignedTables.length > 0) {
-            newReservation.tables = assignedTables;
-
-            // Google Calendar 이벤트 생성 시도
-            const calendarEventId = await createCalendarEvent(newReservation);
-            if (calendarEventId) {
-                newReservation.calendarEventId = calendarEventId;
+        // 테이블 표시를 위한 변환
+        const displayTables = newReservation.tables.map(t => {
+            if (t.startsWith('hall-')) {
+                return 'T' + t.split('-')[1];
+            } else if (t.startsWith('room-')) {
+                return 'R' + t.split('-')[1];
             }
+            return t;
+        });
 
-            reservations.push(newReservation);
-            
-            if (writeReservations(reservations)) {
-                console.log(`✅ 새 예약: ${newReservation.name}님 (${newReservation.people}명) - 테이블: ${assignedTables.join(', ')}`);
-                res.json({ 
-                    success: true, 
-                    message: `예약이 완료되었습니다! 배정 테이블: ${assignedTables.join(', ')}` + (calendarEventId ? ' (Google Calendar 연동됨)' : ''),
-                    data: newReservation
-                });
-            } else {
-                res.status(500).json({ 
-                    success: false, 
-                    error: '예약 저장에 실패했습니다.' 
-                });
-            }
+        // Google Calendar 이벤트 생성 시도
+        const calendarEventId = await createCalendarEvent(newReservation);
+        if (calendarEventId) {
+            newReservation.calendarEventId = calendarEventId;
+        }
+
+        reservations.push(newReservation);
+        
+        if (writeReservations(reservations)) {
+            console.log(`✅ 새 예약: ${newReservation.name}님 (${newReservation.people}명) - 테이블: ${displayTables.join(', ')}`);
+            res.json({ 
+                success: true, 
+                message: `예약이 완료되었습니다! 배정 테이블: ${displayTables.join(', ')}` + (calendarEventId ? ' (Google Calendar 연동됨)' : ''),
+                data: newReservation
+            });
         } else {
-            res.status(400).json({
-                success: false,
-                error: `죄송합니다. 해당 시간대(${newReservation.time})에 ${newReservation.people}명이 앉을 수 있는 자리가 없습니다.`
+            res.status(500).json({ 
+                success: false, 
+                error: '예약 저장에 실패했습니다.' 
             });
         }
     } catch (error) {
@@ -559,25 +466,30 @@ app.put('/api/reservations/:id', async (req, res) => {
 
         const oldReservation = reservations[reservationIndex];
         
-        // 테이블 재배정이 필요한 경우
-        if (updates.people || updates.date || updates.time || updates.preference) {
+        // 테이블 충돌 검사 (현재 예약 제외)
+        if (updates.tables && Array.isArray(updates.tables)) {
             const tempReservations = [...reservations];
             tempReservations.splice(reservationIndex, 1); // 현재 예약 제외
             
-            const newTables = assignTables(
-                updates.people || oldReservation.people,
-                updates.preference || oldReservation.preference,
-                updates.date || oldReservation.date,
-                updates.time || oldReservation.time,
-                tempReservations
-            );
+            const testReservation = {
+                ...oldReservation,
+                ...updates
+            };
             
-            if (newTables.length > 0) {
-                updates.tables = newTables;
-            } else {
+            const conflictTables = checkTableConflict(testReservation, tempReservations);
+            if (conflictTables.length > 0) {
+                const displayConflictTables = conflictTables.map(t => {
+                    if (t.startsWith('hall-')) {
+                        return 'T' + t.split('-')[1];
+                    } else if (t.startsWith('room-')) {
+                        return 'R' + t.split('-')[1];
+                    }
+                    return t;
+                }).join(', ');
+                
                 return res.status(400).json({
                     success: false,
-                    error: '해당 조건으로 예약 수정이 어렵습니다. 다른 시간대를 선택해주세요.'
+                    error: `선택한 테이블 중 일부가 이미 예약되어 있습니다: ${displayConflictTables}`
                 });
             }
         }
@@ -656,6 +568,7 @@ app.delete('/api/reservations/:id', async (req, res) => {
         });
     }
 });
+
 app.use('*', (req, res) => {
     res.status(404).json({ 
         success: false, 
@@ -673,7 +586,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log(`📅 Google Calendar 초기화 시작...`);
     await initializeGoogleCalendar();
     
-    console.log(`✅ 서버 정상 동작 중!`);
+    console.log(`✅ 서버 정상 동작 중! (수동 테이블 배정 모드)`);
 }).on('error', (error) => {
     console.error(`❌ 서버 시작 오류:`, error);
 });

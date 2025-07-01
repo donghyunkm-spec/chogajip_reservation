@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>초가짚 예약 시스템</title>
     <style>
-        /* 기본 스타일 */
+        /* 기존 스타일 유지 */
         * {
             margin: 0;
             padding: 0;
@@ -187,6 +187,66 @@
             margin-bottom: 5px;
         }
 
+        /* 테이블 선택 UI 스타일 */
+        .table-selection {
+            margin-top: 15px;
+        }
+
+        .table-selection-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .table-selection-item {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            background: #f8f9fa;
+            min-height: 40px;
+        }
+
+        .table-selection-item:hover:not(.disabled) {
+            background: #e3f2fd;
+            border-color: #2196F3;
+        }
+
+        .table-selection-item.selected {
+            background: #4CAF50;
+            color: white;
+            border-color: #388E3C;
+        }
+
+        .table-selection-item.disabled {
+            background: #ffcdd2;
+            color: #c62828;
+            border-color: #f44336;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .room-selection-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .table-section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 14px;
+        }
+
         input, select {
             width: 100%;
             padding: 15px;
@@ -227,7 +287,7 @@
             transform: none;
         }
 
-        /* 테이블 배치도 스타일 */
+        /* 기존 테이블 배치도 스타일 유지 */
         .table-layout {
             display: flex;
             gap: 30px;
@@ -341,7 +401,7 @@
             visibility: hidden;
         }
 
-        /* 예약 목록 스타일 */
+        /* 나머지 스타일들 */
         .reservation-item {
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -468,6 +528,15 @@
                 width: 100%;
                 justify-content: flex-end;
             }
+
+            .table-selection-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .table-selection-item {
+                min-height: 35px;
+                font-size: 11px;
+            }
         }
     </style>
 </head>
@@ -520,12 +589,12 @@
                     
                     <div class="form-group">
                         <label for="date">예약 날짜 <span class="required">*</span></label>
-                        <input type="date" id="date" required>
+                        <input type="date" id="date" required onchange="updateTableAvailability()">
                     </div>
                     
                     <div class="form-group">
                         <label for="time">예약 시간 <span class="required">*</span></label>
-                        <select id="time" required>
+                        <select id="time" required onchange="updateTableAvailability()">
                             <option value="">시간을 선택해주세요</option>
                             <option value="14:30">오후 2:30</option>
                             <option value="15:00">오후 3:00</option>
@@ -546,6 +615,29 @@
                             <option value="22:30">오후 10:30</option>
                             <option value="23:00">오후 11:00</option>
                         </select>
+                    </div>
+
+                    <!-- 테이블 선택 UI -->
+                    <div class="form-group">
+                        <label>테이블 선택 <span class="required">*</span></label>
+                        <div class="table-selection">
+                            <div class="table-section-title">홀 테이블 (T1~T16)</div>
+                            <div class="table-selection-grid" id="hall-table-selection">
+                                <!-- 홀 테이블 버튼들이 여기에 동적으로 생성됩니다 -->
+                            </div>
+                            
+                            <div class="table-section-title">룸 테이블 (R1~R9)</div>
+                            <div class="room-selection-grid" id="room-table-selection">
+                                <!-- 룸 테이블 버튼들이 여기에 동적으로 생성됩니다 -->
+                            </div>
+                            
+                            <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                                <span style="color: #f44336;">■</span> 예약불가 &nbsp;
+                                <span style="color: #4CAF50;">■</span> 선택됨 &nbsp;
+                                <span style="color: #ddd;">■</span> 선택가능
+                            </div>
+                        </div>
+                        <input type="hidden" id="selectedTables" required>
                     </div>
                     
                     <div class="form-group">
@@ -621,6 +713,7 @@
     <script>
         // 전역 변수
         let reservations = [];
+        let selectedTables = new Set();
         
         // 페이지 로드 시 초기화
         document.addEventListener('DOMContentLoaded', async function() {
@@ -630,6 +723,9 @@
             if (dateInput) dateInput.value = getCurrentDate();
             if (statusDateInput) statusDateInput.value = getCurrentDate();
             
+            // 테이블 선택 UI 초기화
+            initializeTableSelection();
+            
             await loadReservations();
             updateStatus();
         });
@@ -637,6 +733,110 @@
         // 현재 날짜 가져오기
         function getCurrentDate() {
             return new Date().toISOString().split('T')[0];
+        }
+
+        // 테이블 선택 UI 초기화
+        function initializeTableSelection() {
+            // 홀 테이블 (T1~T16) 생성
+            const hallContainer = document.getElementById('hall-table-selection');
+            for (let i = 1; i <= 16; i++) {
+                const tableBtn = document.createElement('div');
+                tableBtn.className = 'table-selection-item';
+                tableBtn.setAttribute('data-table', `hall-${i}`);
+                tableBtn.textContent = `T${i}`;
+                tableBtn.onclick = () => toggleTableSelection(`hall-${i}`);
+                hallContainer.appendChild(tableBtn);
+            }
+
+            // 룸 테이블 (R1~R9) 생성
+            const roomContainer = document.getElementById('room-table-selection');
+            for (let i = 1; i <= 9; i++) {
+                const tableBtn = document.createElement('div');
+                tableBtn.className = 'table-selection-item';
+                tableBtn.setAttribute('data-table', `room-${i}`);
+                tableBtn.textContent = `R${i}`;
+                tableBtn.onclick = () => toggleTableSelection(`room-${i}`);
+                roomContainer.appendChild(tableBtn);
+            }
+        }
+
+        // 테이블 선택/해제
+        function toggleTableSelection(tableId) {
+            const tableBtn = document.querySelector(`[data-table="${tableId}"]`);
+            
+            if (tableBtn.classList.contains('disabled')) {
+                return; // 비활성화된 테이블은 선택 불가
+            }
+
+            if (selectedTables.has(tableId)) {
+                selectedTables.delete(tableId);
+                tableBtn.classList.remove('selected');
+            } else {
+                selectedTables.add(tableId);
+                tableBtn.classList.add('selected');
+            }
+
+            // 선택된 테이블 hidden input에 업데이트
+            document.getElementById('selectedTables').value = Array.from(selectedTables).join(',');
+        }
+
+        // 테이블 가용성 업데이트
+        function updateTableAvailability() {
+            const date = document.getElementById('date').value;
+            const time = document.getElementById('time').value;
+
+            if (!date || !time) {
+                // 날짜나 시간이 선택되지 않으면 모든 테이블 활성화
+                document.querySelectorAll('.table-selection-item').forEach(btn => {
+                    btn.classList.remove('disabled');
+                });
+                return;
+            }
+
+            // 해당 시간대에 이미 예약된 테이블 확인
+            const conflictingReservations = reservations.filter(r => 
+                r.status === 'active' && 
+                r.date === date && 
+                isTimeOverlap(r.time, time)
+            );
+
+            const usedTables = new Set();
+            conflictingReservations.forEach(r => {
+                if (r.tables) {
+                    r.tables.forEach(t => usedTables.add(t));
+                }
+            });
+
+            // 모든 테이블 버튼 상태 업데이트
+            document.querySelectorAll('.table-selection-item').forEach(btn => {
+                const tableId = btn.getAttribute('data-table');
+                if (usedTables.has(tableId)) {
+                    btn.classList.add('disabled');
+                    btn.classList.remove('selected');
+                    selectedTables.delete(tableId);
+                } else {
+                    btn.classList.remove('disabled');
+                }
+            });
+
+            // 선택된 테이블 업데이트
+            document.getElementById('selectedTables').value = Array.from(selectedTables).join(',');
+        }
+
+        // 시간 겹침 확인 함수
+        function isTimeOverlap(time1, time2) {
+            if (time1 === time2) return true;
+            
+            const [hour1, minute1] = time1.split(':').map(Number);
+            const [hour2, minute2] = time2.split(':').map(Number);
+            
+            const startTime1 = hour1 * 60 + minute1;
+            const endTime1 = startTime1 + 180; // 3시간 이용
+            
+            const startTime2 = hour2 * 60 + minute2;
+            const endTime2 = startTime2 + 180; // 3시간 이용
+            
+            return (startTime1 < endTime2 && startTime2 < endTime1);
         }
 
         // 데이터 로드
@@ -715,6 +915,11 @@
         async function handleReservation(event) {
             event.preventDefault();
             
+            if (selectedTables.size === 0) {
+                showAlert('테이블을 선택해주세요.', 'error');
+                return;
+            }
+            
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
             submitBtn.textContent = '처리 중...';
@@ -726,7 +931,8 @@
                     date: document.getElementById('date').value,
                     time: document.getElementById('time').value,
                     name: document.getElementById('name').value,
-                    phone: document.getElementById('phone').value || ''
+                    phone: document.getElementById('phone').value || '',
+                    tables: Array.from(selectedTables)
                 };
                 
                 const response = await fetch('/api/reservations', {
@@ -743,6 +949,14 @@
                     document.getElementById('date').value = getCurrentDate();
                     document.getElementById('people').value = 4;
                     selectPreference('any');
+                    
+                    // 테이블 선택 초기화
+                    selectedTables.clear();
+                    document.querySelectorAll('.table-selection-item').forEach(btn => {
+                        btn.classList.remove('selected', 'disabled');
+                    });
+                    document.getElementById('selectedTables').value = '';
+                    
                     await loadReservations();
                 } else {
                     showAlert(result.error, 'error');
@@ -813,7 +1027,7 @@
                         
                         if (isReserved && reservation) {
                             html += `<div class="table-cell reserved">
-                                <div>${tableNum}번</div>
+                                <div>T${tableNum}</div>
                                 <div class="table-info">${reservation.name}</div>
                                 <div class="table-info">${reservation.people}명</div>
                                 <div class="table-info">${reservation.time}</div>
@@ -821,7 +1035,7 @@
                         } else {
                             const capacity = tableNum == 1 ? 5 : 4;
                             html += `<div class="table-cell available">
-                                <div>${tableNum}번</div>
+                                <div>T${tableNum}</div>
                                 <div class="table-info">${capacity}석</div>
                             </div>`;
                         }
@@ -867,14 +1081,14 @@
                     
                     if (isReserved && reservation) {
                         html += `<div class="table-cell reserved">
-                            <div>룸${tableNum}</div>
+                            <div>R${tableNum}</div>
                             <div class="table-info">${reservation.name}</div>
                             <div class="table-info">${reservation.people}명</div>
                             <div class="table-info">${reservation.time}</div>
                         </div>`;
                     } else {
                         html += `<div class="table-cell available">
-                            <div>룸${tableNum}</div>
+                            <div>R${tableNum}</div>
                             <div class="table-info">4석</div>
                         </div>`;
                     }
@@ -902,6 +1116,16 @@
                 const endTime = addHours(r.time, 3);
                 const preferenceText = getPreferenceText(r.preference);
                 
+                // 테이블 표시를 T/R 형식으로 변환
+                const displayTables = r.tables ? r.tables.map(t => {
+                    if (t.startsWith('hall-')) {
+                        return 'T' + t.split('-')[1];
+                    } else if (t.startsWith('room-')) {
+                        return 'R' + t.split('-')[1];
+                    }
+                    return t;
+                }).join(', ') : '미배정';
+                
                 html += `
                     <div class="reservation-item">
                         <div class="reservation-content">
@@ -909,7 +1133,7 @@
                                 <strong class="customer-name">${r.name}</strong>
                                 <span class="reservation-time">${r.time}~${endTime}</span>
                                 <span class="reservation-people">${r.people}명</span>
-                                <div class="reservation-tables">테이블: ${r.tables ? r.tables.join(', ') : '미배정'}</div>
+                                <div class="reservation-tables">테이블: ${displayTables}</div>
                                 <div style="font-size: 12px; color: #666; margin-top: 3px;">선호: ${preferenceText}</div>
                                 ${r.phone ? `<div style="font-size: 12px; color: #666;">📞 ${r.phone}</div>` : ''}
                             </div>
@@ -951,9 +1175,332 @@
             }
         }
 
-        // 예약 수정 (간단한 구현)
+        // 예약 수정
         function editReservation(reservationId) {
-            showAlert('예약 수정 기능은 개발 중입니다.', 'error');
+            const reservation = reservations.find(r => r.id === reservationId);
+            if (!reservation) {
+                showAlert('예약을 찾을 수 없습니다.', 'error');
+                return;
+            }
+            
+            // 수정 모달 생성
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 3000;
+                overflow-y: auto;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; padding: 30px; border-radius: 15px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                    <h3 style="margin-bottom: 20px; color: #333;">예약 수정</h3>
+                    <form id="editForm">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">성함</label>
+                            <input type="text" id="editName" value="${reservation.name}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">인원수</label>
+                            <input type="number" id="editPeople" value="${reservation.people}" min="1" max="36" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">좌석 선호도</label>
+                            <select id="editPreference" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                                <option value="any" ${reservation.preference === 'any' ? 'selected' : ''}>관계없음</option>
+                                <option value="room" ${reservation.preference === 'room' ? 'selected' : ''}>룸 선호</option>
+                                <option value="hall" ${reservation.preference === 'hall' ? 'selected' : ''}>홀 선호</option>
+                            </select>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 날짜</label>
+                            <input type="date" id="editDate" value="${reservation.date}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability(${reservationId})">
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 시간</label>
+                            <select id="editTime" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability(${reservationId})">
+                                <option value="14:30" ${reservation.time === '14:30' ? 'selected' : ''}>오후 2:30</option>
+                                <option value="15:00" ${reservation.time === '15:00' ? 'selected' : ''}>오후 3:00</option>
+                                <option value="15:30" ${reservation.time === '15:30' ? 'selected' : ''}>오후 3:30</option>
+                                <option value="16:00" ${reservation.time === '16:00' ? 'selected' : ''}>오후 4:00</option>
+                                <option value="16:30" ${reservation.time === '16:30' ? 'selected' : ''}>오후 4:30</option>
+                                <option value="17:00" ${reservation.time === '17:00' ? 'selected' : ''}>오후 5:00</option>
+                                <option value="17:30" ${reservation.time === '17:30' ? 'selected' : ''}>오후 5:30</option>
+                                <option value="18:00" ${reservation.time === '18:00' ? 'selected' : ''}>오후 6:00</option>
+                                <option value="18:30" ${reservation.time === '18:30' ? 'selected' : ''}>오후 6:30</option>
+                                <option value="19:00" ${reservation.time === '19:00' ? 'selected' : ''}>오후 7:00</option>
+                                <option value="19:30" ${reservation.time === '19:30' ? 'selected' : ''}>오후 7:30</option>
+                                <option value="20:00" ${reservation.time === '20:00' ? 'selected' : ''}>오후 8:00</option>
+                                <option value="20:30" ${reservation.time === '20:30' ? 'selected' : ''}>오후 8:30</option>
+                                <option value="21:00" ${reservation.time === '21:00' ? 'selected' : ''}>오후 9:00</option>
+                                <option value="21:30" ${reservation.time === '21:30' ? 'selected' : ''}>오후 9:30</option>
+                                <option value="22:00" ${reservation.time === '22:00' ? 'selected' : ''}>오후 10:00</option>
+                                <option value="22:30" ${reservation.time === '22:30' ? 'selected' : ''}>오후 10:30</option>
+                                <option value="23:00" ${reservation.time === '23:00' ? 'selected' : ''}>오후 11:00</option>
+                                <option value="23:30" ${reservation.time === '23:30' ? 'selected' : ''}>오후 11:30</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 테이블 선택 UI -->
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">테이블 선택</label>
+                            <div style="margin-bottom: 10px; font-size: 14px; font-weight: bold;">홀 테이블 (T1~T16)</div>
+                            <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin-bottom: 15px;" id="editHallTableSelection">
+                                <!-- 홀 테이블 버튼들 -->
+                            </div>
+                            
+                            <div style="margin-bottom: 10px; font-size: 14px; font-weight: bold;">룸 테이블 (R1~R9)</div>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;" id="editRoomTableSelection">
+                                <!-- 룸 테이블 버튼들 -->
+                            </div>
+                            
+                            <div style="font-size: 12px; color: #666;">
+                                <span style="color: #f44336;">■</span> 예약불가 &nbsp;
+                                <span style="color: #4CAF50;">■</span> 선택됨 &nbsp;
+                                <span style="color: #ddd;">■</span> 선택가능
+                            </div>
+                            <input type="hidden" id="editSelectedTables" required>
+                        </div>
+                        
+                        <!-- 전화번호 필드 -->
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">전화번호</label>
+                            <input type="tel" id="editPhone" value="${reservation.phone || ''}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" placeholder="연락 가능한 전화번호">
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" style="flex: 1; background: #4CAF50; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">수정 완료</button>
+                            <button type="button" onclick="this.closest('.edit-modal').remove()" style="flex: 1; background: #666; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">취소</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            modal.className = 'edit-modal';
+            document.body.appendChild(modal);
+            
+            // 테이블 선택 UI 초기화
+            setTimeout(() => {
+                initializeEditTableSelection(reservation, reservationId);
+                
+                // 폼 제출 처리
+                const editForm = document.getElementById('editForm');
+                if (editForm) {
+                    editForm.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        const editSelectedTables = window.editSelectedTables || new Set();
+                        
+                        if (editSelectedTables.size === 0) {
+                            showAlert('테이블을 선택해주세요.', 'error');
+                            return;
+                        }
+                        
+                        const updatedData = {
+                            name: document.getElementById('editName').value,
+                            people: parseInt(document.getElementById('editPeople').value),
+                            preference: document.getElementById('editPreference').value,
+                            date: document.getElementById('editDate').value,
+                            time: document.getElementById('editTime').value,
+                            phone: document.getElementById('editPhone').value || '',
+                            tables: Array.from(editSelectedTables)
+                        };
+                        
+                        try {
+                            const response = await fetch(`/api/reservations/${reservationId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(updatedData)
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                                modal.remove();
+                                showAlert(result.message, 'success');
+                                await loadReservations();
+                                updateStatus();
+                            } else {
+                                showAlert(result.error, 'error');
+                            }
+                        } catch (error) {
+                            console.error('예약 수정 오류:', error);
+                            showAlert('예약 수정 중 오류가 발생했습니다.', 'error');
+                        }
+                    });
+                } else {
+                    console.error('수정 폼을 찾을 수 없습니다.');
+                }
+            }, 100);
+            
+            // 모달 바깥 클릭 시 닫기
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+        
+        // 수정 모달용 테이블 선택 UI 초기화
+        function initializeEditTableSelection(reservation, reservationId) {
+            window.editSelectedTables = new Set(reservation.tables || []);
+            
+            // 홀 테이블 생성
+            const editHallContainer = document.getElementById('editHallTableSelection');
+            for (let i = 1; i <= 16; i++) {
+                const tableBtn = document.createElement('div');
+                tableBtn.className = 'table-selection-item';
+                tableBtn.setAttribute('data-table', `hall-${i}`);
+                tableBtn.textContent = `T${i}`;
+                tableBtn.style.cssText = `
+                    aspect-ratio: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: 2px solid #ddd;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    font-size: 12px;
+                    transition: all 0.2s ease;
+                    background: #f8f9fa;
+                    min-height: 35px;
+                `;
+                
+                if (window.editSelectedTables.has(`hall-${i}`)) {
+                    tableBtn.style.background = '#4CAF50';
+                    tableBtn.style.color = 'white';
+                    tableBtn.style.borderColor = '#388E3C';
+                }
+                
+                tableBtn.onclick = () => toggleEditTableSelection(`hall-${i}`, reservationId);
+                editHallContainer.appendChild(tableBtn);
+            }
+
+            // 룸 테이블 생성
+            const editRoomContainer = document.getElementById('editRoomTableSelection');
+            for (let i = 1; i <= 9; i++) {
+                const tableBtn = document.createElement('div');
+                tableBtn.className = 'table-selection-item';
+                tableBtn.setAttribute('data-table', `room-${i}`);
+                tableBtn.textContent = `R${i}`;
+                tableBtn.style.cssText = `
+                    aspect-ratio: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: 2px solid #ddd;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    font-size: 12px;
+                    transition: all 0.2s ease;
+                    background: #f8f9fa;
+                    min-height: 35px;
+                `;
+                
+                if (window.editSelectedTables.has(`room-${i}`)) {
+                    tableBtn.style.background = '#4CAF50';
+                    tableBtn.style.color = 'white';
+                    tableBtn.style.borderColor = '#388E3C';
+                }
+                
+                tableBtn.onclick = () => toggleEditTableSelection(`room-${i}`, reservationId);
+                editRoomContainer.appendChild(tableBtn);
+            }
+            
+            // 초기 테이블 가용성 업데이트
+            updateEditTableAvailability(reservationId);
+        }
+        
+        // 수정 모달용 테이블 선택/해제
+        function toggleEditTableSelection(tableId, reservationId) {
+            const tableBtn = document.querySelector(`#editHallTableSelection [data-table="${tableId}"], #editRoomTableSelection [data-table="${tableId}"]`);
+            
+            if (tableBtn.style.background === 'rgb(255, 205, 210)') { // 비활성화된 테이블
+                return;
+            }
+
+            if (window.editSelectedTables.has(tableId)) {
+                window.editSelectedTables.delete(tableId);
+                tableBtn.style.background = '#f8f9fa';
+                tableBtn.style.color = '#333';
+                tableBtn.style.borderColor = '#ddd';
+            } else {
+                window.editSelectedTables.add(tableId);
+                tableBtn.style.background = '#4CAF50';
+                tableBtn.style.color = 'white';
+                tableBtn.style.borderColor = '#388E3C';
+            }
+
+            document.getElementById('editSelectedTables').value = Array.from(window.editSelectedTables).join(',');
+        }
+
+        // 수정 모달용 테이블 가용성 업데이트
+        function updateEditTableAvailability(reservationId) {
+            const date = document.getElementById('editDate').value;
+            const time = document.getElementById('editTime').value;
+
+            if (!date || !time) {
+                return;
+            }
+
+            // 해당 시간대에 이미 예약된 테이블 확인 (현재 수정 중인 예약 제외)
+            const conflictingReservations = reservations.filter(r => 
+                r.status === 'active' && 
+                r.id !== reservationId && // 현재 수정 중인 예약 제외
+                r.date === date && 
+                isTimeOverlap(r.time, time)
+            );
+
+            const usedTables = new Set();
+            conflictingReservations.forEach(r => {
+                if (r.tables) {
+                    r.tables.forEach(t => usedTables.add(t));
+                }
+            });
+
+            // 모든 테이블 버튼 상태 업데이트
+            document.querySelectorAll('#editHallTableSelection .table-selection-item, #editRoomTableSelection .table-selection-item').forEach(btn => {
+                const tableId = btn.getAttribute('data-table');
+                if (usedTables.has(tableId)) {
+                    btn.style.background = '#ffcdd2';
+                    btn.style.color = '#c62828';
+                    btn.style.borderColor = '#f44336';
+                    btn.style.cursor = 'not-allowed';
+                    btn.style.opacity = '0.6';
+                    
+                    // 비활성화된 테이블이 선택되어 있으면 선택 해제
+                    if (window.editSelectedTables.has(tableId)) {
+                        window.editSelectedTables.delete(tableId);
+                    }
+                } else {
+                    if (window.editSelectedTables.has(tableId)) {
+                        btn.style.background = '#4CAF50';
+                        btn.style.color = 'white';
+                        btn.style.borderColor = '#388E3C';
+                    } else {
+                        btn.style.background = '#f8f9fa';
+                        btn.style.color = '#333';
+                        btn.style.borderColor = '#ddd';
+                    }
+                    btn.style.cursor = 'pointer';
+                    btn.style.opacity = '1';
+                }
+            });
+
+            document.getElementById('editSelectedTables').value = Array.from(window.editSelectedTables).join(',');
         }
 
         // 유틸리티 함수들

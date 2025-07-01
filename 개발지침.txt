@@ -4,3 +4,5 @@
 3. 예약현황 구현시 초가짚_테이블_구조.png 참고하여 같은 모양으로 구현
 4. 단체예약시 시인성 뛰어나게 하여 단체예약별로 색깔 구분
 5. 예약등록시 알림, 예약 15분전 알림 기능
+6. index.html, app.js, style.cs, table-algorithm.js 는 /public 폴더에 있음
+7. server.js는 루트 폴더에 있음
