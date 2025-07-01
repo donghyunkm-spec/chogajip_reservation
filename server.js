@@ -187,7 +187,7 @@ function assignTables(people, preference, date, time, allReservations) {
 // 미들웨어
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.'));  // 현재 디렉토리를 static으로 설정
+app.use(express.static(path.join(__dirname, 'public')));  // 현재 디렉토리를 static으로 설정
 
 // Google Calendar 초기화
 async function initializeGoogleCalendar() {
