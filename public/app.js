@@ -500,6 +500,7 @@ async function handleReservation(event) {
             
             const successMessage = `예약이 완료되었습니다!\n${name}님 - ${people}명 - ${time}\n배정 테이블: ${assignedTables.join(', ')}`;
             showAlert(successMessage, 'success');
+			showReservationSuccessModal(result.message, result.data);
             
             // 폼 초기화
             event.target.reset();
@@ -1338,4 +1339,64 @@ function getMethodText(method) {
         case 'naver': return '네이버';
         default: return '선택안함';
     }
+}
+
+// 예약 성공 모달
+function showReservationSuccessModal(message, reservationData) {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 3000;
+    `;
+    
+    const calendarStatus = message.includes('Google Calendar 연동됨') ? 
+        '✅ Google Calendar에 자동 등록됨' : 
+        '⚠️ Google Calendar 연동 안됨 (수동 관리)';
+    
+    const displayTables = reservationData.tables ? reservationData.tables.map(t => {
+        if (t.startsWith('hall-')) {
+            return 'T' + t.split('-')[1];
+        } else if (t.startsWith('room-')) {
+            return 'R' + t.split('-')[1];
+        }
+        return t;
+    }).join(', ') : '미배정';
+    
+    modal.innerHTML = `
+        <div style="background: white; padding: 30px; border-radius: 15px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+            <h3 style="color: #4CAF50; margin-bottom: 20px;">🎉 예약 완료!</h3>
+            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">${reservationData.name}님</div>
+                <div style="margin-bottom: 5px;">👥 ${reservationData.people}명</div>
+                <div style="margin-bottom: 5px;">📅 ${reservationData.date} ${reservationData.time}</div>
+                <div style="margin-bottom: 5px;">🪑 배정 테이블: ${displayTables}</div>
+                <div style="font-size: 14px; color: #666;">좌석선호: ${getPreferenceText(reservationData.preference)}</div>
+            </div>
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;">
+                ${calendarStatus}
+            </div>
+            <button onclick="this.closest('.success-modal').remove()" 
+                    style="background: #4CAF50; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%;">
+                확인
+            </button>
+        </div>
+    `;
+    
+    modal.className = 'success-modal';
+    document.body.appendChild(modal);
+    
+    // 모달 바깥 클릭 시 닫기
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
 }
