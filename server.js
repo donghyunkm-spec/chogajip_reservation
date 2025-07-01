@@ -121,7 +121,7 @@ async function createCalendarEvent(reservation) {
         }).join(', ') : '미배정';
         
         const event = {
-            summary: `🏠 ${reservation.name}님 ${reservation.people}명`,
+            summary: `🏠 ${reservation.name}님 ${reservation.people}명 (${displayTables})`,
             description: `
 📍 테이블: ${displayTables}
 👥 인원: ${reservation.people}명
@@ -185,7 +185,7 @@ async function updateCalendarEvent(reservation) {
         }).join(', ') : '미배정';
         
         const event = {
-            summary: `🏠 ${reservation.name}님 ${reservation.people}명`,
+            summary: `🏠 ${reservation.name}님 ${reservation.people}명 (${displayTables})`,
             description: `
 📍 테이블: ${displayTables}
 👥 인원: ${reservation.people}명
