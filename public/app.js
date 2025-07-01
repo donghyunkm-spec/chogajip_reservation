@@ -1,5 +1,5 @@
 // 초가집 예약 시스템 UI 로직
-// public/app.js
+// public/app.js - 온라인 전용 버전
 
 // 전역 변수
 let reservations = [];
@@ -148,40 +148,35 @@ function checkUpcomingReservations() {
 
 // 연결 상태 주기적 확인
 async function checkConnectionStatus() {
-    if (!window.offlineMode) {
-        try {
-            await apiCall('ping');
-            updateConnectionStatus(true);
-        } catch (error) {
-            updateConnectionStatus(false);
-            window.offlineMode = true;
-            loadOfflineData();
-        }
+    try {
+        await apiCall('ping');
+        updateConnectionStatus(true);
+    } catch (error) {
+        updateConnectionStatus(false);
+        showAlert('서버 연결이 끊어졌습니다. 잠시 후 다시 시도해주세요.', 'error');
     }
 }
 
 // 새 예약 확인
 async function checkForNewReservations() {
-    if (!window.offlineMode) {
-        try {
-            const response = await apiCall('reservations');
-            const newReservations = response.data || [];
+    try {
+        const response = await apiCall('reservations');
+        const newReservations = response.data || [];
+        
+        // 새 예약이 있으면 알림
+        if (newReservations.length > reservations.length) {
+            const newCount = newReservations.length - reservations.length;
+            const latestReservation = newReservations[newReservations.length - 1];
             
-            // 새 예약이 있으면 알림
-            if (newReservations.length > reservations.length) {
-                const newCount = newReservations.length - reservations.length;
-                const latestReservation = newReservations[newReservations.length - 1];
-                
-                showNotification(
-                    `🎉 새 예약: ${latestReservation.name}님 ${latestReservation.people}명 (${latestReservation.time})`
-                );
-                
-                reservations = newReservations;
-                updateStatus(); // 화면 업데이트
-            }
-        } catch (error) {
-            // 오류는 무시 (이미 연결 상태 체크에서 처리됨)
+            showNotification(
+                `🎉 새 예약: ${latestReservation.name}님 ${latestReservation.people}명 (${latestReservation.time})`
+            );
+            
+            reservations = newReservations;
+            updateStatus(); // 화면 업데이트
         }
+    } catch (error) {
+        // 오류는 무시 (이미 연결 상태 체크에서 처리됨)
     }
 }
 
@@ -198,7 +193,7 @@ function updateConnectionStatus(isOnline) {
             status.textContent = '🟢 서버 연결됨';
             status.className = 'connection-status online';
         } else {
-            status.textContent = '🔴 오프라인 모드';
+            status.textContent = '🔴 서버 연결 끊김';
             status.className = 'connection-status offline';
         }
     }
@@ -240,13 +235,6 @@ async function apiCall(endpoint, options = {}) {
     } catch (error) {
         console.error(`API 호출 실패 (${endpoint}):`, error);
         updateConnectionStatus(false);
-        
-        // 오프라인 모드로 전환
-        if (!window.offlineMode) {
-            showAlert('서버 연결에 실패했습니다. 오프라인 모드로 전환합니다.', 'error');
-            window.offlineMode = true;
-            loadOfflineData();
-        }
         throw error;
     }
 }
@@ -269,17 +257,15 @@ async function loadReservations() {
         
         reservations = newReservations;
         updateConnectionStatus(true);
-        window.offlineMode = false;
         
-        // 예약 데이터 로컬 저장 (오프라인 모드 대비)
-        localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
         console.log('서버에서 예약 데이터 로드 완료:', reservations.length, '건');
         
         // 예약 데이터 상태 확인
         checkReservationStatus();
     } catch (error) {
         console.error('서버 데이터 로드 실패:', error);
-        loadOfflineData();
+        showAlert('서버 연결에 실패했습니다. 네트워크 연결을 확인해주세요.', 'error');
+        throw error;
     } finally {
         showLoading(false);
     }
@@ -307,46 +293,23 @@ function checkReservationStatus() {
     }
 }
 
-// 오프라인 데이터 로드
-function loadOfflineData() {
-    try {
-        const saved = localStorage.getItem('thatch_house_reservations');
-        reservations = saved ? JSON.parse(saved) : [];
-        console.log('로컬 데이터 로드:', reservations.length, '건');
-        updateConnectionStatus(false);
-    } catch (error) {
-        console.error('로컬 데이터 로드 오류:', error);
-        reservations = [];
-    }
-}
-
 // 데이터 저장
 async function saveReservation(reservation) {
-    if (window.offlineMode) {
-        // 오프라인 모드
-        reservations.push(reservation);
-        localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
-        return { success: true };
-    } else {
-        // 온라인 모드
-        try {
-            const response = await apiCall('reservations', {
-                method: 'POST',
-                body: JSON.stringify(reservation)
-            });
-            // 서버에서 저장된 예약 정보를 추가
-            reservations.push(response.data || reservation);
-            
-            // 새 예약 등록 알림
-            showNotification(`🎉 새 예약: ${reservation.name}님 ${reservation.people}명`);
-            
-            return response;
-        } catch (error) {
-            // 서버 실패시 로컬에 저장
-            reservations.push(reservation);
-            localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
-            throw error;
-        }
+    try {
+        const response = await apiCall('reservations', {
+            method: 'POST',
+            body: JSON.stringify(reservation)
+        });
+        // 서버에서 저장된 예약 정보를 추가
+        reservations.push(response.data || reservation);
+        
+        // 새 예약 등록 알림
+        showNotification(`🎉 새 예약: ${reservation.name}님 ${reservation.people}명`);
+        
+        return response;
+    } catch (error) {
+        showAlert('서버 저장에 실패했습니다. 네트워크 연결을 확인해주세요.', 'error');
+        throw error;
     }
 }
 
@@ -500,8 +463,9 @@ async function handleReservation(event) {
             
             const successMessage = `예약이 완료되었습니다!\n${name}님 - ${people}명 - ${time}\n배정 테이블: ${assignedTables.join(', ')}`;
             showAlert(successMessage, 'success');
-			showReservationSuccessModal(result.message, result.data);
-            
+			
+			showReservationSuccessModal('예약이 완료되었습니다!', newReservation);
+			
             // 폼 초기화
             event.target.reset();
             const dateInput = document.getElementById('date');
@@ -784,13 +748,8 @@ function updateStatus() {
 function updateDataStorageStatus() {
     const statusElement = document.getElementById('dataStorageStatus');
     if (statusElement) {
-        if (window.offlineMode) {
-            statusElement.textContent = '📱 로컬 스토리지 모드';
-            statusElement.className = 'data-status offline';
-        } else {
-            statusElement.textContent = '☁️ Railway 볼륨 저장 모드';
-            statusElement.className = 'data-status online';
-        }
+        statusElement.textContent = '☁️ Railway 볼륨 저장 모드';
+        statusElement.className = 'data-status online';
     }
 }
 
@@ -1059,29 +1018,17 @@ async function cancelReservation(reservationId) {
     }
     
     try {
-        if (window.offlineMode) {
-            // 오프라인 모드
-            const index = reservations.findIndex(r => r.id === reservationId);
-            if (index !== -1) {
-                reservations[index].status = 'cancelled';
-                localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
-                showAlert('예약이 취소되었습니다.', 'success');
-                updateStatus();
-            }
-        } else {
-            // 온라인 모드
-            await apiCall(`reservations/${reservationId}`, {
-                method: 'DELETE'
-            });
-            
-            const index = reservations.findIndex(r => r.id === reservationId);
-            if (index !== -1) {
-                reservations.splice(index, 1);
-            }
-            
-            showAlert('예약이 취소되었습니다.', 'success');
-            updateStatus();
+        await apiCall(`reservations/${reservationId}`, {
+            method: 'DELETE'
+        });
+        
+        const index = reservations.findIndex(r => r.id === reservationId);
+        if (index !== -1) {
+            reservations.splice(index, 1);
         }
+        
+        showAlert('예약이 취소되었습니다.', 'success');
+        updateStatus();
     } catch (error) {
         console.error('예약 취소 오류:', error);
         showAlert('예약 취소 중 오류가 발생했습니다.', 'error');
@@ -1216,24 +1163,14 @@ function editReservation(reservationId) {
                     updatedData.tables = newTables;
                     
                     try {
-                        if (window.offlineMode) {
-                            // 오프라인 모드
-                            const index = reservations.findIndex(r => r.id === reservationId);
-                            if (index !== -1) {
-                                reservations[index] = { ...reservations[index], ...updatedData };
-                                localStorage.setItem('thatch_house_reservations', JSON.stringify(reservations));
-                            }
-                        } else {
-                            // 온라인 모드
-                            await apiCall(`reservations/${reservationId}`, {
-                                method: 'PUT',
-                                body: JSON.stringify(updatedData)
-                            });
-                            
-                            const index = reservations.findIndex(r => r.id === reservationId);
-                            if (index !== -1) {
-                                reservations[index] = { ...reservations[index], ...updatedData };
-                            }
+                        await apiCall(`reservations/${reservationId}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(updatedData)
+                        });
+                        
+                        const index = reservations.findIndex(r => r.id === reservationId);
+                        if (index !== -1) {
+                            reservations[index] = { ...reservations[index], ...updatedData };
                         }
                         
                         modal.remove();
@@ -1278,9 +1215,6 @@ async function refreshData() {
     try {
         showLoading(true);
         showAlert('데이터를 새로고침 중입니다...', 'info');
-        
-        // 명시적으로 오프라인 모드 해제 시도
-        window.offlineMode = false;
         
         await loadReservations();
         updateStatus();
@@ -1341,7 +1275,7 @@ function getMethodText(method) {
     }
 }
 
-// 예약 성공 모달
+// 예약 성공 모달 (기존 함수 있으면 교체)
 function showReservationSuccessModal(message, reservationData) {
     const modal = document.createElement('div');
     modal.style.cssText = `
@@ -1356,10 +1290,6 @@ function showReservationSuccessModal(message, reservationData) {
         align-items: center;
         z-index: 3000;
     `;
-    
-    const calendarStatus = message.includes('Google Calendar 연동됨') ? 
-        '✅ Google Calendar에 자동 등록됨' : 
-        '⚠️ Google Calendar 연동 안됨 (수동 관리)';
     
     const displayTables = reservationData.tables ? reservationData.tables.map(t => {
         if (t.startsWith('hall-')) {
@@ -1379,9 +1309,6 @@ function showReservationSuccessModal(message, reservationData) {
                 <div style="margin-bottom: 5px;">📅 ${reservationData.date} ${reservationData.time}</div>
                 <div style="margin-bottom: 5px;">🪑 배정 테이블: ${displayTables}</div>
                 <div style="font-size: 14px; color: #666;">좌석선호: ${getPreferenceText(reservationData.preference)}</div>
-            </div>
-            <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;">
-                ${calendarStatus}
             </div>
             <button onclick="this.closest('.success-modal').remove()" 
                     style="background: #4CAF50; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%;">
