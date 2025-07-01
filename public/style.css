@@ -193,6 +193,90 @@ label {
     margin-bottom: 5px;
 }
 
+/* 테이블 선택 UI 스타일 */
+.table-selection {
+    margin-top: 15px;
+}
+
+.hall-table-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 20px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hall-row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.room-table-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 15px;
+    max-width: 180px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.room-row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.table-selection-item {
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 10px;
+    transition: all 0.2s ease;
+    background: #f8f9fa;
+    color: #333;
+}
+
+.table-selection-item.empty {
+    visibility: hidden;
+}
+
+.table-selection-item:hover:not(.disabled):not(.empty) {
+    background: #e3f2fd;
+    border-color: #2196F3;
+}
+
+.table-selection-item.selected {
+    background: #4CAF50;
+    color: white;
+    border-color: #388E3C;
+}
+
+.table-selection-item.disabled {
+    background: #ffcdd2;
+    color: #c62828;
+    border-color: #f44336;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.table-section-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #333;
+    font-size: 13px;
+    text-align: center;
+}
+
 /* 데이터 상태 패널 */
 .data-status-panel {
     display: flex;
@@ -887,6 +971,21 @@ input:focus, select:focus {
     .data-count {
         text-align: center;
     }
+    
+    /* 테이블 선택 UI 모바일 최적화 */
+    .hall-table-layout {
+        max-width: 300px;
+    }
+    
+    .room-table-layout {
+        max-width: 150px;
+    }
+    
+    .table-selection-item {
+        width: 30px;
+        height: 30px;
+        font-size: 9px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -949,5 +1048,24 @@ input:focus, select:focus {
     
     .form-container h2, .status-container h2 {
         font-size: 1.5em;
+    }
+    
+    /* 테이블 선택 UI 소형 모바일 최적화 */
+    .hall-table-layout {
+        max-width: 250px;
+    }
+    
+    .room-table-layout {
+        max-width: 120px;
+    }
+    
+    .table-selection-item {
+        width: 25px;
+        height: 25px;
+        font-size: 8px;
+    }
+    
+    .table-section-title {
+        font-size: 12px;
     }
 }

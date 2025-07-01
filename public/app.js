@@ -476,7 +476,7 @@ async function handleReservation(event) {
         const time = document.getElementById('time').value;
         const name = document.getElementById('name').value;
         const phone = document.getElementById('phone').value || '';
-        const reservationMethod = document.getElementById('reservationMethod').value || 'none';
+        const reservationMethod = document.getElementById('reservationMethod')?.value || 'none';
         
         // 스마트 테이블 배정
         const assignedTables = assignTables(people, preference, date, time, reservations);
@@ -507,7 +507,9 @@ async function handleReservation(event) {
             if (dateInput) dateInput.value = getCurrentDate();
             document.getElementById('people').value = 4;
             selectPreference('any');
-            selectMethod('none');
+            if (document.getElementById('reservationMethod')) {
+                selectMethod('none');
+            }
             
             // 예약 현황 업데이트
             updateStatus();
@@ -671,7 +673,9 @@ async function acceptAlternative(altType, tablesStr, name, people, originalPrefe
         if (dateInput) dateInput.value = getCurrentDate();
         document.getElementById('people').value = 4;
         selectPreference('any');
-        selectMethod('none');
+        if (document.getElementById('reservationMethod')) {
+            selectMethod('none');
+        }
         
         // 예약 현황 업데이트
         updateStatus();

@@ -192,29 +192,59 @@
             margin-top: 15px;
         }
 
-        .table-selection-grid {
-            display: grid;
-            grid-template-columns: repeat(8, 1fr);
-            gap: 8px;
+        .hall-table-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 20px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hall-row {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .room-table-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
             margin-bottom: 15px;
+            max-width: 180px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .room-row {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
         }
 
         .table-selection-item {
-            aspect-ratio: 1;
+            width: 35px;
+            height: 35px;
             display: flex;
             align-items: center;
             justify-content: center;
             border: 2px solid #ddd;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
-            font-size: 12px;
+            font-size: 10px;
             transition: all 0.2s ease;
             background: #f8f9fa;
-            min-height: 40px;
+            color: #333;
         }
 
-        .table-selection-item:hover:not(.disabled) {
+        .table-selection-item.empty {
+            visibility: hidden;
+        }
+
+        .table-selection-item:hover:not(.disabled):not(.empty) {
             background: #e3f2fd;
             border-color: #2196F3;
         }
@@ -233,18 +263,12 @@
             opacity: 0.6;
         }
 
-        .room-selection-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-top: 15px;
-        }
-
         .table-section-title {
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             color: #333;
-            font-size: 14px;
+            font-size: 13px;
+            text-align: center;
         }
 
         input, select {
@@ -529,13 +553,46 @@
                 justify-content: flex-end;
             }
 
-            .table-selection-grid {
-                grid-template-columns: repeat(4, 1fr);
+            /* 테이블 선택 UI 모바일 최적화 */
+            .hall-table-layout {
+                max-width: 300px;
             }
-
+            
+            .room-table-layout {
+                max-width: 150px;
+            }
+            
             .table-selection-item {
-                min-height: 35px;
-                font-size: 11px;
+                width: 30px;
+                height: 30px;
+                font-size: 9px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .table-cell {
+                min-height: 40px;
+                min-width: 40px;
+                font-size: 9px;
+            }
+            
+            /* 테이블 선택 UI 소형 모바일 최적화 */
+            .hall-table-layout {
+                max-width: 250px;
+            }
+            
+            .room-table-layout {
+                max-width: 120px;
+            }
+            
+            .table-selection-item {
+                width: 25px;
+                height: 25px;
+                font-size: 8px;
+            }
+            
+            .table-section-title {
+                font-size: 12px;
             }
         }
     </style>
@@ -622,16 +679,16 @@
                         <label>테이블 선택 <span class="required">*</span></label>
                         <div class="table-selection">
                             <div class="table-section-title">홀 테이블 (T1~T16)</div>
-                            <div class="table-selection-grid" id="hall-table-selection">
-                                <!-- 홀 테이블 버튼들이 여기에 동적으로 생성됩니다 -->
+                            <div class="hall-table-layout" id="hall-table-selection">
+                                <!-- 홀 테이블 버튼들이 실제 배치도에 맞춰 생성됩니다 -->
                             </div>
                             
                             <div class="table-section-title">룸 테이블 (R1~R9)</div>
-                            <div class="room-selection-grid" id="room-table-selection">
-                                <!-- 룸 테이블 버튼들이 여기에 동적으로 생성됩니다 -->
+                            <div class="room-table-layout" id="room-table-selection">
+                                <!-- 룸 테이블 버튼들이 실제 배치도에 맞춰 생성됩니다 -->
                             </div>
                             
-                            <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                            <div style="margin-top: 10px; font-size: 11px; color: #666;">
                                 <span style="color: #f44336;">■</span> 예약불가 &nbsp;
                                 <span style="color: #4CAF50;">■</span> 선택됨 &nbsp;
                                 <span style="color: #ddd;">■</span> 선택가능
@@ -737,27 +794,61 @@
 
         // 테이블 선택 UI 초기화
         function initializeTableSelection() {
-            // 홀 테이블 (T1~T16) 생성
+            // 홀 테이블 배치 (실제 배치도에 맞춤)
+            const hallLayout = [
+                [1, '', 3, 4, 5, 6, 7, 8],
+                [2, '', '', '', '', '', '', ''],
+                ['', '', 9, 10, 11, 12, '', ''],
+                ['', '', 13, 14, 15, 16, '', '']
+            ];
+            
             const hallContainer = document.getElementById('hall-table-selection');
-            for (let i = 1; i <= 16; i++) {
-                const tableBtn = document.createElement('div');
-                tableBtn.className = 'table-selection-item';
-                tableBtn.setAttribute('data-table', `hall-${i}`);
-                tableBtn.textContent = `T${i}`;
-                tableBtn.onclick = () => toggleTableSelection(`hall-${i}`);
-                hallContainer.appendChild(tableBtn);
-            }
+            hallLayout.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'hall-row';
+                
+                row.forEach(tableNum => {
+                    const tableBtn = document.createElement('div');
+                    tableBtn.className = 'table-selection-item';
+                    
+                    if (tableNum === '') {
+                        tableBtn.classList.add('empty');
+                    } else {
+                        tableBtn.setAttribute('data-table', `hall-${tableNum}`);
+                        tableBtn.textContent = `T${tableNum}`;
+                        tableBtn.onclick = () => toggleTableSelection(`hall-${tableNum}`);
+                    }
+                    
+                    rowDiv.appendChild(tableBtn);
+                });
+                
+                hallContainer.appendChild(rowDiv);
+            });
 
-            // 룸 테이블 (R1~R9) 생성
+            // 룸 테이블 배치 (실제 배치도에 맞춤)
+            const roomLayout = [
+                [7, 8, 9],
+                [4, 5, 6],
+                [1, 2, 3]
+            ];
+            
             const roomContainer = document.getElementById('room-table-selection');
-            for (let i = 1; i <= 9; i++) {
-                const tableBtn = document.createElement('div');
-                tableBtn.className = 'table-selection-item';
-                tableBtn.setAttribute('data-table', `room-${i}`);
-                tableBtn.textContent = `R${i}`;
-                tableBtn.onclick = () => toggleTableSelection(`room-${i}`);
-                roomContainer.appendChild(tableBtn);
-            }
+            roomLayout.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'room-row';
+                
+                row.forEach(tableNum => {
+                    const tableBtn = document.createElement('div');
+                    tableBtn.className = 'table-selection-item';
+                    tableBtn.setAttribute('data-table', `room-${tableNum}`);
+                    tableBtn.textContent = `R${tableNum}`;
+                    tableBtn.onclick = () => toggleTableSelection(`room-${tableNum}`);
+                    
+                    rowDiv.appendChild(tableBtn);
+                });
+                
+                roomContainer.appendChild(rowDiv);
+            });
         }
 
         // 테이블 선택/해제
@@ -810,11 +901,11 @@
             // 모든 테이블 버튼 상태 업데이트
             document.querySelectorAll('.table-selection-item').forEach(btn => {
                 const tableId = btn.getAttribute('data-table');
-                if (usedTables.has(tableId)) {
+                if (tableId && usedTables.has(tableId)) {
                     btn.classList.add('disabled');
                     btn.classList.remove('selected');
                     selectedTables.delete(tableId);
-                } else {
+                } else if (tableId) {
                     btn.classList.remove('disabled');
                 }
             });
@@ -1255,17 +1346,17 @@
                         <!-- 테이블 선택 UI -->
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">테이블 선택</label>
-                            <div style="margin-bottom: 10px; font-size: 14px; font-weight: bold;">홀 테이블 (T1~T16)</div>
-                            <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin-bottom: 15px;" id="editHallTableSelection">
+                            <div style="margin-bottom: 10px; font-size: 13px; font-weight: bold; text-align: center;">홀 테이블 (T1~T16)</div>
+                            <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 15px; max-width: 400px; margin-left: auto; margin-right: auto;" id="editHallTableSelection">
                                 <!-- 홀 테이블 버튼들 -->
                             </div>
                             
-                            <div style="margin-bottom: 10px; font-size: 14px; font-weight: bold;">룸 테이블 (R1~R9)</div>
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;" id="editRoomTableSelection">
+                            <div style="margin-bottom: 10px; font-size: 13px; font-weight: bold; text-align: center;">룸 테이블 (R1~R9)</div>
+                            <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; max-width: 180px; margin-left: auto; margin-right: auto;" id="editRoomTableSelection">
                                 <!-- 룸 테이블 버튼들 -->
                             </div>
                             
-                            <div style="font-size: 12px; color: #666;">
+                            <div style="font-size: 11px; color: #666; text-align: center;">
                                 <span style="color: #f44336;">■</span> 예약불가 &nbsp;
                                 <span style="color: #4CAF50;">■</span> 선택됨 &nbsp;
                                 <span style="color: #ddd;">■</span> 선택가능
@@ -1356,69 +1447,104 @@
         function initializeEditTableSelection(reservation, reservationId) {
             window.editSelectedTables = new Set(reservation.tables || []);
             
-            // 홀 테이블 생성
+            // 홀 테이블 배치 (실제 배치도에 맞춤)
+            const hallLayout = [
+                [1, '', 3, 4, 5, 6, 7, 8],
+                [2, '', '', '', '', '', '', ''],
+                ['', '', 9, 10, 11, 12, '', ''],
+                ['', '', 13, 14, 15, 16, '', '']
+            ];
+            
             const editHallContainer = document.getElementById('editHallTableSelection');
-            for (let i = 1; i <= 16; i++) {
-                const tableBtn = document.createElement('div');
-                tableBtn.className = 'table-selection-item';
-                tableBtn.setAttribute('data-table', `hall-${i}`);
-                tableBtn.textContent = `T${i}`;
-                tableBtn.style.cssText = `
-                    aspect-ratio: 1;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    border: 2px solid #ddd;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    font-weight: bold;
-                    font-size: 12px;
-                    transition: all 0.2s ease;
-                    background: #f8f9fa;
-                    min-height: 35px;
-                `;
+            hallLayout.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.style.cssText = 'display: flex; gap: 4px; justify-content: center;';
                 
-                if (window.editSelectedTables.has(`hall-${i}`)) {
-                    tableBtn.style.background = '#4CAF50';
-                    tableBtn.style.color = 'white';
-                    tableBtn.style.borderColor = '#388E3C';
-                }
+                row.forEach(tableNum => {
+                    const tableBtn = document.createElement('div');
+                    tableBtn.className = 'table-selection-item';
+                    tableBtn.style.cssText = `
+                        width: 35px;
+                        height: 35px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: 2px solid #ddd;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-weight: bold;
+                        font-size: 10px;
+                        transition: all 0.2s ease;
+                        background: #f8f9fa;
+                        color: #333;
+                    `;
+                    
+                    if (tableNum === '') {
+                        tableBtn.style.visibility = 'hidden';
+                    } else {
+                        tableBtn.setAttribute('data-table', `hall-${tableNum}`);
+                        tableBtn.textContent = `T${tableNum}`;
+                        
+                        if (window.editSelectedTables.has(`hall-${tableNum}`)) {
+                            tableBtn.style.background = '#4CAF50';
+                            tableBtn.style.color = 'white';
+                            tableBtn.style.borderColor = '#388E3C';
+                        }
+                        
+                        tableBtn.onclick = () => toggleEditTableSelection(`hall-${tableNum}`, reservationId);
+                    }
+                    
+                    rowDiv.appendChild(tableBtn);
+                });
                 
-                tableBtn.onclick = () => toggleEditTableSelection(`hall-${i}`, reservationId);
-                editHallContainer.appendChild(tableBtn);
-            }
+                editHallContainer.appendChild(rowDiv);
+            });
 
-            // 룸 테이블 생성
+            // 룸 테이블 배치 (실제 배치도에 맞춤)
+            const roomLayout = [
+                [7, 8, 9],
+                [4, 5, 6],
+                [1, 2, 3]
+            ];
+            
             const editRoomContainer = document.getElementById('editRoomTableSelection');
-            for (let i = 1; i <= 9; i++) {
-                const tableBtn = document.createElement('div');
-                tableBtn.className = 'table-selection-item';
-                tableBtn.setAttribute('data-table', `room-${i}`);
-                tableBtn.textContent = `R${i}`;
-                tableBtn.style.cssText = `
-                    aspect-ratio: 1;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    border: 2px solid #ddd;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    font-weight: bold;
-                    font-size: 12px;
-                    transition: all 0.2s ease;
-                    background: #f8f9fa;
-                    min-height: 35px;
-                `;
+            roomLayout.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.style.cssText = 'display: flex; gap: 4px; justify-content: center;';
                 
-                if (window.editSelectedTables.has(`room-${i}`)) {
-                    tableBtn.style.background = '#4CAF50';
-                    tableBtn.style.color = 'white';
-                    tableBtn.style.borderColor = '#388E3C';
-                }
+                row.forEach(tableNum => {
+                    const tableBtn = document.createElement('div');
+                    tableBtn.className = 'table-selection-item';
+                    tableBtn.setAttribute('data-table', `room-${tableNum}`);
+                    tableBtn.textContent = `R${tableNum}`;
+                    tableBtn.style.cssText = `
+                        width: 35px;
+                        height: 35px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: 2px solid #ddd;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-weight: bold;
+                        font-size: 10px;
+                        transition: all 0.2s ease;
+                        background: #f8f9fa;
+                        color: #333;
+                    `;
+                    
+                    if (window.editSelectedTables.has(`room-${tableNum}`)) {
+                        tableBtn.style.background = '#4CAF50';
+                        tableBtn.style.color = 'white';
+                        tableBtn.style.borderColor = '#388E3C';
+                    }
+                    
+                    tableBtn.onclick = () => toggleEditTableSelection(`room-${tableNum}`, reservationId);
+                    rowDiv.appendChild(tableBtn);
+                });
                 
-                tableBtn.onclick = () => toggleEditTableSelection(`room-${i}`, reservationId);
-                editRoomContainer.appendChild(tableBtn);
-            }
+                editRoomContainer.appendChild(rowDiv);
+            });
             
             // 초기 테이블 가용성 업데이트
             updateEditTableAvailability(reservationId);
@@ -1474,7 +1600,7 @@
             // 모든 테이블 버튼 상태 업데이트
             document.querySelectorAll('#editHallTableSelection .table-selection-item, #editRoomTableSelection .table-selection-item').forEach(btn => {
                 const tableId = btn.getAttribute('data-table');
-                if (usedTables.has(tableId)) {
+                if (tableId && usedTables.has(tableId)) {
                     btn.style.background = '#ffcdd2';
                     btn.style.color = '#c62828';
                     btn.style.borderColor = '#f44336';
@@ -1485,7 +1611,7 @@
                     if (window.editSelectedTables.has(tableId)) {
                         window.editSelectedTables.delete(tableId);
                     }
-                } else {
+                } else if (tableId) {
                     if (window.editSelectedTables.has(tableId)) {
                         btn.style.background = '#4CAF50';
                         btn.style.color = 'white';
