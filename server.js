@@ -466,7 +466,7 @@ app.put('/api/reservations/:id', async (req, res) => {
 
         const oldReservation = reservations[reservationIndex];
         
-        // 테이블 충돌 검사 (현재 예약 제외)
+        // 테이블 정보가 업데이트에 포함되어 있다면 충돌 검사
         if (updates.tables && Array.isArray(updates.tables)) {
             const tempReservations = [...reservations];
             tempReservations.splice(reservationIndex, 1); // 현재 예약 제외
@@ -494,6 +494,7 @@ app.put('/api/reservations/:id', async (req, res) => {
             }
         }
         
+        // 예약 정보 업데이트
         reservations[reservationIndex] = { 
             ...oldReservation, 
             ...updates,
