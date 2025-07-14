@@ -755,6 +755,7 @@
                         <label for="time">예약 시간 <span class="required">*</span></label>
                         <select id="time" required onchange="updateTableAvailability()">
                             <option value="">시간을 선택해주세요</option>
+							<option value="14:00">오후 2:00</option>                      
                             <option value="14:30">오후 2:30</option>
                             <option value="15:00">오후 3:00</option>
                             <option value="15:30">오후 3:30</option>
@@ -773,6 +774,7 @@
                             <option value="22:00">오후 10:00</option>
                             <option value="22:30">오후 10:30</option>
                             <option value="23:00">오후 11:00</option>
+							<option value="23:30">오후 11:30</option>
                         </select>
                     </div>
 
@@ -828,7 +830,8 @@
                     <label>시간대 선택</label>
                     <select id="timeFilter" onchange="updateStatus()">
                         <option value="all">전체 시간</option>
-                        <option value="14:30">오후 2:30</option>
+                        <option value="14:00">오후 2:00</option>
+						<option value="14:30">오후 2:30</option>
                         <option value="15:00">오후 3:00</option>
                         <option value="15:30">오후 3:30</option>
                         <option value="16:00">오후 4:00</option>
@@ -846,6 +849,7 @@
                         <option value="22:00">오후 10:00</option>
                         <option value="22:30">오후 10:30</option>
                         <option value="23:00">오후 11:00</option>
+						<option value="23:30">오후 11:30</option>
                     </select>
                 </div>
                 
