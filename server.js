@@ -54,7 +54,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));  // 현재 디렉토리를 static으로 설정
 
-// Google Calendar 초기화
+// Google Calendar 초기화 (개선된 버전)
 async function initializeGoogleCalendar() {
     try {
         // 환경변수 확인
@@ -67,8 +67,22 @@ async function initializeGoogleCalendar() {
             return false;
         }
 
-        // JSON 키 파싱
-        const credentials = JSON.parse(serviceAccountKey);
+        // JSON 키 파싱 (에러 처리 강화)
+        let credentials;
+        try {
+            // 개행 문자 처리를 위한 전처리 (Railway 환경변수 문제 해결)
+            const processedKey = serviceAccountKey
+                .replace(/\\n/g, '\n')
+                .replace(/\\"/g, '"');
+            
+            credentials = JSON.parse(processedKey);
+            console.log('✅ 서비스 계정 키 파싱 성공');
+        } catch (parseError) {
+            console.error('❌ 서비스 계정 키 파싱 실패:', parseError.message);
+            console.log('서비스 계정 키 처음 10자:', serviceAccountKey.substring(0, 10) + '...');
+            console.log('환경변수 형식을 확인해주세요. Railway에서 JSON 문자열을 올바르게 설정했는지 확인하세요.');
+            return false;
+        }
         
         // JWT 인증 설정
         const auth = new google.auth.JWT(
@@ -82,11 +96,21 @@ async function initializeGoogleCalendar() {
         calendar = google.calendar({ version: 'v3', auth });
         
         // 연결 테스트
-        await calendar.calendars.get({ calendarId: calendarId });
-        
-        calendarInitialized = true;
-        console.log('✅ Google Calendar API 초기화 성공');
-        return true;
+        try {
+            const response = await calendar.calendars.get({ calendarId: calendarId });
+            console.log(`✅ Google Calendar API 연결 성공 - 캘린더 이름: ${response.data.summary}`);
+            calendarInitialized = true;
+            return true;
+        } catch (calendarError) {
+            console.error('❌ Google Calendar 연결 테스트 실패:', calendarError.message);
+            if (calendarError.message.includes('Not Found')) {
+                console.log(`🔍 캘린더 ID '${calendarId}'를 찾을 수 없습니다. 올바른 캘린더 ID인지 확인하세요.`);
+            } else if (calendarError.message.includes('permission')) {
+                console.log(`🔒 서비스 계정(${credentials.client_email})에 캘린더 접근 권한이 없습니다.`);
+                console.log('Google Calendar 설정에서 이 이메일을 캘린더 공유 대상으로 추가해주세요.');
+            }
+            return false;
+        }
         
     } catch (error) {
         console.error('❌ Google Calendar 초기화 실패:', error.message);
@@ -348,6 +372,57 @@ app.get('/api/ping', (req, res) => {
     }
 });
 
+// Google Calendar 연동 테스트 엔드포인트 (신규 추가)
+app.get('/api/calendar-test', async (req, res) => {
+    try {
+        if (!calendarInitialized) {
+            // 초기화 재시도
+            const initResult = await initializeGoogleCalendar();
+            if (!initResult) {
+                return res.status(500).json({
+                    success: false,
+                    message: 'Google Calendar 연동 실패',
+                    details: {
+                        hasServiceAccountKey: !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
+                        hasCalendarId: !!process.env.GOOGLE_CALENDAR_ID,
+                        serviceAccountKeyStart: process.env.GOOGLE_SERVICE_ACCOUNT_KEY ? 
+                            process.env.GOOGLE_SERVICE_ACCOUNT_KEY.substring(0, 20) + '...' : null
+                    }
+                });
+            }
+        }
+        
+        // 캘린더 이벤트 목록 가져오기 테스트
+        const calendarId = process.env.GOOGLE_CALENDAR_ID;
+        const now = new Date();
+        const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).toISOString();
+        
+        const response = await calendar.events.list({
+            calendarId: calendarId,
+            timeMin: timeMin,
+            maxResults: 5,
+            singleEvents: true,
+            orderBy: 'startTime'
+        });
+        
+        res.json({
+            success: true,
+            message: 'Google Calendar 연동 성공',
+            calendarId: calendarId,
+            eventsCount: response.data.items.length,
+            firstEventTitle: response.data.items.length > 0 ? 
+                response.data.items[0].summary : '이벤트 없음'
+        });
+    } catch (error) {
+        console.error('캘린더 테스트 실패:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Google Calendar 테스트 실패',
+            error: error.message
+        });
+    }
+});
+
 app.get('/api/reservations', (req, res) => {
     try {
         const reservations = readReservations();
@@ -420,7 +495,24 @@ app.post('/api/reservations', async (req, res) => {
         });
 
         // Google Calendar 이벤트 생성 시도
-        const calendarEventId = await createCalendarEvent(newReservation);
+        let calendarEventId = null;
+        let calendarError = null;
+        
+        try {
+            if (calendarInitialized) {
+                calendarEventId = await createCalendarEvent(newReservation);
+            } else {
+                // 초기화 재시도
+                const initResult = await initializeGoogleCalendar();
+                if (initResult) {
+                    calendarEventId = await createCalendarEvent(newReservation);
+                }
+            }
+        } catch (error) {
+            console.error('캘린더 이벤트 생성 오류:', error);
+            calendarError = error.message;
+        }
+        
         if (calendarEventId) {
             newReservation.calendarEventId = calendarEventId;
         }
@@ -431,7 +523,9 @@ app.post('/api/reservations', async (req, res) => {
             console.log(`✅ 새 예약: ${newReservation.name}님 (${newReservation.people}명) - 테이블: ${displayTables.join(', ')}`);
             res.json({ 
                 success: true, 
-                message: `예약이 완료되었습니다! 배정 테이블: ${displayTables.join(', ')}` + (calendarEventId ? ' (Google Calendar 연동됨)' : ''),
+                message: `예약이 완료되었습니다! 배정 테이블: ${displayTables.join(', ')}` + 
+                    (calendarEventId ? ' (Google Calendar 연동됨)' : 
+                    (calendarError ? ` (Calendar 오류: ${calendarError})` : ' (Calendar 연동 안됨)')),
                 data: newReservation
             });
         } else {
@@ -502,13 +596,31 @@ app.put('/api/reservations/:id', async (req, res) => {
         };
         
         // Google Calendar 이벤트 업데이트 시도
-        const calendarUpdated = await updateCalendarEvent(reservations[reservationIndex]);
+        let calendarUpdated = false;
+        let calendarError = null;
+        
+        try {
+            if (calendarInitialized) {
+                calendarUpdated = await updateCalendarEvent(reservations[reservationIndex]);
+            } else {
+                // 초기화 재시도
+                const initResult = await initializeGoogleCalendar();
+                if (initResult) {
+                    calendarUpdated = await updateCalendarEvent(reservations[reservationIndex]);
+                }
+            }
+        } catch (error) {
+            console.error('캘린더 이벤트 업데이트 오류:', error);
+            calendarError = error.message;
+        }
         
         if (writeReservations(reservations)) {
             console.log(`✏️ 예약 수정: ID ${reservationId}`);
             res.json({ 
                 success: true, 
-                message: '예약이 성공적으로 수정되었습니다.' + (calendarUpdated ? ' (Google Calendar 업데이트됨)' : ''),
+                message: '예약이 성공적으로 수정되었습니다.' + 
+                    (calendarUpdated ? ' (Google Calendar 업데이트됨)' : 
+                    (calendarError ? ` (Calendar 오류: ${calendarError})` : '')),
                 data: reservations[reservationIndex]
             });
         } else {
@@ -544,15 +656,32 @@ app.delete('/api/reservations/:id', async (req, res) => {
         
         // Google Calendar 이벤트 삭제 시도
         let calendarDeleted = false;
-        if (deletedReservation.calendarEventId) {
-            calendarDeleted = await deleteCalendarEvent(deletedReservation.calendarEventId);
+        let calendarError = null;
+        
+        try {
+            if (deletedReservation.calendarEventId) {
+                if (calendarInitialized) {
+                    calendarDeleted = await deleteCalendarEvent(deletedReservation.calendarEventId);
+                } else {
+                    // 초기화 재시도
+                    const initResult = await initializeGoogleCalendar();
+                    if (initResult) {
+                        calendarDeleted = await deleteCalendarEvent(deletedReservation.calendarEventId);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('캘린더 이벤트 삭제 오류:', error);
+            calendarError = error.message;
         }
         
         if (writeReservations(reservations)) {
             console.log(`🗑️ 예약 삭제: ${deletedReservation.name}님`);
             res.json({ 
                 success: true, 
-                message: '예약이 성공적으로 삭제되었습니다.' + (calendarDeleted ? ' (Google Calendar에서도 삭제됨)' : ''),
+                message: '예약이 성공적으로 삭제되었습니다.' + 
+                    (calendarDeleted ? ' (Google Calendar에서도 삭제됨)' : 
+                    (calendarError ? ` (Calendar 오류: ${calendarError})` : '')),
                 data: deletedReservation
             });
         } else {
