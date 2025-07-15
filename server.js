@@ -495,10 +495,11 @@ app.put('/api/reservations/:id', async (req, res) => {
         }
         
         reservations[reservationIndex] = { 
-            ...oldReservation, 
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
+			...oldReservation, 
+			...updates,
+			calendarEventId: oldReservation.calendarEventId, // 기존 calendarEventId 보존
+			updatedAt: new Date().toISOString()
+		};
         
         // Google Calendar 이벤트 업데이트 시도
         const calendarUpdated = await updateCalendarEvent(reservations[reservationIndex]);
