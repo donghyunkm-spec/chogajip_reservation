@@ -1069,3 +1069,70 @@ input:focus, select:focus {
         font-size: 12px;
     }
 }
+
+/* 예약별 색깔 구분 - 8가지 뚜렷한 색깔 */
+.table-cell.reserved-color-1 {
+    background: linear-gradient(135deg, #ff6b6b, #ff5252);
+    border-color: #d32f2f;
+    color: white;
+    font-weight: bold;
+}
+
+.table-cell.reserved-color-2 {
+    background: linear-gradient(135deg, #4ecdc4, #26a69a);
+    border-color: #00695c;
+    color: white;
+    font-weight: bold;
+}
+
+.table-cell.reserved-color-3 {
+    background: linear-gradient(135deg, #45b7d1, #2196f3);
+    border-color: #1565c0;
+    color: white;
+    font-weight: bold;
+}
+
+.table-cell.reserved-color-4 {
+    background: linear-gradient(135deg, #f9ca24, #ffc107);
+    border-color: #f57c00;
+    color: #333;
+    font-weight: bold;
+}
+
+.table-cell.reserved-color-5 {
+    background: linear-gradient(135deg, #6c5ce7, #673ab7);
+    border-color: #4527a0;
+    color: white;
+    font-weight: bold;
+}
+
+.table-cell.reserved-color-6 {
+    background: linear-gradient(135deg, #fd79a8, #e91e63);
+    border-color: #ad1457;
+    color: white;
+    font-weight: bold;
+}
+
+.table-cell.reserved-color-7 {
+    background: linear-gradient(135deg, #fdcb6e, #ff9800);
+    border-color: #ef6c00;
+    color: #333;
+    font-weight: bold;
+}
+
+.table-cell.reserved-color-8 {
+    background: linear-gradient(135deg, #00b894, #4caf50);
+    border-color: #2e7d32;
+    color: white;
+    font-weight: bold;
+}
+
+/* 호버 효과도 색깔별로 적용 */
+.table-cell.reserved-color-1:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(255, 82, 82, 0.4); }
+.table-cell.reserved-color-2:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(38, 166, 154, 0.4); }
+.table-cell.reserved-color-3:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4); }
+.table-cell.reserved-color-4:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4); }
+.table-cell.reserved-color-5:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(103, 58, 183, 0.4); }
+.table-cell.reserved-color-6:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(233, 30, 99, 0.4); }
+.table-cell.reserved-color-7:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(255, 152, 0, 0.4); }
+.table-cell.reserved-color-8:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4); }

@@ -771,12 +771,10 @@ function groupReservationsByTables(reservations) {
     return { individual: grouped, groups: groupReservations };
 }
 
-// 홀 테이블 렌더링
-function renderHallTables(groupedReservations, groupReservations) {
+// app.js 파일에서 홀 테이블 렌더링 함수 수정
+function renderHallTables(dayReservations) {
     const hallDiv = document.getElementById('hall-tables');
     if (!hallDiv) return;
-    
-    hallDiv.innerHTML = '';
     
     const hallLayout = [
         [1, '', 3, 4, 5, 6, 7, 8],
@@ -785,74 +783,59 @@ function renderHallTables(groupedReservations, groupReservations) {
         ['', '', 13, 14, 15, 16, '', '']
     ];
     
-    const groupTables = new Set();
-    const groupInfo = new Map();
+    const usedTables = new Set();
+    const tableReservations = new Map();
     
-    for (const [groupKey, reservation] of Object.entries(groupReservations)) {
-        if (reservation.tables && reservation.tables.some(t => t.startsWith('hall-'))) {
-            const hallTablesInGroup = reservation.tables.filter(t => t.startsWith('hall-')).map(t => t.replace('hall-', ''));
-            hallTablesInGroup.forEach(tableNum => {
-                groupTables.add(tableNum);
-                groupInfo.set(tableNum, reservation);
+    dayReservations.forEach(r => {
+        if (r.tables) {
+            r.tables.forEach(t => {
+                if (t.startsWith('hall-')) {
+                    usedTables.add(t);
+                    tableReservations.set(t, r);
+                }
             });
         }
-    }
+    });
     
+    let html = '';
     hallLayout.forEach(row => {
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'hall-row';
-        rowDiv.style.display = 'flex';
-        
+        html += '<div class="hall-row">';
         row.forEach(tableNum => {
-            const cell = document.createElement('div');
-            
             if (tableNum === '') {
-                cell.className = 'table-cell empty-cell';
+                html += '<div class="table-cell empty-cell"></div>';
             } else {
                 const tableId = `hall-${tableNum}`;
+                const isReserved = usedTables.has(tableId);
+                const reservation = tableReservations.get(tableId);
                 
-                if (groupTables.has(tableNum.toString())) {
-                    const groupReservation = groupInfo.get(tableNum.toString());
-                    cell.className = `table-cell group-reserved group-${(groupReservation.id % 8) + 1}`;
-                    cell.innerHTML = `
-                        <div class="group-info-cell">
-                            <div class="group-name">${tableNum}번</div>
-                            <div class="group-name">${groupReservation.name}</div>
-                            <div class="group-details">${groupReservation.people}명</div>
-                            <div class="group-details">${groupReservation.time}</div>
-                        </div>
-                    `;
+                if (isReserved && reservation) {
+                    // 예약 ID를 기반으로 색깔 인덱스 생성 (1-8 순환)
+                    const colorIndex = (reservation.id % 8) + 1;
+                    html += `<div class="table-cell reserved-color-${colorIndex}" onclick="showReservationModal('${reservation.id}')">
+                        <div>T${tableNum}</div>
+                        <div class="table-info">${reservation.name}</div>
+                        <div class="table-info">${reservation.people}명</div>
+                        <div class="table-info">${reservation.time}</div>
+                    </div>`;
                 } else {
-                    const individualReservation = groupedReservations[tableId];
-                    
-                    if (individualReservation) {
-                        cell.className = 'table-cell reserved';
-                        cell.innerHTML = `
-                            <div>${tableNum}번</div>
-                            <div class="table-info">${individualReservation.name}</div>
-                            <div class="table-info">${individualReservation.people}명</div>
-                            <div class="table-info">${individualReservation.time}</div>
-                        `;
-                    } else {
-                        cell.className = 'table-cell available';
-                        cell.innerHTML = `<div>${tableNum}번</div><div class="table-info">${TABLE_INFO.hall[tableNum].capacity}석</div>`;
-                    }
+                    const capacity = tableNum == 1 ? 5 : 4;
+                    html += `<div class="table-cell available">
+                        <div>T${tableNum}</div>
+                        <div class="table-info">${capacity}석</div>
+                    </div>`;
                 }
             }
-            
-            rowDiv.appendChild(cell);
         });
-        
-        hallDiv.appendChild(rowDiv);
+        html += '</div>';
     });
+    
+    hallDiv.innerHTML = html;
 }
 
-// 룸 테이블 렌더링
-function renderRoomTables(groupedReservations, groupReservations) {
+// app.js 파일에서 룸 테이블 렌더링 함수 수정
+function renderRoomTables(dayReservations) {
     const roomDiv = document.getElementById('room-tables');
     if (!roomDiv) return;
-    
-    roomDiv.innerHTML = '';
     
     const roomLayout = [
         [7, 8, 9],
@@ -860,61 +843,48 @@ function renderRoomTables(groupedReservations, groupReservations) {
         [1, 2, 3]
     ];
     
-    const groupTables = new Set();
-    const groupInfo = new Map();
+    const usedTables = new Set();
+    const tableReservations = new Map();
     
-    for (const [groupKey, reservation] of Object.entries(groupReservations)) {
-        if (reservation.tables && reservation.tables.some(t => t.startsWith('room-'))) {
-            const roomTablesInGroup = reservation.tables.filter(t => t.startsWith('room-')).map(t => t.replace('room-', ''));
-            roomTablesInGroup.forEach(tableNum => {
-                groupTables.add(tableNum);
-                groupInfo.set(tableNum, reservation);
+    dayReservations.forEach(r => {
+        if (r.tables) {
+            r.tables.forEach(t => {
+                if (t.startsWith('room-')) {
+                    usedTables.add(t);
+                    tableReservations.set(t, r);
+                }
             });
         }
-    }
-    
-    roomLayout.forEach(row => {
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'room-row';
-        rowDiv.style.display = 'flex';
-        
-        row.forEach(tableNum => {
-            const cell = document.createElement('div');
-            const tableId = `room-${tableNum}`;
-            
-            if (groupTables.has(tableNum.toString())) {
-                const groupReservation = groupInfo.get(tableNum.toString());
-                cell.className = `table-cell group-reserved group-${(groupReservation.id % 8) + 1}`;
-                cell.innerHTML = `
-                    <div class="group-info-cell">
-                        <div class="group-name">룸${tableNum}</div>
-                        <div class="group-name">${groupReservation.name}</div>
-                        <div class="group-details">${groupReservation.people}명</div>
-                        <div class="group-details">${groupReservation.time}</div>
-                    </div>
-                `;
-            } else {
-                const individualReservation = groupedReservations[tableId];
-                
-                if (individualReservation) {
-                    cell.className = 'table-cell reserved';
-                    cell.innerHTML = `
-                        <div>룸${tableNum}</div>
-                        <div class="table-info">${individualReservation.name}</div>
-                        <div class="table-info">${individualReservation.people}명</div>
-                        <div class="table-info">${individualReservation.time}</div>
-                    `;
-                } else {
-                    cell.className = 'table-cell available';
-                    cell.innerHTML = `<div>룸${tableNum}</div><div class="table-info">${TABLE_INFO.room[tableNum].capacity}석</div>`;
-                }
-            }
-            
-            rowDiv.appendChild(cell);
-        });
-        
-        roomDiv.appendChild(rowDiv);
     });
+    
+    let html = '';
+    roomLayout.forEach(row => {
+        html += '<div class="room-row">';
+        row.forEach(tableNum => {
+            const tableId = `room-${tableNum}`;
+            const isReserved = usedTables.has(tableId);
+            const reservation = tableReservations.get(tableId);
+            
+            if (isReserved && reservation) {
+                // 예약 ID를 기반으로 색깔 인덱스 생성 (1-8 순환)
+                const colorIndex = (reservation.id % 8) + 1;
+                html += `<div class="table-cell reserved-color-${colorIndex}" onclick="showReservationModal('${reservation.id}')">
+                    <div>R${tableNum}</div>
+                    <div class="table-info">${reservation.name}</div>
+                    <div class="table-info">${reservation.people}명</div>
+                    <div class="table-info">${reservation.time}</div>
+                </div>`;
+            } else {
+                html += `<div class="table-cell available">
+                    <div>R${tableNum}</div>
+                    <div class="table-info">4석</div>
+                </div>`;
+            }
+        });
+        html += '</div>';
+    });
+    
+    roomDiv.innerHTML = html;
 }
 
 // 단체 예약 현황 업데이트
