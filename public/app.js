@@ -1039,12 +1039,12 @@ function editReservation(reservationId) {
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">인원수</label>
-                    <input type="number" id="editPeople" value="${reservation.people}" min="1" max="50" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                    <input type="number" id="editPeople" value="${reservation.people}" min="1" max="50" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability()">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">좌석 선호도</label>
-                    <select id="editPreference" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                    <select id="editPreference" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability()">
                         <option value="any" ${reservation.preference === 'any' ? 'selected' : ''}>관계없음</option>
                         <option value="room" ${reservation.preference === 'room' ? 'selected' : ''}>룸 선호</option>
                         <option value="hall" ${reservation.preference === 'hall' ? 'selected' : ''}>홀 선호</option>
@@ -1053,12 +1053,13 @@ function editReservation(reservationId) {
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 날짜</label>
-                    <input type="date" id="editDate" value="${reservation.date}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                    <input type="date" id="editDate" value="${reservation.date}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability()">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 시간</label>
-                    <select id="editTime" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                    <select id="editTime" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability()">
+                        <option value="14:00" ${reservation.time === '14:00' ? 'selected' : ''}>오후 2:00</option>
                         <option value="14:30" ${reservation.time === '14:30' ? 'selected' : ''}>오후 2:30</option>
                         <option value="15:00" ${reservation.time === '15:00' ? 'selected' : ''}>오후 3:00</option>
                         <option value="15:30" ${reservation.time === '15:30' ? 'selected' : ''}>오후 3:30</option>
@@ -1079,6 +1080,29 @@ function editReservation(reservationId) {
                         <option value="23:00" ${reservation.time === '23:00' ? 'selected' : ''}>오후 11:00</option>
                         <option value="23:30" ${reservation.time === '23:30' ? 'selected' : ''}>오후 11:30</option>
                     </select>
+                </div>
+                
+                <!-- 테이블 선택 UI 추가 -->
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">테이블 선택</label>
+                    <div class="table-selection">
+                        <div style="font-weight: bold; margin-bottom: 8px; color: #333; font-size: 13px; text-align: center;">홀 테이블 (T1~T16)</div>
+                        <div class="hall-table-layout" id="edit-hall-table-selection">
+                            <!-- 홀 테이블 버튼들이 생성됩니다 -->
+                        </div>
+                        
+                        <div style="font-weight: bold; margin-bottom: 8px; color: #333; font-size: 13px; text-align: center;">룸 테이블 (R1~R9)</div>
+                        <div class="room-table-layout" id="edit-room-table-selection">
+                            <!-- 룸 테이블 버튼들이 생성됩니다 -->
+                        </div>
+                        
+                        <div style="margin-top: 10px; font-size: 11px; color: #666;">
+                            <span style="color: #f44336;">■</span> 예약불가 &nbsp;
+                            <span style="color: #4CAF50;">■</span> 선택됨 &nbsp;
+                            <span style="color: #ddd;">■</span> 선택가능
+                        </div>
+                    </div>
+                    <input type="hidden" id="editSelectedTables" required>
                 </div>
                 
                 <!-- 전화번호 필드 -->
@@ -1108,13 +1132,28 @@ function editReservation(reservationId) {
     modal.className = 'modal';
     document.body.appendChild(modal);
     
+    // 수정용 테이블 선택 변수 초기화
+    let editSelectedTables = new Set(reservation.tables || []);
+    
+    // 수정용 테이블 선택 UI 초기화
+    initializeEditTableSelection(editSelectedTables);
+    
+    // 초기 테이블 가용성 업데이트
+    setTimeout(() => {
+        updateEditTableAvailability();
+    }, 100);
+    
     // 폼 제출 처리
     setTimeout(() => {
-        // DOM이 완전히 렌더링된 후 이벤트 리스너 추가
         const editForm = document.getElementById('editForm');
         if (editForm) {
             editForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                
+                if (editSelectedTables.size === 0) {
+                    showAlert('테이블을 선택해주세요.', 'error');
+                    return;
+                }
                 
                 const updatedData = {
                     name: document.getElementById('editName').value,
@@ -1123,41 +1162,92 @@ function editReservation(reservationId) {
                     date: document.getElementById('editDate').value,
                     time: document.getElementById('editTime').value,
                     phone: document.getElementById('editPhone').value || '',
-                    reservationMethod: document.getElementById('editReservationMethod').value
+                    reservationMethod: document.getElementById('editReservationMethod').value,
+                    tables: Array.from(editSelectedTables)
                 };
                 
-                // 새로운 테이블 배정
-                const newTables = assignTablesForEdit(updatedData.people, updatedData.preference, updatedData.date, updatedData.time, reservationId, reservations);
-                
-                if (newTables.length > 0) {
-                    updatedData.tables = newTables;
+                try {
+                    await apiCall(`reservations/${reservationId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(updatedData)
+                    });
                     
-                    try {
-                        await apiCall(`reservations/${reservationId}`, {
-                            method: 'PUT',
-                            body: JSON.stringify(updatedData)
-                        });
-                        
-                        const index = reservations.findIndex(r => r.id === reservationId);
-                        if (index !== -1) {
-                            reservations[index] = { ...reservations[index], ...updatedData };
-                        }
-                        
-                        modal.remove();
-                        showAlert('예약이 수정되었습니다.', 'success');
-                        updateStatus();
-                    } catch (error) {
-                        console.error('예약 수정 오류:', error);
-                        showAlert('예약 수정 중 오류가 발생했습니다.', 'error');
+                    const index = reservations.findIndex(r => r.id === reservationId);
+                    if (index !== -1) {
+                        reservations[index] = { ...reservations[index], ...updatedData };
                     }
-                } else {
-                    showAlert('해당 조건으로 예약 수정이 어렵습니다. 다른 시간대를 선택해주세요.', 'error');
+                    
+                    modal.remove();
+                    showAlert('예약이 수정되었습니다.', 'success');
+                    updateStatus();
+                } catch (error) {
+                    console.error('예약 수정 오류:', error);
+                    showAlert('예약 수정 중 오류가 발생했습니다.', 'error');
                 }
             });
-        } else {
-            console.error('수정 폼을 찾을 수 없습니다.');
         }
-    }, 100); // 100ms 지연 추가
+    }, 100);
+    
+    // 수정용 테이블 선택/해제 함수
+    window.toggleEditTableSelection = function(tableId) {
+        const tableBtn = document.querySelector(`#edit-hall-table-selection [data-table="${tableId}"], #edit-room-table-selection [data-table="${tableId}"]`);
+        
+        if (tableBtn && tableBtn.classList.contains('disabled')) {
+            return;
+        }
+
+        if (editSelectedTables.has(tableId)) {
+            editSelectedTables.delete(tableId);
+            if (tableBtn) tableBtn.classList.remove('selected');
+        } else {
+            editSelectedTables.add(tableId);
+            if (tableBtn) tableBtn.classList.add('selected');
+        }
+
+        document.getElementById('editSelectedTables').value = Array.from(editSelectedTables).join(',');
+    };
+    
+    // 수정용 테이블 가용성 업데이트 함수
+    window.updateEditTableAvailability = function() {
+        const date = document.getElementById('editDate').value;
+        const time = document.getElementById('editTime').value;
+
+        if (!date || !time) {
+            document.querySelectorAll('#edit-hall-table-selection .table-selection-item, #edit-room-table-selection .table-selection-item').forEach(btn => {
+                btn.classList.remove('disabled');
+            });
+            return;
+        }
+
+        // 현재 수정 중인 예약을 제외한 예약들 확인
+        const otherReservations = reservations.filter(r => 
+            r.status === 'active' && 
+            r.id !== reservationId &&
+            r.date === date && 
+            isTimeOverlap(r.time, time)
+        );
+
+        const usedTables = new Set();
+        otherReservations.forEach(r => {
+            if (r.tables) {
+                r.tables.forEach(t => usedTables.add(t));
+            }
+        });
+
+        // 모든 테이블 버튼 상태 업데이트
+        document.querySelectorAll('#edit-hall-table-selection .table-selection-item, #edit-room-table-selection .table-selection-item').forEach(btn => {
+            const tableId = btn.getAttribute('data-table');
+            if (tableId && usedTables.has(tableId)) {
+                btn.classList.add('disabled');
+                btn.classList.remove('selected');
+                editSelectedTables.delete(tableId);
+            } else if (tableId) {
+                btn.classList.remove('disabled');
+            }
+        });
+
+        document.getElementById('editSelectedTables').value = Array.from(editSelectedTables).join(',');
+    };
     
     // 모달 바깥 클릭 시 닫기
     modal.addEventListener('click', (e) => {
@@ -1167,18 +1257,79 @@ function editReservation(reservationId) {
     });
 }
 
-// 수정용 테이블 배정
-function assignTablesForEdit(people, preference, date, time, excludeId, allReservations) {
-    // 현재 수정 중인 예약을 제외하고 배정 시도
-    const tempReservations = [...allReservations]; // 복사본 생성
-    const excludeIndex = tempReservations.findIndex(r => r.id === excludeId);
+// 수정용 테이블 선택 UI 초기화
+function initializeEditTableSelection(selectedTables) {
+    // 홀 테이블 배치
+    const hallLayout = [
+        [1, '', 3, 4, 5, 6, 7, 8],
+        [2, '', '', '', '', '', '', ''],
+        ['', '', 9, 10, 11, 12, '', ''],
+        ['', '', 13, 14, 15, 16, '', '']
+    ];
     
-    if (excludeIndex !== -1) {
-        tempReservations.splice(excludeIndex, 1); // 현재 수정 중인 예약 제거
-    }
+    const hallContainer = document.getElementById('edit-hall-table-selection');
+    hallContainer.innerHTML = '';
     
-    return assignTables(people, preference, date, time, tempReservations);
+    hallLayout.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'hall-row';
+        
+        row.forEach(tableNum => {
+            const tableBtn = document.createElement('div');
+            tableBtn.className = 'table-selection-item';
+            
+            if (tableNum === '') {
+                tableBtn.classList.add('empty');
+            } else {
+                const tableId = `hall-${tableNum}`;
+                tableBtn.setAttribute('data-table', tableId);
+                tableBtn.textContent = `T${tableNum}`;
+                tableBtn.onclick = () => toggleEditTableSelection(tableId);
+                
+                if (selectedTables.has(tableId)) {
+                    tableBtn.classList.add('selected');
+                }
+            }
+            
+            rowDiv.appendChild(tableBtn);
+        });
+        
+        hallContainer.appendChild(rowDiv);
+    });
+
+    // 룸 테이블 배치
+    const roomLayout = [
+        [7, 8, 9],
+        [4, 5, 6],
+        [1, 2, 3]
+    ];
+    
+    const roomContainer = document.getElementById('edit-room-table-selection');
+    roomContainer.innerHTML = '';
+    
+    roomLayout.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'room-row';
+        
+        row.forEach(tableNum => {
+            const tableBtn = document.createElement('div');
+            tableBtn.className = 'table-selection-item';
+            const tableId = `room-${tableNum}`;
+            tableBtn.setAttribute('data-table', tableId);
+            tableBtn.textContent = `R${tableNum}`;
+            tableBtn.onclick = () => toggleEditTableSelection(tableId);
+            
+            if (selectedTables.has(tableId)) {
+                tableBtn.classList.add('selected');
+            }
+            
+            rowDiv.appendChild(tableBtn);
+        });
+        
+        roomContainer.appendChild(rowDiv);
+    });
 }
+
 
 // 데이터 새로고침
 async function refreshData() {
