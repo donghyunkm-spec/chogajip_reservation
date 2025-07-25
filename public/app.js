@@ -1006,6 +1006,7 @@ async function cancelReservation(reservationId) {
 }
 
 // 예약 수정 함수
+// 예약 수정 함수 (app.js에서 수정)
 function editReservation(reservationId) {
     const reservation = reservations.find(r => r.id === reservationId);
     if (!reservation) {
@@ -1026,25 +1027,27 @@ function editReservation(reservationId) {
         justify-content: center;
         align-items: center;
         z-index: 3000;
+        overflow-y: auto;
+        padding: 20px 10px;
     `;
     
     modal.innerHTML = `
-        <div style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-            <h3 style="margin-bottom: 20px; color: #333;">예약 수정</h3>
+        <div style="background: white; padding: 20px; border-radius: 15px; width: 100%; max-width: 500px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+            <h3 style="margin-bottom: 20px; color: #333; text-align: center;">예약 수정</h3>
             <form id="editForm">
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">성함</label>
-                    <input type="text" id="editName" value="${reservation.name}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required>
+                    <input type="text" id="editName" value="${reservation.name}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required>
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">인원수</label>
-                    <input type="number" id="editPeople" value="${reservation.people}" min="1" max="50" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability()">
+                    <input type="number" id="editPeople" value="${reservation.people}" min="1" max="36" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required onchange="updateEditTableAvailability()">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">좌석 선호도</label>
-                    <select id="editPreference" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability()">
+                    <select id="editPreference" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required onchange="updateEditTableAvailability()">
                         <option value="any" ${reservation.preference === 'any' ? 'selected' : ''}>관계없음</option>
                         <option value="room" ${reservation.preference === 'room' ? 'selected' : ''}>룸 선호</option>
                         <option value="hall" ${reservation.preference === 'hall' ? 'selected' : ''}>홀 선호</option>
@@ -1053,12 +1056,12 @@ function editReservation(reservationId) {
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 날짜</label>
-                    <input type="date" id="editDate" value="${reservation.date}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability()">
+                    <input type="date" id="editDate" value="${reservation.date}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required onchange="updateEditTableAvailability()">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약 시간</label>
-                    <select id="editTime" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" required onchange="updateEditTableAvailability()">
+                    <select id="editTime" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required onchange="updateEditTableAvailability()">
                         <option value="14:00" ${reservation.time === '14:00' ? 'selected' : ''}>오후 2:00</option>
                         <option value="14:30" ${reservation.time === '14:30' ? 'selected' : ''}>오후 2:30</option>
                         <option value="15:00" ${reservation.time === '15:00' ? 'selected' : ''}>오후 3:00</option>
@@ -1082,21 +1085,21 @@ function editReservation(reservationId) {
                     </select>
                 </div>
                 
-                <!-- 테이블 선택 UI 추가 -->
+                <!-- 테이블 선택 UI (컴팩트하게) -->
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">테이블 선택</label>
-                    <div class="table-selection">
-                        <div style="font-weight: bold; margin-bottom: 8px; color: #333; font-size: 13px; text-align: center;">홀 테이블 (T1~T16)</div>
-                        <div class="hall-table-layout" id="edit-hall-table-selection">
+                    <div class="table-selection" style="background: #f8f9fa; padding: 10px; border-radius: 8px;">
+                        <div style="font-weight: bold; margin-bottom: 8px; color: #333; font-size: 12px; text-align: center;">홀 테이블 (T1~T16)</div>
+                        <div class="hall-table-layout" id="edit-hall-table-selection" style="margin-bottom: 10px;">
                             <!-- 홀 테이블 버튼들이 생성됩니다 -->
                         </div>
                         
-                        <div style="font-weight: bold; margin-bottom: 8px; color: #333; font-size: 13px; text-align: center;">룸 테이블 (R1~R9)</div>
-                        <div class="room-table-layout" id="edit-room-table-selection">
+                        <div style="font-weight: bold; margin-bottom: 8px; color: #333; font-size: 12px; text-align: center;">룸 테이블 (R1~R9)</div>
+                        <div class="room-table-layout" id="edit-room-table-selection" style="margin-bottom: 8px;">
                             <!-- 룸 테이블 버튼들이 생성됩니다 -->
                         </div>
                         
-                        <div style="margin-top: 10px; font-size: 11px; color: #666;">
+                        <div style="font-size: 10px; color: #666; text-align: center;">
                             <span style="color: #f44336;">■</span> 예약불가 &nbsp;
                             <span style="color: #4CAF50;">■</span> 선택됨 &nbsp;
                             <span style="color: #ddd;">■</span> 선택가능
@@ -1105,31 +1108,25 @@ function editReservation(reservationId) {
                     <input type="hidden" id="editSelectedTables" required>
                 </div>
                 
-                <!-- 전화번호 필드 -->
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">전화번호</label>
-                    <input type="tel" id="editPhone" value="${reservation.phone || ''}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;" placeholder="연락 가능한 전화번호">
+                    <input type="tel" id="editPhone" value="${reservation.phone || ''}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" placeholder="연락 가능한 전화번호">
                 </div>
                 
-                <!-- 예약방법 필드 -->
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">예약방법</label>
-                    <select id="editReservationMethod" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;">
-                        <option value="none" ${(!reservation.reservationMethod || reservation.reservationMethod === 'none') ? 'selected' : ''}>선택안함</option>
-                        <option value="phone" ${reservation.reservationMethod === 'phone' ? 'selected' : ''}>전화</option>
-                        <option value="naver" ${reservation.reservationMethod === 'naver' ? 'selected' : ''}>네이버</option>
-                    </select>
-                </div>
-                
-                <div style="display: flex; gap: 10px;">
-                    <button type="submit" style="flex: 1; background: #4CAF50; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">수정 완료</button>
-                    <button type="button" onclick="this.closest('.modal').remove()" style="flex: 1; background: #666; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">취소</button>
+                <!-- 버튼을 항상 보이도록 고정 -->
+                <div style="display: flex; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; position: sticky; bottom: 0; background: white;">
+                    <button type="submit" style="flex: 1; background: #4CAF50; color: white; padding: 14px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px;">
+                        수정 완료
+                    </button>
+                    <button type="button" onclick="this.closest('.edit-modal').remove()" style="flex: 1; background: #666; color: white; padding: 14px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px;">
+                        취소
+                    </button>
                 </div>
             </form>
         </div>
     `;
     
-    modal.className = 'modal';
+    modal.className = 'edit-modal';
     document.body.appendChild(modal);
     
     // 수정용 테이블 선택 변수 초기화
@@ -1155,6 +1152,11 @@ function editReservation(reservationId) {
                     return;
                 }
                 
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+                const originalText = submitBtn.textContent;
+                submitBtn.disabled = true;
+                submitBtn.textContent = '처리 중...';
+                
                 const updatedData = {
                     name: document.getElementById('editName').value,
                     people: parseInt(document.getElementById('editPeople').value),
@@ -1162,7 +1164,6 @@ function editReservation(reservationId) {
                     date: document.getElementById('editDate').value,
                     time: document.getElementById('editTime').value,
                     phone: document.getElementById('editPhone').value || '',
-                    reservationMethod: document.getElementById('editReservationMethod').value,
                     tables: Array.from(editSelectedTables)
                 };
                 
@@ -1183,6 +1184,9 @@ function editReservation(reservationId) {
                 } catch (error) {
                     console.error('예약 수정 오류:', error);
                     showAlert('예약 수정 중 오류가 발생했습니다.', 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalText;
                 }
             });
         }
