@@ -570,12 +570,211 @@ app.delete('/api/reservations/:id', async (req, res) => {
     }
 });
 
+
+
+// ... (기존 예약 관련 코드 유지) ...
+
+// ==========================================
+// [업데이트] 직원 관리 + 로그 시스템
+// ==========================================
+
+const STAFF_DATA_FILE = path.join(actualDataPath, 'staff.json');
+const LOG_DATA_FILE = path.join(actualDataPath, 'logs.json'); // 로그 파일 경로
+
+// 파일 초기화
+if (!fs.existsSync(STAFF_DATA_FILE)) fs.writeFileSync(STAFF_DATA_FILE, JSON.stringify([], null, 2));
+if (!fs.existsSync(LOG_DATA_FILE)) fs.writeFileSync(LOG_DATA_FILE, JSON.stringify([], null, 2));
+
+function readJson(file) {
+    try { return JSON.parse(fs.readFileSync(file, 'utf8')) || []; } 
+    catch (e) { return []; }
+}
+
+function writeJson(file, data) {
+    try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); return true; } 
+    catch (e) { return false; }
+}
+
+// 로그 기록 함수
+function addLog(actor, action, targetName, details) {
+    const logs = readJson(LOG_DATA_FILE);
+    const newLog = {
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        actor: actor,       // 수정한 사람 (이름/직책)
+        action: action,     // 등록, 수정, 삭제
+        target: targetName, // 대상 직원 이름
+        details: details    // 변경 내용
+    };
+    logs.unshift(newLog); // 최신순 저장
+    // 로그가 너무 많아지면 1000개만 유지
+    if (logs.length > 1000) logs.pop();
+    writeJson(LOG_DATA_FILE, logs);
+}
+
+// 1. 로그인 API
+app.post('/api/login', (req, res) => {
+    const { password } = req.body;
+    if (password === 'admin1234!') res.json({ success: true, role: 'admin', name: '사장님' });
+    else if (password === 'chogazip1234') res.json({ success: true, role: 'manager', name: '점장님' });
+    else if (password === 'chrkwlv1234!') res.json({ success: true, role: 'viewer', name: '직원' });
+    else res.status(401).json({ success: false, message: '비밀번호 불일치' });
+});
+
+// 2. 직원 목록 조회
+app.get('/api/staff', (req, res) => {
+    res.json({ success: true, data: readJson(STAFF_DATA_FILE) });
+});
+
+// 3. 직원 등록 (일괄/개별) - 로그 추가
+app.post('/api/staff', (req, res) => {
+    const { staffList, actor } = req.body; // actor: 수정한 사람 정보
+    let currentStaff = readJson(STAFF_DATA_FILE);
+    
+    const addedStaff = staffList.map(s => ({
+        id: Date.now() + Math.floor(Math.random() * 10000),
+        ...s,
+        updatedAt: new Date().toISOString()
+    }));
+
+    currentStaff = [...currentStaff, ...addedStaff];
+    
+    if (writeJson(STAFF_DATA_FILE, currentStaff)) {
+        // 로그 기록
+        const names = addedStaff.map(s => s.name).join(', ');
+        addLog(actor || 'Unknown', '등록', names, `${addedStaff.length}명 신규/일괄 등록됨`);
+        
+        res.json({ success: true, message: '등록 완료' });
+    } else {
+        res.status(500).json({ success: false, error: '저장 실패' });
+    }
+});
+
+// 4. 직원 삭제 - 로그 추가
+app.delete('/api/staff/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const { actor } = req.body; // DELETE body 지원 확인 필요, query로 받을수도 있음
+    
+    let currentStaff = readJson(STAFF_DATA_FILE);
+    const target = currentStaff.find(s => s.id === id);
+    
+    if (!target) return res.status(404).json({success: false});
+
+    const filtered = currentStaff.filter(s => s.id !== id);
+    
+    if (writeJson(STAFF_DATA_FILE, filtered)) {
+        // 삭제 주체를 헤더나 바디에서 받아야 함. 
+        // 편의상 클라이언트에서 fetch options body에 넣어서 보낸다고 가정
+        addLog(req.query.actor || 'Unknown', '삭제', target.name, '직원 정보 삭제됨');
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// ... (위쪽 코드는 동일) ...
+
+// ==========================================
+// [업데이트] 날짜별 예외 처리 기능 추가
+// ==========================================
+
+// 5. 직원 개별 수정 (패턴 수정) - 기존 유지
+app.put('/api/staff/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const { updates, actor } = req.body;
+    let currentStaff = readJson(STAFF_DATA_FILE);
+    
+    const index = currentStaff.findIndex(s => s.id === id);
+    if (index !== -1) {
+        const oldData = currentStaff[index];
+        currentStaff[index] = { ...oldData, ...updates, updatedAt: new Date().toISOString() };
+        
+        if (writeJson(STAFF_DATA_FILE, currentStaff)) {
+            addLog(actor || 'Unknown', '패턴수정', oldData.name, '고정 근무 패턴 변경됨');
+            res.json({ success: true });
+        } else res.status(500).json({ success: false });
+    } else res.status(404).json({ success: false });
+});
+
+// [NEW] 6. 날짜별 예외(변동) 등록 API
+// 특정 날짜에만 휴무를 하거나, 시간을 바꾸거나, 대타를 뛰는 경우
+app.post('/api/staff/exception', (req, res) => {
+    const { id, date, type, time, actor } = req.body; 
+    // type: 'off'(휴무), 'work'(근무/시간변경), 'delete'(예외삭제-원상복구)
+    
+    let currentStaff = readJson(STAFF_DATA_FILE);
+    const index = currentStaff.findIndex(s => s.id === parseInt(id));
+    
+    if (index === -1) return res.status(404).json({success: false, message: '직원 없음'});
+
+    const staff = currentStaff[index];
+    
+    // 예외 데이터 구조 초기화
+    if (!staff.exceptions) staff.exceptions = {};
+
+    let logMsg = '';
+
+    if (type === 'delete') {
+        // 예외 삭제 (원래대로 복구)
+        delete staff.exceptions[date];
+        logMsg = `${date} 근무 설정 초기화(원래대로)`;
+    } else {
+        // 예외 등록 (휴무 또는 시간변경)
+        staff.exceptions[date] = { type, time };
+        logMsg = `${date}일 ${type === 'off' ? '휴무 처리' : '시간 변경/추가 근무'}`;
+        if (time) logMsg += ` (${time})`;
+    }
+
+    if (writeJson(STAFF_DATA_FILE, currentStaff)) {
+        addLog(actor || 'Unknown', '일일변경', staff.name, logMsg);
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false, error: '저장 실패' });
+    }
+});
+
+// [NEW] 7. 일일 알바(대타) 등록 API
+// 기존 명단에 없는데 오늘만 와서 일하는 경우
+app.post('/api/staff/temp', (req, res) => {
+    const { name, date, time, actor } = req.body;
+    let currentStaff = readJson(STAFF_DATA_FILE);
+
+    const newStaff = {
+        id: Date.now(),
+        name: name,
+        workDays: [], // 고정 근무 없음
+        time: '',
+        position: '일일알바',
+        exceptions: {
+            [date]: { type: 'work', time: time } // 해당 날짜만 근무로 설정
+        },
+        isTemp: true // 임시 직원 플래그
+    };
+
+    currentStaff.push(newStaff);
+
+    if (writeJson(STAFF_DATA_FILE, currentStaff)) {
+        addLog(actor || 'Unknown', '대타등록', name, `${date} 일일 근무 등록`);
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// ... (로그 조회 API 및 404 처리, listen 등 하단 코드 유지) ...
+
+// 6. 로그 조회 API (관리자용)
+app.get('/api/logs', (req, res) => {
+    res.json({ success: true, data: readJson(LOG_DATA_FILE) });
+});
+
 app.use('*', (req, res) => {
     res.status(404).json({ 
         success: false, 
         error: 'API 엔드포인트를 찾을 수 없습니다.' 
     });
 });
+
 
 // 서버 시작
 app.listen(PORT, '0.0.0.0', async () => {
