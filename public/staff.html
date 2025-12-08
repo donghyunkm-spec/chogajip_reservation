@@ -93,11 +93,38 @@
         .log-action-삭제 { color: #dc3545; font-weight: bold; }
         .bulk-guide { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; line-height: 1.6; }
 
+        /* [수정안] 모바일에서도 표 유지 + 가로 스크롤 적용 */
         @media (max-width: 768px) {
-            .weekly-container { display: flex; flex-direction: column; }
-            .weekly-col { min-height: auto; border-bottom: 1px solid #eee; padding: 10px; }
-            .weekly-header { display: none; }
-            .weekly-col::before { content: attr(data-day); font-weight:bold; display:block; margin-bottom:5px; color:#4CAF50; }
+            /* 컨테이너에 가로 스크롤 허용 */
+            .status-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch; /* 부드러운 스크롤 */
+            }
+
+            .weekly-container {
+                /* 세로 정렬(Flex) 대신 그리드 유지 */
+                display: grid;
+                /* 화면이 작아도 최소 700px 너비를 확보 (스크롤 발생) */
+                min-width: 700px; 
+            }
+
+            /* 요일 헤더 다시 보이게 설정 */
+            .weekly-header { 
+                display: block; 
+                font-size: 12px; /* 글자 크기 약간 축소 */
+            }
+
+            /* 기존 모바일용 스타일(::before 등) 제거 또는 초기화 */
+            .weekly-col { 
+                min-height: 150px; /* 최소 높이 설정 */
+                border-bottom: none; 
+                padding: 5px;
+            }
+            
+            /* "월요일", "화요일" 글자 중복 표시 제거 */
+            .weekly-col::before { 
+                content: none; 
+            }
         }
     </style>
 </head>
