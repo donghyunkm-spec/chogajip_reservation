@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>초가짚 예약 시스템</title>
     <div style="text-align: right; margin-bottom: 10px;">
-    <button onclick="location.href='staff.html'" style="background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">
-        👥 직원 근무표 관리
-    </button>
-</div>
+    <div style="text-align: right; margin-bottom: 10px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button onclick="location.href='staff.html?store=chogazip'" style="background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+            👥 초가짚 근무표
+        </button>
+        <button onclick="location.href='staff.html?store=yangeun'" style="background: #ff9800; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+            👥 양은이네 근무표
+        </button>
+    </div>
     <style>
         /* 기존 스타일 유지 */
         * {
