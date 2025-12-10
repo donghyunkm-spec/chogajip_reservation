@@ -1,4 +1,4 @@
-// staff.js - 직원 관리 + 가계부(매출/지출/통계) 통합 버전
+// staff.js - 통합 버전 (직원관리 + 가계부 고도화)
 
 // ==========================================
 // 1. 전역 변수 및 초기화
@@ -11,7 +11,8 @@ let currentWeekStartDate = new Date();
 
 // 가계부용 전역 변수
 let accountingData = { daily: {}, monthly: {} };
-let currentAccDate = new Date().toISOString().split('T')[0]; // 오늘 날짜 기본
+let currentAccDate = new Date().toISOString().split('T')[0];
+let currentDashboardDate = new Date(); // 가계부 조회 기준 월
 
 // 현재 매장 정보 파싱
 const urlParams = new URLSearchParams(window.location.search);
@@ -24,13 +25,15 @@ const DAY_KEYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 document.addEventListener('DOMContentLoaded', () => {
     document.title = `${storeNameKr} 관리자 모드`;
-    document.getElementById('pageTitle').textContent = `👥 ${storeNameKr} 관리 시스템`;
+    const titleEl = document.getElementById('pageTitle');
+    if(titleEl) titleEl.textContent = `👥 ${storeNameKr} 관리 시스템`;
     
     if (currentStore === 'yangeun') {
-        document.querySelector('.weekly-header').style.background = '#ff9800'; 
+        const header = document.querySelector('.weekly-header');
+        if(header) header.style.background = '#ff9800'; 
     }
 
-    // 주간 기준일 초기화 (일요일 시작)
+    // 주간 기준일 초기화
     const today = new Date();
     const day = today.getDay();
     currentWeekStartDate.setDate(today.getDate() - day);
@@ -44,63 +47,70 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 
 function switchTab(tabName) {
-    // 1. 모든 탭 버튼과 컨텐츠 비활성화
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     
-    // 2. 클릭된 탭 활성화 (onclick 속성 매칭)
+    // 메인 탭 버튼 활성화
     const targetBtn = document.querySelector(`button[onclick="switchTab('${tabName}')"]`);
     if(targetBtn) targetBtn.classList.add('active');
     
-    // 3. 컨텐츠 표시
     const content = document.getElementById(`${tabName}-content`);
     if(content) content.classList.add('active');
 
-    // 4. 탭별 데이터 로드
     if(tabName === 'daily') renderDailyView();
     if(tabName === 'weekly') renderWeeklyView();
     if(tabName === 'monthly') renderMonthlyView();
-    if(tabName === 'accounting') loadAccountingData(); // [NEW] 가계부 로드
+    if(tabName === 'accounting') loadAccountingData();
 }
 
-// [NEW] 가계부 내부 서브 탭 전환 (일일 / 월간 / 내역)
-function switchAccSubTab(subTabId) {
-    // 서브 컨텐츠 숨기기
-    document.querySelectorAll('.acc-sub-content').forEach(el => el.style.display = 'none');
+// [가계부 내부 서브탭 전환 함수 - 수정됨]
+function switchAccSubTab(subTabId, btnElement) {
+    // 1. 모든 서브 컨텐츠 숨기기
+    document.querySelectorAll('.acc-sub-content').forEach(el => {
+        el.style.display = 'none';
+        el.classList.remove('active');
+    });
     
-    // 서브 탭 버튼 스타일 초기화 (메인 탭과 구분하기 위해 부모 요소 기준 탐색)
+    // 2. 버튼 스타일 초기화 (가계부 탭 내부의 버튼만)
     const subTabContainer = document.querySelector('.tabs[style*="grid-template-columns"]'); 
     if(subTabContainer) {
         subTabContainer.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
     }
 
-    // 클릭된 버튼 활성화
-    const clickedBtn = event.currentTarget;
-    if(clickedBtn) clickedBtn.classList.add('active');
+    // 3. 클릭된 버튼 활성화
+    if(btnElement) {
+        btnElement.classList.add('active');
+    } else {
+        // 버튼 객체가 안 넘어왔을 경우(자동실행 등) ID로 찾아서 활성화 시도
+        const matchingBtn = document.querySelector(`button[onclick*="${subTabId}"]`);
+        if(matchingBtn) matchingBtn.classList.add('active');
+    }
 
-    // 선택된 화면 표시
-    document.getElementById(subTabId).style.display = 'block';
-
-    // 내역 탭일 경우 데이터 갱신
-    if (subTabId === 'acc-history') loadHistoryTable();
+    // 4. 선택된 화면 표시 및 데이터 갱신
+    const targetDiv = document.getElementById(subTabId);
+    if(targetDiv) {
+        targetDiv.style.display = 'block';
+        targetDiv.classList.add('active');
+        
+        // 화면이 보인 후 데이터 갱신 (setTimeout으로 렌더링 확보)
+        setTimeout(() => {
+            updateDashboardUI();
+        }, 0);
+    }
 }
-
 
 // ==========================================
 // 3. 로그인 및 권한 관리
 // ==========================================
-
 function openLoginModal() {
     document.getElementById('loginOverlay').style.display = 'flex';
     document.getElementById('loginPassword').value = '';
     document.getElementById('loginPassword').focus();
 }
-
 function closeLoginModal() {
     document.getElementById('loginOverlay').style.display = 'none';
     document.getElementById('loginError').style.display = 'none';
 }
-
 async function tryLogin() {
     const pwd = document.getElementById('loginPassword').value;
     try {
@@ -114,14 +124,16 @@ async function tryLogin() {
         if (data.success) {
             currentUser = data;
             closeLoginModal();
-            document.getElementById('loginBtn').style.display = 'none';
+            const loginBtn = document.getElementById('loginBtn');
+            if(loginBtn) loginBtn.style.display = 'none';
+            
             const userInfoDiv = document.getElementById('userInfo');
             userInfoDiv.style.display = 'block';
             userInfoDiv.innerHTML = `${data.name} (${data.role === 'admin' ? '사장' : data.role === 'manager' ? '점장' : '직원'})`;
             
-            // 권한별 탭 노출
             if (['admin', 'manager'].includes(data.role)) {
-                document.getElementById('manageTabBtn').style.display = 'inline-block';
+                const manageBtn = document.getElementById('manageTabBtn');
+                if(manageBtn) manageBtn.style.display = 'inline-block';
             }
             if (data.role === 'admin') {
                 document.getElementById('bulkSection').style.display = 'block';
@@ -133,100 +145,356 @@ async function tryLogin() {
             // 현재 화면 갱신
             const activeTab = document.querySelector('.tab-content.active');
             if(activeTab && activeTab.id === 'accounting-content') loadAccountingData();
-            
             renderManageList(); 
         } else {
-            document.getElementById('loginError').style.display = 'block';
-            document.getElementById('loginError').textContent = '비밀번호가 일치하지 않습니다.';
+            const err = document.getElementById('loginError');
+            err.style.display = 'block';
+            err.textContent = '비밀번호가 일치하지 않습니다.';
         }
     } catch (e) { alert('서버 오류'); }
 }
 
+// ==========================================
+// 4. 가계부 (매출/지출/통계) 로직
+// ==========================================
 
-// ==========================================
-// 4. 가계부 (매출/지출/통계) 로직 [핵심 수정됨]
-// ==========================================
+// 날짜 포맷 헬퍼 (YYYY-MM)
+function getMonthStr(dateObj) {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+}
+
+// 월 변경 네비게이션
+function changeAccMonth(delta) {
+    currentDashboardDate.setMonth(currentDashboardDate.getMonth() + delta);
+    loadAccountingData(); 
+}
+
+function resetAccMonth() {
+    currentDashboardDate = new Date();
+    loadAccountingData();
+}
 
 async function loadAccountingData() {
     if (!currentUser) { 
         alert("로그인이 필요합니다.");
         openLoginModal(); 
-        switchTab('daily'); // 로그인 안했으면 일단 일별 탭으로 복귀
+        switchTab('daily'); 
         return; 
     }
     
-    // 권한 체크: 사장님(admin)만 통계(profitSection) 및 샘플생성 버튼 보임
-    const isAdmin = (currentUser.role === 'admin');
-    const profitSection = document.getElementById('profitSection');
-    if(profitSection) profitSection.style.display = isAdmin ? 'block' : 'none';
-    
-    const sampleBtn = document.getElementById('sampleBtn');
-    if(sampleBtn) sampleBtn.style.display = isAdmin ? 'block' : 'none';
-
     try {
         const res = await fetch(`/api/accounting?store=${currentStore}`);
         const json = await res.json();
+        // 데이터가 없어도 안전하게 초기화
         accountingData = json.data || { daily: {}, monthly: {} };
+        if(!accountingData.daily) accountingData.daily = {};
+        if(!accountingData.monthly) accountingData.monthly = {};
         
-        // 날짜 인풋 초기화
-        document.getElementById('accDate').value = currentAccDate;
-        
-        // 각 화면 데이터 렌더링
-        loadDailyAccounting(); // 일일 탭
-        loadMonthlyForm();     // 월간 탭
-        renderAccountingDashboard(isAdmin); // 통계 화면
+        updateDashboardUI();
     } catch(e) { console.error('회계 로드 실패', e); }
 }
 
-// [4-1] 일일 데이터 로드
-function loadDailyAccounting() {
-    currentAccDate = document.getElementById('accDate').value;
-    const dayData = accountingData.daily[currentAccDate] || {};
+// 통합 UI 업데이트 (탭 전환/월 이동 시 호출됨)
+function updateDashboardUI() {
+    const monthStr = getMonthStr(currentDashboardDate); // "2024-12"
+    const [y, m] = monthStr.split('-');
     
-    document.getElementById('inpCard').value = dayData.card || '';
-    document.getElementById('inpCash').value = dayData.cash || '';
-    document.getElementById('inpNote').value = dayData.note || '';
+    // 헤더 타이틀 갱신
+    const titleEl = document.getElementById('dashboardTitle');
+    if(titleEl) titleEl.textContent = `${y}년 ${m}월`;
     
-    document.getElementById('inpFood').value = dayData.food || '';
-    document.getElementById('inpMeat').value = dayData.meat || '';
-    document.getElementById('inpEtc').value = dayData.etc || '';
+    const fixTitle = document.getElementById('fixCostTitle');
+    if(fixTitle) fixTitle.textContent = `${m}월`;
+    
+    const fixBtn = document.getElementById('fixBtnMonth');
+    if(fixBtn) fixBtn.textContent = `${m}월`;
+    
+    const listTitle = document.getElementById('dailyListTitle');
+    if(listTitle) listTitle.textContent = `${m}월`;
+
+    // 현재 활성화된 탭 확인 (active 클래스가 있는 녀석 찾기)
+    const activeSubTab = document.querySelector('.acc-sub-content.active');
+    
+    // 만약 활성화된 탭이 없다면 기본값으로 daily를 켬
+    if (!activeSubTab) {
+        switchAccSubTab('acc-daily');
+        return; 
+    }
+
+    if (activeSubTab.id === 'acc-daily') {
+        loadHistoryTable(); 
+    } 
+    else if (activeSubTab.id === 'acc-dashboard') {
+        renderDashboardStats();
+    } 
+    else if (activeSubTab.id === 'acc-monthly') {
+        loadMonthlyForm();
+    }
 }
 
-// [4-2] 일일 데이터 저장
+// [서브탭 1] 일일 데이터 로드/저장
+// [JS 수정 1] 데이터 불러오기: 시재금과 입금액도 불러오도록 수정
+function loadDailyAccounting() {
+    const datePicker = document.getElementById('accDate').value;
+    if (!datePicker) return;
+
+    const dayData = (accountingData.daily && accountingData.daily[datePicker]) ? accountingData.daily[datePicker] : {};
+    
+    // 매출 관련
+    document.getElementById('inpCard').value = dayData.card || '';
+    document.getElementById('inpTransfer').value = dayData.transfer || '';
+    document.getElementById('inpGift').value = dayData.gift || '';
+    
+    // [NEW] 현금 관리 (시재, 매출, 입금)
+    // startCash가 없으면 기본값 100,000원으로 세팅
+    document.getElementById('inpStartCash').value = (dayData.startCash !== undefined) ? dayData.startCash : 100000;
+    document.getElementById('inpCash').value = dayData.cash || '';
+    document.getElementById('inpDeposit').value = dayData.bankDeposit || ''; // 통장 입금액
+
+    // 지출 관련
+    document.getElementById('inpFood').value = dayData.food || '';
+    document.getElementById('inpMeat').value = dayData.meat || '';
+    document.getElementById('inpEtc').value = dayData.etc || ''; 
+    
+    document.getElementById('inpNote').value = dayData.note || '';
+
+    calcDrawerTotal(); 
+}
+
+// [JS 수정] 돈통 잔액 실시간 계산 (공식 수정됨)
+function calcDrawerTotal() {
+    // 1. 아침에 세어본 돈 (기본 10만원 or 직접 입력)
+    const startCash = parseInt(document.getElementById('inpStartCash').value) || 0; 
+    
+    // 2. POS에 찍힌 현금 매출
+    const cashSales = parseInt(document.getElementById('inpCash').value) || 0;      
+    
+    // 3. 실제 현금이 아닌 것 (계좌이체)
+    const transfer = parseInt(document.getElementById('inpTransfer').value) || 0;   
+    
+    // 4. 은행에 넣으려고 빼간 돈
+    const deposit = parseInt(document.getElementById('inpDeposit').value) || 0;     
+
+    // [공식] 시작돈 + 번돈 - 계좌이체 - 입금액 = 남은돈
+    const finalTotal = (startCash + cashSales) - (transfer + deposit);
+
+    const displayEl = document.getElementById('drawerTotalDisplay');
+    displayEl.textContent = finalTotal.toLocaleString() + '원';
+
+    if(finalTotal < 0) {
+        displayEl.style.color = "red";
+        displayEl.innerHTML += " <span style='font-size:14px'>(⚠️ 잔액 부족)</span>";
+    } else {
+        displayEl.style.color = "#1565c0";
+    }
+}
+
+// [JS 수정 3] 데이터 저장: 시재금과 입금액도 함께 저장
 async function saveDailyAccounting() {
+    const dateStr = document.getElementById('accDate').value;
+    if (!dateStr) { alert('날짜를 선택해주세요.'); return; }
+
+    // 숫자 파싱
+    const startCash = parseInt(document.getElementById('inpStartCash').value) || 0;
+    const cash = parseInt(document.getElementById('inpCash').value) || 0;
+    const bankDeposit = parseInt(document.getElementById('inpDeposit').value) || 0;
+    
+    const card = parseInt(document.getElementById('inpCard').value) || 0;
+    const transfer = parseInt(document.getElementById('inpTransfer').value) || 0;
+    const gift = parseInt(document.getElementById('inpGift').value) || 0;
+    
+    const food = parseInt(document.getElementById('inpFood').value) || 0;
+    const meat = parseInt(document.getElementById('inpMeat').value) || 0;
+    const etc = parseInt(document.getElementById('inpEtc').value) || 0;
+
     const data = {
-        card: parseInt(document.getElementById('inpCard').value) || 0,
-        cash: parseInt(document.getElementById('inpCash').value) || 0,
-        note: document.getElementById('inpNote').value || '',
-        
-        food: parseInt(document.getElementById('inpFood').value) || 0,
-        meat: parseInt(document.getElementById('inpMeat').value) || 0,
-        etc: parseInt(document.getElementById('inpEtc').value) || 0,
-        
-        // 검색/집계 편의를 위해 합계 필드 추가
-        sales: (parseInt(document.getElementById('inpCard').value) || 0) + (parseInt(document.getElementById('inpCash').value) || 0)
+        startCash,      // [NEW] 시재금
+        cash, 
+        bankDeposit,    // [NEW] 입금액
+        card, transfer, gift,
+        sales: card + cash + transfer + gift, // 총 매출에는 시재금 포함 X
+        food, meat, etc,
+        cost: food + meat + etc,
+        note: document.getElementById('inpNote').value || ''
     };
 
     try {
         await fetch('/api/accounting/daily', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ date: currentAccDate, data, store: currentStore })
+            body: JSON.stringify({ date: dateStr, data, store: currentStore })
         });
         
-        // 로컬 데이터 갱신
         if(!accountingData.daily) accountingData.daily = {};
-        accountingData.daily[currentAccDate] = data;
+        accountingData.daily[dateStr] = data;
         
-        alert('일일 데이터가 저장되었습니다.');
-        renderAccountingDashboard(currentUser.role === 'admin');
+        alert('저장되었습니다.\n돈통 잔액: ' + (startCash + cash - bankDeposit).toLocaleString() + '원');
+        loadHistoryTable(); 
     } catch(e) { alert('저장 실패'); }
 }
 
-// [4-3] 월간 데이터 로드
+function loadHistoryTable() {
+    const monthStr = getMonthStr(currentDashboardDate);
+    const tbody = document.getElementById('historyTableBody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!accountingData.daily) {
+        tbody.innerHTML = '<tr><td colspan="5">데이터 로드 중...</td></tr>';
+        return;
+    }
+
+    const sortedDates = Object.keys(accountingData.daily)
+        .filter(d => d.startsWith(monthStr))
+        .sort().reverse();
+
+    if (sortedDates.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#999;">입력된 데이터가 없습니다.</td></tr>';
+        return;
+    }
+
+    sortedDates.forEach(date => {
+        const d = accountingData.daily[date];
+        const totalSales = (d.card||0)+(d.cash||0)+(d.transfer||0)+(d.gift||0);
+        const totalCost = (d.food||0)+(d.meat||0)+(d.etc||0);
+        
+        let details = [];
+        if(d.card) details.push(`💳${d.card.toLocaleString()}`);
+        if(d.cash) details.push(`💵${d.cash.toLocaleString()}`);
+        if(d.transfer) details.push(`🏦${d.transfer.toLocaleString()}`);
+        if(d.meat) details.push(`🥩${d.meat.toLocaleString()}`);
+        if(d.food) details.push(`🥬${d.food.toLocaleString()}`);
+        if(d.etc) details.push(`🍦${d.etc.toLocaleString()}`);
+        if(d.note) details.push(`📝${d.note}`);
+
+        tbody.innerHTML += `
+            <tr>
+                <td>${date.substring(8)}일</td>
+                <td style="color:#1976D2; font-weight:bold;">${totalSales.toLocaleString()}</td>
+                <td style="color:#d32f2f;">${totalCost.toLocaleString()}</td>
+                <td style="font-size:11px; color:#555; word-break:keep-all;">${details.join(' / ')}</td>
+                <td>
+                    <button onclick="editHistoryDate('${date}')" style="font-size:11px; background:#607d8b; color:white; border:none; border-radius:3px; padding:3px 6px; cursor:pointer;">수정</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function editHistoryDate(date) {
+    document.getElementById('accDate').value = date;
+    loadDailyAccounting();
+    window.scrollTo(0,0);
+}
+
+// [서브탭 2] 대시보드 통계 (그래프 및 손익분기)
+function renderDashboardStats() {
+    const monthStr = getMonthStr(currentDashboardDate);
+    // 데이터 안전성 체크
+    const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
+    
+    let sales = { card:0, cash:0, transfer:0, gift:0, total:0 };
+    let costs = { 
+        meat:0, food:0, dailyEtc:0,
+        rent: (mData.rent||0), utility: (mData.utility||0), gas: (mData.gas||0),
+        liquor: (mData.liquor||0), beverage: (mData.beverage||0), fixedEtc: (mData.etc_fixed||0),
+        staff: 0 
+    };
+
+    // 인건비 계산 (함수가 아래 정의됨)
+    costs.staff = getEstimatedStaffCost(monthStr);
+
+    if (accountingData.daily) {
+        Object.keys(accountingData.daily).forEach(date => {
+            if (date.startsWith(monthStr)) {
+                const d = accountingData.daily[date];
+                sales.card += (d.card||0); sales.cash += (d.cash||0);
+                sales.transfer += (d.transfer||0); sales.gift += (d.gift||0);
+                costs.meat += (d.meat||0); costs.food += (d.food||0); costs.dailyEtc += (d.etc||0);
+            }
+        });
+    }
+    sales.total = sales.card + sales.cash + sales.transfer + sales.gift;
+
+    const totalFixed = costs.rent + costs.utility + costs.gas + costs.liquor + costs.beverage + costs.fixedEtc + costs.staff;
+    const totalVariable = costs.meat + costs.food + costs.dailyEtc;
+    const totalCost = totalFixed + totalVariable;
+    const netProfit = sales.total - totalCost;
+    const margin = sales.total > 0 ? ((netProfit / sales.total) * 100).toFixed(1) : 0;
+
+    // UI 바인딩
+    document.getElementById('dashTotalSales').textContent = sales.total.toLocaleString() + '원';
+    document.getElementById('dashTotalCost').textContent = totalCost.toLocaleString() + '원';
+    
+    const profitEl = document.getElementById('dashNetProfit');
+    profitEl.textContent = netProfit.toLocaleString() + '원';
+    profitEl.style.color = netProfit >= 0 ? '#fff' : '#ffab91'; 
+    document.getElementById('dashMargin').textContent = `순이익률: ${margin}%`;
+    document.getElementById('dashStaffCost').textContent = costs.staff.toLocaleString();
+
+    let bepMsg = '';
+    if (netProfit > 0) bepMsg = `🎉 흑자 달성! (+${netProfit.toLocaleString()}원)`;
+    else bepMsg = `⚠️ 손익분기까지 ${Math.abs(netProfit).toLocaleString()}원 남음`;
+    document.getElementById('dashBreakEven').textContent = bepMsg;
+
+    // 차트 그리기
+    const renderBar = (label, val, color, total) => {
+        if(total === 0 || val === 0) return '';
+        const pct = Math.max((val / total) * 100, 1);
+        return `
+            <div class="bar-row">
+                <div class="bar-label">${label}</div>
+                <div class="bar-track">
+                    <div class="bar-fill" style="width:${pct}%; background:${color};"></div>
+                </div>
+                <div class="bar-value">${val.toLocaleString()}</div>
+            </div>`;
+    };
+
+    const chartEl = document.getElementById('salesBreakdownChart');
+    if(chartEl) {
+        if(sales.total === 0) {
+            chartEl.innerHTML = '<div style="text-align:center; color:#999; padding:10px;">매출 데이터 없음</div>';
+        } else {
+            chartEl.innerHTML = `
+                ${renderBar('💳 카드', sales.card, '#42a5f5', sales.total)}
+                ${renderBar('💵 현금', sales.cash, '#66bb6a', sales.total)}
+                ${renderBar('🏦 계좌', sales.transfer, '#ab47bc', sales.total)}
+                ${renderBar('🎫 기타', sales.gift, '#ffa726', sales.total)}
+            `;
+        }
+    }
+
+    const costListEl = document.getElementById('costBreakdownList');
+    if(costListEl) {
+        if(totalCost === 0) {
+            costListEl.innerHTML = '<div style="text-align:center; color:#999; padding:10px;">지출 내역 없음</div>';
+        } else {
+            const costItems = [
+                { label: '🥩 한강유통', val: costs.meat, color: '#ef5350' },
+                { label: '🏠 임대료', val: costs.rent, color: '#5c6bc0' },
+                { label: '👥 인건비', val: costs.staff, color: '#26a69a' },
+                { label: '🍺 주류/음료', val: costs.liquor + costs.beverage, color: '#ff7043' },
+                { label: '🥬 삼시세끼', val: costs.food, color: '#8d6e63' },
+                { label: '💡 공과금', val: costs.utility + costs.gas, color: '#fdd835' },
+                { label: '🍦 기타지출', val: costs.dailyEtc + costs.fixedEtc, color: '#bdbdbd' },
+            ].sort((a,b) => b.val - a.val);
+
+            let costHtml = '';
+            costItems.forEach(item => {
+                if (item.val > 0) costHtml += renderBar(item.label, item.val, item.color, totalCost);
+            });
+            costListEl.innerHTML = costHtml;
+        }
+    }
+}
+
+// [서브탭 3] 월간 고정비 로드/저장
 function loadMonthlyForm() {
-    const currentMonth = currentAccDate.substring(0, 7);
-    const mData = accountingData.monthly[currentMonth] || {};
+    const monthStr = getMonthStr(currentDashboardDate);
+    const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
     
     document.getElementById('fixLiquor').value = mData.liquor || '';
     document.getElementById('fixBeverage').value = mData.beverage || '';
@@ -236,9 +504,8 @@ function loadMonthlyForm() {
     document.getElementById('fixEtc').value = mData.etc_fixed || '';
 }
 
-// [4-4] 월간 데이터 저장
 async function saveFixedCost() {
-    const currentMonth = currentAccDate.substring(0, 7);
+    const monthStr = getMonthStr(currentDashboardDate); 
     const data = {
         liquor: parseInt(document.getElementById('fixLiquor').value) || 0,
         beverage: parseInt(document.getElementById('fixBeverage').value) || 0,
@@ -252,160 +519,16 @@ async function saveFixedCost() {
         await fetch('/api/accounting/fixed', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ month: currentMonth, data, store: currentStore })
+            body: JSON.stringify({ month: monthStr, data, store: currentStore })
         });
         
         if(!accountingData.monthly) accountingData.monthly = {};
-        accountingData.monthly[currentMonth] = data;
+        accountingData.monthly[monthStr] = data;
         
-        alert('월간 누적 데이터가 저장되었습니다.');
-        renderAccountingDashboard(currentUser.role === 'admin');
+        alert(`${monthStr.split('-')[1]}월 고정비가 저장되었습니다.`);
+        updateDashboardUI();
     } catch(e) { alert('저장 실패'); }
 }
-
-// [4-5] 통계 대시보드 (사장님 전용)
-function renderAccountingDashboard(isAdmin) {
-    if (!isAdmin) return; // 사장님 아니면 계산 로직 실행 안 함
-
-    const currentMonth = currentAccDate.substring(0, 7);
-    document.getElementById('accMonthTitle').textContent = `${currentMonth.split('-')[1]}월 손익 현황`;
-
-    // A. 월간 고정비 합계
-    const mData = accountingData.monthly[currentMonth] || {};
-    const monthlyTotal = 
-        (mData.liquor||0) + (mData.beverage||0) + (mData.rent||0) + 
-        (mData.utility||0) + (mData.gas||0) + (mData.etc_fixed||0);
-
-    // B. 일일 매출/지출 합계
-    let totalSales = 0;
-    let totalDailyCost = 0;
-    
-    Object.keys(accountingData.daily).forEach(date => {
-        if (date.startsWith(currentMonth)) {
-            const d = accountingData.daily[date];
-            const sales = (d.card||0) + (d.cash||0);
-            const cost = (d.food||0) + (d.meat||0) + (d.etc||0);
-            totalSales += sales;
-            totalDailyCost += cost;
-        }
-    });
-
-    // C. 인건비 (예상) - getEstimatedStaffCost 함수 활용
-    let totalStaffCost = getEstimatedStaffCost(currentMonth);
-
-    // D. 최종 계산
-    const totalCost = monthlyTotal + totalDailyCost + totalStaffCost;
-    const netProfit = totalSales - totalCost;
-
-    // UI 업데이트
-    document.getElementById('totalSalesDisplay').textContent = totalSales.toLocaleString() + '원';
-    document.getElementById('totalCostDisplay').textContent = totalCost.toLocaleString() + '원';
-    document.getElementById('staffCostDisplay').textContent = totalStaffCost.toLocaleString();
-    
-    const profitEl = document.getElementById('netProfitDisplay');
-    profitEl.textContent = netProfit.toLocaleString() + '원';
-    profitEl.style.color = netProfit >= 0 ? '#fff' : '#ffcdd2';
-}
-
-// [4-6] 내역 조회 및 수정 (표)
-function loadHistoryTable() {
-    const currentMonth = currentAccDate.substring(0, 7);
-    const tbody = document.getElementById('historyTableBody');
-    tbody.innerHTML = '';
-
-    const sortedDates = Object.keys(accountingData.daily)
-        .filter(d => d.startsWith(currentMonth))
-        .sort().reverse();
-
-    if (sortedDates.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">데이터가 없습니다.</td></tr>';
-        return;
-    }
-
-    sortedDates.forEach(date => {
-        const d = accountingData.daily[date];
-        const sales = (d.card||0) + (d.cash||0);
-        const cost = (d.food||0) + (d.meat||0) + (d.etc||0);
-        
-        tbody.innerHTML += `
-            <tr>
-                <td>${date.substring(5)}</td>
-                <td style="color:#1976D2; font-weight:bold;">${sales.toLocaleString()}</td>
-                <td style="color:#d32f2f;">${cost.toLocaleString()}</td>
-                <td style="font-size:11px; color:#666;">${d.note || '-'}</td>
-                <td>
-                    <button onclick="editHistoryDate('${date}')" style="font-size:11px; background:#607d8b; color:white; border:none; border-radius:3px; padding:3px 6px; cursor:pointer;">수정</button>
-                </td>
-            </tr>
-        `;
-    });
-}
-
-function editHistoryDate(date) {
-    document.getElementById('accDate').value = date;
-    loadDailyAccounting(); // 해당 날짜 데이터 로드
-    switchAccSubTab('acc-daily'); // 입력 탭으로 강제 이동
-}
-
-// [4-7] 샘플 데이터 생성 (테스트용)
-async function generateSampleData() {
-    if (!confirm('현재 보고 있는 달의 샘플 데이터를 생성하시겠습니까?\n(기존 데이터에 덮어씌워집니다)')) return;
-
-    const currentMonth = currentAccDate.substring(0, 7); // ex: "2024-12"
-    const [y, m] = currentMonth.split('-').map(Number);
-    const lastDay = new Date(y, m, 0).getDate(); // 이번달 마지막 날
-
-    // 1. 일일 데이터 생성 (오늘 날짜까지만)
-    const todayDate = new Date().getDate();
-    
-    for (let i = 1; i <= lastDay; i++) {
-        if (i > todayDate) break; // 미래 데이터는 생성 안 함
-
-        const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-        
-        // 랜덤 매출 (50만 ~ 150만)
-        const card = Math.floor(Math.random() * 100) * 10000 + 500000;
-        const cash = Math.floor(Math.random() * 10) * 10000;
-        
-        // 랜덤 지출
-        const food = Math.floor(Math.random() * 20) * 5000; 
-        const meat = i % 3 === 0 ? 300000 : 0; // 3일에 한번 고기
-        const etc = Math.floor(Math.random() * 5) * 1000;
-
-        const data = {
-            card, cash, sales: card+cash,
-            food, meat, etc,
-            note: i % 7 === 0 ? '단체 예약' : ''
-        };
-
-        // 비동기 요청 (순차 처리)
-        await fetch('/api/accounting/daily', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ date: dateStr, data, store: currentStore })
-        });
-    }
-
-    // 2. 월간 고정비 생성
-    const monthlyData = {
-        liquor: 1500000,
-        beverage: 300000,
-        rent: 2000000,
-        utility: 150000,
-        gas: 100000,
-        etc_fixed: 50000
-    };
-
-    await fetch('/api/accounting/fixed', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ month: currentMonth, data: monthlyData, store: currentStore })
-    });
-
-    alert('샘플 데이터가 생성되었습니다!');
-    loadAccountingData(); // 새로고침
-}
-
 
 // ==========================================
 // 5. 직원 관리 (조회/등록/수정/삭제)
@@ -464,11 +587,9 @@ function openEditModal(id) {
     document.getElementById('editName').value = target.name;
     document.getElementById('editTime').value = target.time;
     
-    // [NEW] 입사/퇴사일 로드
     document.getElementById('editStartDate').value = target.startDate || '';
     document.getElementById('editEndDate').value = target.endDate || '';
     
-    // 급여 필드 설정 (기존 코드 유지)
     const isAdmin = currentUser.role === 'admin';
     const salarySection = document.getElementById('modalSalarySection');
     if (isAdmin) {
@@ -485,20 +606,17 @@ function closeEditModal() {
     document.getElementById('editModalOverlay').style.display = 'none';
 }
 
-// staff.js - saveStaffEdit 함수 내부 수정
 async function saveStaffEdit() {
     const id = parseInt(document.getElementById('editId').value);
     const time = document.getElementById('editTime').value;
     
-    // [NEW] 입사/퇴사일 읽기
     const startDate = document.getElementById('editStartDate').value || null;
     const endDate = document.getElementById('editEndDate').value || null;
 
     const salaryType = document.getElementById('editSalaryType').value;
     const salary = parseInt(document.getElementById('editSalary').value) || 0;
 
-    // 업데이트 객체 구성
-    const updates = { time, startDate, endDate }; // 날짜 필드 추가됨
+    const updates = { time, startDate, endDate };
     
     if (currentUser && currentUser.role === 'admin') {
         updates.salaryType = salaryType;
@@ -530,7 +648,6 @@ async function deleteStaff(id) {
     if(currentUser.role === 'admin') loadLogs();
 }
 
-// 일괄 등록
 async function processBulkText() {
     const text = document.getElementById('bulkText').value;
     if (!text.trim()) return;
@@ -617,7 +734,9 @@ function renderDailyView() {
     const day = String(currentDate.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
-    document.getElementById('currentDateDisplay').textContent = `${month}월 ${day}일 (${DAY_MAP[todayKey]})`;
+    const dateDisplay = document.getElementById('currentDateDisplay');
+    if(dateDisplay) dateDisplay.textContent = `${month}월 ${day}일 (${DAY_MAP[todayKey]})`;
+    
     const container = document.getElementById('dailyStaffList');
     if(!container) return;
     container.innerHTML = '';
@@ -638,7 +757,6 @@ function renderDailyView() {
         } else {
             if (staff.workDays.includes(todayKey)) {
                 isWorking = true;
-                // 예외적으로 쉬는 날인지 체크
                 if(staff.exceptions && staff.exceptions[dateStr] && staff.exceptions[dateStr].type === 'off') {
                     isWorking = false;
                 }
@@ -647,7 +765,9 @@ function renderDailyView() {
         if (isWorking) dailyWorkers.push({ ...staff, displayTime: workTime, isException });
     });
 
-    document.getElementById('dailyCountBadge').textContent = `총 ${dailyWorkers.length}명 근무`;
+    const badge = document.getElementById('dailyCountBadge');
+    if(badge) badge.textContent = `총 ${dailyWorkers.length}명 근무`;
+    
     dailyWorkers.sort((a,b) => getStartTimeValue(a.displayTime) - getStartTimeValue(b.displayTime));
 
     if (dailyWorkers.length === 0) {
@@ -694,8 +814,8 @@ function renderWeeklyView() {
     const endWeek = new Date(currentWeekStartDate);
     endWeek.setDate(endWeek.getDate() + 6);
     
-    document.getElementById('weeklyRangeDisplay').textContent = 
-        `${startWeek.getMonth()+1}월 ${startWeek.getDate()}일 ~ ${endWeek.getMonth()+1}월 ${endWeek.getDate()}일`;
+    const rangeDisplay = document.getElementById('weeklyRangeDisplay');
+    if(rangeDisplay) rangeDisplay.textContent = `${startWeek.getMonth()+1}월 ${startWeek.getDate()}일 ~ ${endWeek.getMonth()+1}월 ${endWeek.getDate()}일`;
 
     const realToday = new Date(); 
     DAY_KEYS.forEach(k => {
@@ -776,7 +896,8 @@ function resetToThisWeek() {
 function renderMonthlyView() {
     const year = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
-    document.getElementById('monthDisplay').textContent = `${year}년 ${month + 1}월`;
+    const monthDisplay = document.getElementById('monthDisplay');
+    if(monthDisplay) monthDisplay.textContent = `${year}년 ${month + 1}월`;
 
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
@@ -842,50 +963,43 @@ function goToDailyDetail(year, month, day) {
 // 7. 기타 기능 (급여/로그/예외처리)
 // ==========================================
 
-// staff.js - calculateMonthlySalary 함수 (전체 교체)
 function calculateMonthlySalary() {
     const now = new Date();
     const year = now.getFullYear();
-    const month = now.getMonth(); // 0-based index (0 = 1월)
+    const month = now.getMonth(); 
     
     const lastDayObj = new Date(year, month + 1, 0);
-    const totalDaysInMonth = lastDayObj.getDate(); // 이번 달 총 일수 (예: 28, 30, 31)
+    const totalDaysInMonth = lastDayObj.getDate(); 
     const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     
     let salaryReport = [];
 
     staffList.forEach(s => {
-        // 직원별 입/퇴사일 파싱
         const sDate = s.startDate ? new Date(s.startDate) : null;
         const eDate = s.endDate ? new Date(s.endDate) : null;
         
-        // 날짜 비교 헬퍼 함수: 해당 날짜(target)가 근무 기간(재직 기간) 내에 있는지 확인
         const isEmployedAt = (targetDate) => {
-            // 시간 소거 (날짜만 비교)
             const t = new Date(targetDate); t.setHours(0,0,0,0);
             if (sDate) {
                 const start = new Date(sDate); start.setHours(0,0,0,0);
-                if (t < start) return false; // 입사 전
+                if (t < start) return false; 
             }
             if (eDate) {
                 const end = new Date(eDate); end.setHours(0,0,0,0);
-                if (t > end) return false; // 퇴사 후
+                if (t > end) return false; 
             }
             return true;
         };
 
-        // 1. 월급직 (Monthly) 계산
         if (s.salaryType === 'monthly') {
             let employedDays = 0;
             let statusText = '만근';
 
-            // 이번 달 1일부터 말일까지 재직 상태인 날짜 카운트
             for (let d = 1; d <= totalDaysInMonth; d++) {
                 const currentDay = new Date(year, month, d);
                 if (isEmployedAt(currentDay)) employedDays++;
             }
 
-            // 일할 계산 (만근이 아닐 경우)
             let finalPay = s.salary || 0;
             if (employedDays < totalDaysInMonth) {
                 finalPay = Math.floor((s.salary / totalDaysInMonth) * employedDays);
@@ -895,14 +1009,13 @@ function calculateMonthlySalary() {
             salaryReport.push({ 
                 name: s.name, 
                 type: '월급', 
-                workCount: statusText, // UI에 표시될 텍스트
+                workCount: statusText, 
                 totalHours: '-', 
                 amount: finalPay 
             });
             return;
         }
 
-        // 2. 시급직 (Hourly) 계산
         let totalHours = 0;
         let workCount = 0;
         
@@ -911,19 +1024,16 @@ function calculateMonthlySalary() {
             const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             const dayKey = dayMap[currentDate.getDay()];
             
-            // [중요] 입사 전이거나 퇴사 후라면 계산 스킵
             if (!isEmployedAt(currentDate)) continue;
 
             let isWorking = false;
             let timeStr = s.time;
 
-            // 예외 근무 확인
             if (s.exceptions && s.exceptions[dateStr]) {
                 const ex = s.exceptions[dateStr];
                 if (ex.type === 'work') { isWorking = true; timeStr = ex.time; }
                 else if (ex.type === 'off') { isWorking = false; }
             } else {
-                // 정규 근무요일 확인
                 if (s.workDays.includes(dayKey)) isWorking = true;
             }
 
@@ -942,7 +1052,6 @@ function calculateMonthlySalary() {
         });
     });
 
-    // --- UI 렌더링 (기존 로직과 동일하지만 살짝 다듬음) ---
     const tbody = document.getElementById('salaryTableBody');
     tbody.innerHTML = '';
     let totalAll = 0;
@@ -965,19 +1074,16 @@ function calculateMonthlySalary() {
     document.getElementById('salaryModal').style.display = 'flex';
 }
 
-
 function closeSalaryModal() {
     document.getElementById('salaryModal').style.display = 'none';
 }
 
-// 순수 인건비 계산 (가계부용)
-// staff.js - getEstimatedStaffCost 함수 (전체 교체)
 function getEstimatedStaffCost(monthStr) {
-    // monthStr format: "2024-12"
-    const [y, m] = monthStr.split('-').map(Number);
-    // JS Month is 0-indexed for Date constructor but logic below handles it
-    // new Date(y, m, 0) gives last day of month 'm'
-    const lastDayObj = new Date(y, m, 0); 
+    const [y, m] = monthStr.split('-');
+    const year = parseInt(y);
+    const month = parseInt(m);
+
+    const lastDayObj = new Date(year, month, 0); 
     const totalDaysInMonth = lastDayObj.getDate();
     const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     
@@ -1001,11 +1107,9 @@ function getEstimatedStaffCost(monthStr) {
         };
 
         if (s.salaryType === 'monthly') {
-            // 월급: 일할 계산
             let employedDays = 0;
             for (let d = 1; d <= totalDaysInMonth; d++) {
-                // 주의: new Date(y, m-1, d) -> m은 1~12이므로 m-1 처리
-                if (isEmployedAt(new Date(y, m-1, d))) employedDays++;
+                if (isEmployedAt(new Date(year, month-1, d))) employedDays++;
             }
             
             if (employedDays === totalDaysInMonth) {
@@ -1015,14 +1119,13 @@ function getEstimatedStaffCost(monthStr) {
             }
 
         } else {
-            // 시급: 날짜 필터링 후 시간 합산
             let hours = 0;
             for (let d = 1; d <= totalDaysInMonth; d++) {
-                const dateObj = new Date(y, m-1, d);
-                const dateKey = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const dateObj = new Date(year, month-1, d);
+                const dateKey = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                 const dayName = dayMap[dateObj.getDay()];
                 
-                if (!isEmployedAt(dateObj)) continue; // 기간 외 스킵
+                if (!isEmployedAt(dateObj)) continue; 
 
                 let isWorking = false;
                 let timeStr = s.time;
@@ -1043,7 +1146,6 @@ function getEstimatedStaffCost(monthStr) {
     return totalPay;
 }
 
-// 예외 처리 및 대타
 async function setDailyException(id, dateStr, action) {
     if (!currentUser) { openLoginModal(); return; }
     if (action === 'off') {
@@ -1088,21 +1190,23 @@ async function callExceptionApi(payload) {
 }
 
 async function loadLogs() {
-    const res = await fetch(`/api/logs?store=${currentStore}`);
-    const json = await res.json();
-    const tbody = document.getElementById('logTableBody');
-    if(tbody) {
-        tbody.innerHTML = '';
-        json.data.forEach(log => {
-            const date = new Date(log.timestamp).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
-            tbody.innerHTML += `
-                <tr>
-                    <td>${date}</td>
-                    <td>${log.actor}</td>
-                    <td class="log-action-${log.action}">${log.action}</td>
-                    <td>${log.target}</td>
-                    <td>${log.details}</td>
-                </tr>`;
-        });
-    }
+    try {
+        const res = await fetch(`/api/logs?store=${currentStore}`);
+        const json = await res.json();
+        const tbody = document.getElementById('logTableBody');
+        if(tbody) {
+            tbody.innerHTML = '';
+            json.data.forEach(log => {
+                const date = new Date(log.timestamp).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${date}</td>
+                        <td>${log.actor}</td>
+                        <td class="log-action-${log.action}">${log.action}</td>
+                        <td>${log.target}</td>
+                        <td>${log.details}</td>
+                    </tr>`;
+            });
+        }
+    } catch(e) { console.error(e); }
 }
