@@ -340,6 +340,63 @@ app.get('/api/logs', (req, res) => {
     res.json({ success: true, data: readJson(getLogFile(store)) });
 });
 
+// ... (기존 server.js 코드 아래에 추가) ...
+
+// [헬퍼 함수] 회계 파일 경로
+function getAccountingFile(store) {
+    const storeName = store === 'yangeun' ? 'accounting_yangeun.json' : 'accounting_chogazip.json';
+    const filePath = path.join(actualDataPath, storeName);
+    
+    // 파일 없으면 기본 구조 생성 (monthly: 고정비, daily: 일일데이터)
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, JSON.stringify({ monthly: {}, daily: {} }, null, 2));
+    }
+    return filePath;
+}
+
+// 1. 회계 데이터 조회
+app.get('/api/accounting', (req, res) => {
+    const { store } = req.query;
+    const targetStore = store || 'chogazip';
+    res.json({ success: true, data: readJson(getAccountingFile(targetStore)) });
+});
+
+// 2. 일일 데이터 저장 (매출/변동비)
+app.post('/api/accounting/daily', (req, res) => {
+    const { date, data, store } = req.body; // data = { sales, food, meat... }
+    const targetStore = store || 'chogazip';
+    const file = getAccountingFile(targetStore);
+    
+    let accData = readJson(file);
+    if (!accData.daily) accData.daily = {};
+    
+    accData.daily[date] = data; // 날짜별 덮어쓰기
+    
+    if (writeJson(file, accData)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// 3. 월 고정비 저장
+app.post('/api/accounting/fixed', (req, res) => {
+    const { month, data, store } = req.body; // month = "2024-12", data = { rent, gas... }
+    const targetStore = store || 'chogazip';
+    const file = getAccountingFile(targetStore);
+    
+    let accData = readJson(file);
+    if (!accData.monthly) accData.monthly = {};
+    
+    accData.monthly[month] = data;
+    
+    if (writeJson(file, accData)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
 // 404 및 실행
 app.use('*', (req, res) => res.status(404).json({ success: false, error: 'Not Found' }));
 
