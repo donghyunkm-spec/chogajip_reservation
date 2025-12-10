@@ -207,17 +207,23 @@
             <button onclick="changeAccMonth(1)" class="nav-btn">익월 ▶</button>
         </div>
 
-        <div class="tabs" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 15px;">
-            <button class="tab active" onclick="switchAccSubTab('acc-daily', this)">📅 일일 입력/내역</button>
-            <button class="tab" onclick="switchAccSubTab('acc-dashboard', this)">📊 월간 분석(대시보드)</button>
-            <button class="tab" onclick="switchAccSubTab('acc-monthly', this)">🏢 고정비 설정</button>
+        <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 15px;">
+            <button class="tab active" onclick="switchAccSubTab('acc-daily', this)">✏️ 일일 입력</button>
+            <button class="tab" onclick="switchAccSubTab('acc-history', this)">📜 입력 내역</button>
+            <button class="tab" onclick="switchAccSubTab('acc-dashboard', this)">📊 월간 분석</button>
+            <button class="tab" onclick="switchAccSubTab('acc-monthly', this)">🏢 고정비</button>
         </div>
 
         <div id="acc-daily" class="acc-sub-content active">
             <div class="accounting-card">
+                <div style="background:#e3f2fd; padding:10px; border-radius:5px; margin-bottom:15px; font-size:13px; color:#0d47a1;">
+                    💡 <strong>안내:</strong> 날짜를 선택하고 금액을 입력한 뒤 [저장하기]를 누르세요.<br>
+                    수정이 필요한 경우 <strong>[입력 내역]</strong> 탭에서 수정 버튼을 눌러주세요.
+                </div>
+
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
                     <input type="date" id="accDate" class="date-picker" onchange="loadDailyAccounting()" style="padding:10px; font-size:15px; width:60%;">
-                    <button onclick="saveDailyAccounting()" style="width:35%; background:#4CAF50; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; font-size:14px;">💾 저장하기</button>
+                    <button onclick="saveDailyAccounting()" style="width:35%; background:#29b6f6; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">💾 저장하기</button>
                 </div>
 
                 <h4 style="color:#607d8b; margin-bottom:10px;">💵 돈통(시재) 정산</h4>
@@ -226,7 +232,6 @@
                     <div style="margin-bottom: 10px;">
                         <span class="category-label" style="font-weight:bold; color:#00796b;">① 영업 시작 전 돈통 금액 (시재금+돈통금액)</span>
                         <input type="number" id="inpStartCash" class="money-input" value="100000" oninput="calcDrawerTotal()" style="width:100%; padding:10px; font-size:16px; border:2px solid #00796b;">
-                        <p style="font-size:11px; color:#666; margin-top:3px;">* 아침에 돈통 세어보고 입력하세요.</p>
                     </div>
 
                     <div class="input-group-row" style="align-items: center; border-top:1px dashed #ccc; padding-top:10px; margin-top:10px;">
@@ -288,6 +293,27 @@
             </div>
         </div>
 
+        <div id="acc-history" class="acc-sub-content">
+            <div class="accounting-card">
+                <h3 class="chart-title">📜 이번 달 입력 내역</h3>
+                <div style="overflow-x: auto;">
+                    <table class="log-table" style="margin-top:0;">
+                        <thead>
+                            <tr>
+                                <th style="width:50px;">날짜</th>
+                                <th>총매출</th>
+                                <th>총지출</th>
+                                <th>상세내역</th>
+                                <th style="width:50px;">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <div id="acc-dashboard" class="acc-sub-content">
             <div class="dashboard-summary">
                 <div class="summary-card total-sales">
@@ -304,8 +330,8 @@
                     <div class="sub-val" id="dashMargin">0%</div>
                 </div>
                 <div class="summary-card break-even" style="background:#fff3e0; grid-column: span 3;">
-                     <div class="lbl" style="color:#ef6c00;">💡 손익분기점 분석</div>
-                     <div class="val" id="dashBreakEven" style="font-size:13px; color:#333; font-weight:normal;">계산 중...</div>
+                        <div class="lbl" style="color:#ef6c00;">💡 손익분기점 분석</div>
+                        <div class="val" id="dashBreakEven" style="font-size:13px; color:#333; font-weight:normal;">계산 중...</div>
                 </div>
             </div>
 

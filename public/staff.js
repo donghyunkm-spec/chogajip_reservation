@@ -197,35 +197,34 @@ async function loadAccountingData() {
 }
 
 // 통합 UI 업데이트 (탭 전환/월 이동 시 호출됨)
+// 1. UI 업데이트 함수 (탭 전환 시 호출됨) - acc-history 케이스 추가
 function updateDashboardUI() {
-    const monthStr = getMonthStr(currentDashboardDate); // "2024-12"
+    const monthStr = getMonthStr(currentDashboardDate);
     const [y, m] = monthStr.split('-');
     
-    // 헤더 타이틀 갱신
+    // 헤더 텍스트 업데이트
     const titleEl = document.getElementById('dashboardTitle');
     if(titleEl) titleEl.textContent = `${y}년 ${m}월`;
-    
     const fixTitle = document.getElementById('fixCostTitle');
     if(fixTitle) fixTitle.textContent = `${m}월`;
-    
     const fixBtn = document.getElementById('fixBtnMonth');
     if(fixBtn) fixBtn.textContent = `${m}월`;
-    
-    const listTitle = document.getElementById('dailyListTitle');
-    if(listTitle) listTitle.textContent = `${m}월`;
 
-    // 현재 활성화된 탭 확인 (active 클래스가 있는 녀석 찾기)
+    // 활성화된 서브탭 확인
     const activeSubTab = document.querySelector('.acc-sub-content.active');
     
-    // 만약 활성화된 탭이 없다면 기본값으로 daily를 켬
     if (!activeSubTab) {
         switchAccSubTab('acc-daily');
         return; 
     }
 
     if (activeSubTab.id === 'acc-daily') {
-        loadHistoryTable(); 
+        // 일일 입력 탭: 특별히 로드할 것 없음 (날짜 선택 시 로드됨)
     } 
+    else if (activeSubTab.id === 'acc-history') {
+        // [NEW] 내역 탭: 테이블 데이터 로드
+        loadHistoryTable();
+    }
     else if (activeSubTab.id === 'acc-dashboard') {
         renderDashboardStats();
     } 
@@ -293,10 +292,23 @@ function calcDrawerTotal() {
 
 // [JS 수정 3] 데이터 저장: 시재금과 입금액도 함께 저장
 async function saveDailyAccounting() {
+    // (1) 로그인 체크
+    if (!currentUser) { 
+        alert("로그인이 필요합니다."); 
+        openLoginModal(); 
+        return; 
+    }
+
+    // (2) 권한 체크 (점장 이상 가능)
+    if (!['admin', 'manager'].includes(currentUser.role)) {
+        alert("점장 또는 사장님만 매출을 입력/수정할 수 있습니다.");
+        return;
+    }
+
     const dateStr = document.getElementById('accDate').value;
     if (!dateStr) { alert('날짜를 선택해주세요.'); return; }
 
-    // 숫자 파싱
+    // (3) 데이터 파싱
     const startCash = parseInt(document.getElementById('inpStartCash').value) || 0;
     const cash = parseInt(document.getElementById('inpCash').value) || 0;
     const bankDeposit = parseInt(document.getElementById('inpDeposit').value) || 0;
@@ -309,32 +321,49 @@ async function saveDailyAccounting() {
     const meat = parseInt(document.getElementById('inpMeat').value) || 0;
     const etc = parseInt(document.getElementById('inpEtc').value) || 0;
 
+    const note = document.getElementById('inpNote').value || '';
+
+    // (4) 확인 메시지
+    if(!confirm(`${dateStr} 매출/지출 데이터를 저장하시겠습니까?`)) return;
+
     const data = {
-        startCash,      // [NEW] 시재금
-        cash, 
-        bankDeposit,    // [NEW] 입금액
+        startCash, cash, bankDeposit,
         card, transfer, gift,
-        sales: card + cash + transfer + gift, // 총 매출에는 시재금 포함 X
+        sales: card + cash + transfer + gift,
         food, meat, etc,
         cost: food + meat + etc,
-        note: document.getElementById('inpNote').value || ''
+        note: note
     };
 
     try {
+        // (5) API 전송 (actor 정보 포함)
         await fetch('/api/accounting/daily', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ date: dateStr, data, store: currentStore })
+            body: JSON.stringify({ 
+                date: dateStr, 
+                data: data, 
+                store: currentStore,
+                actor: currentUser.name // [로그용] 누가 수정했는지 전송
+            })
         });
         
+        // 로컬 데이터 갱신
         if(!accountingData.daily) accountingData.daily = {};
         accountingData.daily[dateStr] = data;
         
-        alert('저장되었습니다.\n돈통 잔액: ' + (startCash + cash - bankDeposit).toLocaleString() + '원');
-        loadHistoryTable(); 
-    } catch(e) { alert('저장 실패'); }
+        alert('저장되었습니다.');
+        
+        // 저장 후 '입력 내역' 탭으로 자동 이동하여 확인시켜줌
+        switchAccSubTab('acc-history');
+        
+    } catch(e) { 
+        console.error(e);
+        alert('저장 실패: 서버 오류'); 
+    }
 }
 
+// 3. 내역 테이블 로드 (수정 버튼 및 UI 개선)
 function loadHistoryTable() {
     const monthStr = getMonthStr(currentDashboardDate);
     const tbody = document.getElementById('historyTableBody');
@@ -342,10 +371,11 @@ function loadHistoryTable() {
     tbody.innerHTML = '';
 
     if (!accountingData.daily) {
-        tbody.innerHTML = '<tr><td colspan="5">데이터 로드 중...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">데이터 로드 중...</td></tr>';
         return;
     }
 
+    // 날짜 내림차순 정렬 (최신순)
     const sortedDates = Object.keys(accountingData.daily)
         .filter(d => d.startsWith(monthStr))
         .sort().reverse();
@@ -360,33 +390,48 @@ function loadHistoryTable() {
         const totalSales = (d.card||0)+(d.cash||0)+(d.transfer||0)+(d.gift||0);
         const totalCost = (d.food||0)+(d.meat||0)+(d.etc||0);
         
+        // 상세 내역 텍스트 생성
         let details = [];
-        if(d.card) details.push(`💳${d.card.toLocaleString()}`);
-        if(d.cash) details.push(`💵${d.cash.toLocaleString()}`);
-        if(d.transfer) details.push(`🏦${d.transfer.toLocaleString()}`);
-        if(d.meat) details.push(`🥩${d.meat.toLocaleString()}`);
-        if(d.food) details.push(`🥬${d.food.toLocaleString()}`);
-        if(d.etc) details.push(`🍦${d.etc.toLocaleString()}`);
-        if(d.note) details.push(`📝${d.note}`);
+        if(d.card) details.push(`💳카드:${d.card.toLocaleString()}`);
+        if(d.cash) details.push(`💵현금:${d.cash.toLocaleString()}`);
+        if(d.note) details.push(`📝"${d.note}"`);
+
+        // 수정 버튼 (권한 있는 경우만 작동)
+        const btnStyle = "background:#607d8b; color:white; border:none; border-radius:3px; padding:5px 10px; cursor:pointer; font-size:12px;";
 
         tbody.innerHTML += `
-            <tr>
-                <td>${date.substring(8)}일</td>
-                <td style="color:#1976D2; font-weight:bold;">${totalSales.toLocaleString()}</td>
-                <td style="color:#d32f2f;">${totalCost.toLocaleString()}</td>
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="text-align:center;"><strong>${date.substring(8)}일</strong></td>
+                <td style="color:#1976D2; font-weight:bold; text-align:right;">${totalSales.toLocaleString()}</td>
+                <td style="color:#d32f2f; text-align:right;">${totalCost.toLocaleString()}</td>
                 <td style="font-size:11px; color:#555; word-break:keep-all;">${details.join(' / ')}</td>
-                <td>
-                    <button onclick="editHistoryDate('${date}')" style="font-size:11px; background:#607d8b; color:white; border:none; border-radius:3px; padding:3px 6px; cursor:pointer;">수정</button>
+                <td style="text-align:center;">
+                    <button onclick="editHistoryDate('${date}')" style="${btnStyle}">✏️ 수정</button>
                 </td>
             </tr>
         `;
     });
 }
 
+// 4. 수정 버튼 클릭 시 동작
 function editHistoryDate(date) {
+    // 1. 권한 체크
+    if (!currentUser || !['admin', 'manager'].includes(currentUser.role)) {
+        alert("수정 권한이 없습니다 (점장/관리자 전용)");
+        return;
+    }
+
+    // 2. 날짜 세팅
     document.getElementById('accDate').value = date;
+    
+    // 3. 데이터 로드 (input 폼에 채우기)
     loadDailyAccounting();
-    window.scrollTo(0,0);
+    
+    // 4. 입력 탭으로 이동
+    switchAccSubTab('acc-daily');
+    
+    // 5. 알림
+    alert(`${date} 데이터를 불러왔습니다.\n수정 후 [저장하기]를 눌러주세요.`);
 }
 
 // [서브탭 2] 대시보드 통계 (그래프 및 손익분기)
