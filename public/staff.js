@@ -363,51 +363,114 @@ async function saveDailyAccounting() {
     }
 }
 
-// 3. 내역 테이블 로드 (수정 버튼 및 UI 개선)
+// [staff.js] loadHistoryTable 함수 전체 교체
+
 function loadHistoryTable() {
-    const monthStr = getMonthStr(currentDashboardDate);
+    const monthStr = getMonthStr(currentDashboardDate); // e.g. "2024-12"
     const tbody = document.getElementById('historyTableBody');
     if(!tbody) return;
     tbody.innerHTML = '';
 
-    if (!accountingData.daily) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">데이터 로드 중...</td></tr>';
-        return;
+    const rows = []; // 데이터를 모아서 날짜순 정렬하기 위한 배열
+
+    // 1. 일일 데이터 (Daily Data) 처리
+    if (accountingData.daily) {
+        Object.keys(accountingData.daily).forEach(date => {
+            if (!date.startsWith(monthStr)) return;
+            
+            const d = accountingData.daily[date];
+            const totalSales = (d.card||0)+(d.cash||0)+(d.transfer||0)+(d.gift||0);
+            const totalCost = (d.food||0)+(d.meat||0)+(d.etc||0);
+            
+            // [상세 내역 생성]
+            let details = [];
+            
+            // (1) 매출 상세
+            if(d.card) details.push(`💳카드:${d.card.toLocaleString()}`);
+            if(d.cash) details.push(`💵현금:${d.cash.toLocaleString()}`);
+            if(d.transfer) details.push(`🏦이체:${d.transfer.toLocaleString()}`);
+            if(d.gift) details.push(`🎫기타:${d.gift.toLocaleString()}`);
+            
+            // (2) [NEW] 지출 상세 추가 (요청사항 반영)
+            if(d.meat) details.push(`🥩고기:${d.meat.toLocaleString()}`);
+            if(d.food) details.push(`🥬야채:${d.food.toLocaleString()}`);
+            if(d.etc) details.push(`🍦잡비:${d.etc.toLocaleString()}`);
+            
+            // (3) 메모
+            if(d.note) details.push(`📝"${d.note}"`);
+
+            rows.push({
+                date: date,
+                dayStr: `${date.substring(8)}일`,
+                sales: totalSales,
+                cost: totalCost,
+                desc: details.join(' / '),
+                type: 'daily' // 일반 입력 데이터
+            });
+        });
     }
 
-    // 날짜 내림차순 정렬 (최신순)
-    const sortedDates = Object.keys(accountingData.daily)
-        .filter(d => d.startsWith(monthStr))
-        .sort().reverse();
-
-    if (sortedDates.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#999;">입력된 데이터가 없습니다.</td></tr>';
-        return;
-    }
-
-    sortedDates.forEach(date => {
-        const d = accountingData.daily[date];
-        const totalSales = (d.card||0)+(d.cash||0)+(d.transfer||0)+(d.gift||0);
-        const totalCost = (d.food||0)+(d.meat||0)+(d.etc||0);
+    // 2. [NEW] 고정비 데이터 (Fixed Cost) 처리 -> 해당 월 말일자로 표시
+    if (accountingData.monthly && accountingData.monthly[monthStr]) {
+        const m = accountingData.monthly[monthStr];
+        // 고정비 총합 계산
+        const fixedTotal = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + (m.beverage||0) + (m.etc_fixed||0);
         
-        // 상세 내역 텍스트 생성
-        let details = [];
-        if(d.card) details.push(`💳카드:${d.card.toLocaleString()}`);
-        if(d.cash) details.push(`💵현금:${d.cash.toLocaleString()}`);
-        if(d.note) details.push(`📝"${d.note}"`);
+        if (fixedTotal > 0) {
+            let fDetails = [];
+            if(m.rent) fDetails.push(`🏠월세:${m.rent.toLocaleString()}`);
+            if(m.utility) fDetails.push(`💡관리비:${m.utility.toLocaleString()}`);
+            if(m.gas) fDetails.push(`🔥가스:${m.gas.toLocaleString()}`);
+            if(m.liquor) fDetails.push(`🍺주류:${m.liquor.toLocaleString()}`);
+            if(m.beverage) fDetails.push(`🥤음료:${m.beverage.toLocaleString()}`);
+            if(m.etc_fixed) fDetails.push(`🔧기타:${m.etc_fixed.toLocaleString()}`);
 
-        // 수정 버튼 (권한 있는 경우만 작동)
-        const btnStyle = "background:#607d8b; color:white; border:none; border-radius:3px; padding:5px 10px; cursor:pointer; font-size:12px;";
+            // 해당 월의 마지막 날짜 구하기 (예: 12월 -> 31일)
+            const [year, month] = monthStr.split('-').map(Number);
+            const lastDay = new Date(year, month, 0).getDate(); 
+            const fullDate = `${monthStr}-${String(lastDay).padStart(2,'0')}`;
+
+            rows.push({
+                date: fullDate, // 정렬용 날짜 (말일)
+                dayStr: `${lastDay}일 (고정비)`,
+                sales: 0,
+                cost: fixedTotal,
+                desc: `<span style="color:#00796b; font-weight:bold;">[월 고정지출]</span> ` + fDetails.join(' / '),
+                type: 'fixed' // 고정비 데이터
+            });
+        }
+    }
+
+    // 3. 날짜 내림차순 정렬 및 렌더링
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#999;">데이터가 없습니다.</td></tr>';
+        return;
+    }
+
+    rows.sort((a,b) => b.date.localeCompare(a.date));
+
+    rows.forEach(r => {
+        let actionBtn = '';
+        
+        // 버튼 처리: 일반 데이터는 '수정', 고정비는 '설정' 탭으로 이동
+        if (r.type === 'daily') {
+            const btnStyle = "background:#607d8b; color:white; border:none; border-radius:3px; padding:5px 10px; cursor:pointer; font-size:12px;";
+            actionBtn = `<button onclick="editHistoryDate('${r.date}')" style="${btnStyle}">✏️ 수정</button>`;
+        } else {
+             const btnStyle = "background:#00796b; color:white; border:none; border-radius:3px; padding:5px 10px; cursor:pointer; font-size:12px;";
+             actionBtn = `<button onclick="switchAccSubTab('acc-monthly')" style="${btnStyle}">⚙️ 설정</button>`;
+        }
+
+        // 고정비 행은 배경색을 살짝 다르게(연한 파랑) 표시하여 구분
+        const rowStyle = `border-bottom:1px solid #eee; ${r.type === 'fixed' ? 'background:#e0f7fa;' : ''}`;
 
         tbody.innerHTML += `
-            <tr style="border-bottom:1px solid #eee;">
-                <td style="text-align:center;"><strong>${date.substring(8)}일</strong></td>
-                <td style="color:#1976D2; font-weight:bold; text-align:right;">${totalSales.toLocaleString()}</td>
-                <td style="color:#d32f2f; text-align:right;">${totalCost.toLocaleString()}</td>
-                <td style="font-size:11px; color:#555; word-break:keep-all;">${details.join(' / ')}</td>
-                <td style="text-align:center;">
-                    <button onclick="editHistoryDate('${date}')" style="${btnStyle}">✏️ 수정</button>
-                </td>
+            <tr style="${rowStyle}">
+                <td style="text-align:center;"><strong>${r.dayStr}</strong></td>
+                <td style="color:#1976D2; font-weight:bold; text-align:right;">${r.sales.toLocaleString()}</td>
+                <td style="color:#d32f2f; text-align:right;">${r.cost.toLocaleString()}</td>
+                <td style="font-size:11px; color:#555; word-break:keep-all; line-height:1.4;">${r.desc}</td>
+                <td style="text-align:center;">${actionBtn}</td>
             </tr>
         `;
     });
