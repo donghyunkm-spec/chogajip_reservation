@@ -27,8 +27,8 @@
             padding: 10px 0; text-align: center; font-weight: bold;
             border-right: 1px solid rgba(255,255,255,0.2);
         }
-        .weekly-header.sunday { background: #e53935; } /* 일요일 빨간색 */
-        .weekly-header.saturday { background: #1e88e5; } /* 토요일 파란색 */
+        .weekly-header.sunday { background: #e53935; }
+        .weekly-header.saturday { background: #1e88e5; }
 
         .weekly-col {
             border-right: 1px solid #eee;
@@ -47,7 +47,7 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             font-size: 12px;
         }
-        .staff-card-weekly.exception { background: #fff3cd; border-color: #ffc107; } /* 변동사항 노란색 */
+        .staff-card-weekly.exception { background: #fff3cd; border-color: #ffc107; }
         
         .staff-card-weekly strong { display: block; font-size: 13px; margin-bottom: 2px; }
         .staff-card-weekly span { color: #666; font-size: 11px; }
@@ -93,52 +93,98 @@
         .log-action-삭제 { color: #dc3545; font-weight: bold; }
         .bulk-guide { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; line-height: 1.6; }
 
-        /* [수정안] 모바일에서도 표 유지 + 가로 스크롤 적용 */
+        /* [NEW] 모달 스타일 */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: none;
+            justify-content: center; align-items: center; z-index: 2000;
+        }
+        .modal-box {
+            background: white; padding: 25px; border-radius: 10px;
+            width: 90%; max-width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .modal-box h2 { margin-bottom: 15px; text-align: center; }
+        .modal-field { margin-bottom: 15px; }
+        .modal-field label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+
         @media (max-width: 768px) {
-            /* 컨테이너에 가로 스크롤 허용 */
-            .status-container {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch; /* 부드러운 스크롤 */
-            }
-
-            .weekly-container {
-                /* 세로 정렬(Flex) 대신 그리드 유지 */
-                display: grid;
-                /* 화면이 작아도 최소 700px 너비를 확보 (스크롤 발생) */
-                min-width: 700px; 
-            }
-
-            /* 요일 헤더 다시 보이게 설정 */
-            .weekly-header { 
-                display: block; 
-                font-size: 12px; /* 글자 크기 약간 축소 */
-            }
-
-            /* 기존 모바일용 스타일(::before 등) 제거 또는 초기화 */
-            .weekly-col { 
-                min-height: 150px; /* 최소 높이 설정 */
-                border-bottom: none; 
-                padding: 5px;
-            }
-            
-            /* "월요일", "화요일" 글자 중복 표시 제거 */
-            .weekly-col::before { 
-                content: none; 
-            }
+            .status-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .weekly-container { display: grid; min-width: 700px; }
+            .weekly-header { display: block; font-size: 12px; }
+            .weekly-col { min-height: 150px; border-bottom: none; padding: 5px; }
+            .weekly-col::before { content: none; }
         }
     </style>
 </head>
 <body>
-    <div id="loginOverlay" class="login-overlay" style="display: none;">
-        <div class="login-box">
+    <div id="loginOverlay" class="modal-overlay">
+        <div class="modal-box">
             <h2>🔒 관리자/점장 로그인</h2>
-            <p>직원 정보를 수정하려면 비밀번호가 필요합니다.</p>
-            <input type="password" id="loginPassword" placeholder="비밀번호" onkeypress="if(event.key==='Enter') tryLogin()">
-            <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <p style="margin-bottom:15px; color:#666;">직원 정보를 수정하려면 비밀번호가 필요합니다.</p>
+            <input type="password" id="loginPassword" placeholder="비밀번호" onkeypress="if(event.key==='Enter') tryLogin()" style="width:100%; padding:10px;">
+            <div class="modal-actions">
                 <button class="btn" onclick="tryLogin()" style="flex:1;">로그인</button>
                 <button class="btn" onclick="closeLoginModal()" style="flex:1; background:#666;">닫기</button>
             </div>
-            <div id="loginError" style="color:red; display:none; margin-top:10px;"></div>
+            <div id="loginError" style="color:red; display:none; margin-top:10px; text-align:center;"></div>
+        </div>
+    </div>
+
+    <div id="editModalOverlay" class="modal-overlay">
+        <div class="modal-box">
+            <h2>✏️ 직원 정보 수정</h2>
+            <input type="hidden" id="editId">
+            <div class="modal-field">
+                <label>이름</label>
+                <input type="text" id="editName" disabled style="background:#eee;">
+            </div>
+            <div class="modal-field">
+                <label>근무 시간 (예: 18:00~23:00)</label>
+                <input type="text" id="editTime">
+            </div>
+            
+            <div id="modalSalarySection" style="display:none; background:#f0f8ff; padding:10px; border-radius:5px;">
+                <div class="modal-field">
+                    <label>💰 급여 형태 (사장님 전용)</label>
+                    <select id="editSalaryType">
+                        <option value="hourly">시급 (알바)</option>
+                        <option value="monthly">월급 (직원)</option>
+                    </select>
+                </div>
+                <div class="modal-field">
+                    <label>금액 (원)</label>
+                    <input type="number" id="editSalary" placeholder="예: 12000">
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn" onclick="saveStaffEdit()" style="flex:1;">저장</button>
+                <button class="btn" onclick="closeEditModal()" style="flex:1; background:#666;">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="salaryModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:500px;">
+            <h2>💰 이번 달 예상 급여</h2>
+            <div style="max-height:300px; overflow-y:auto; margin-bottom:15px;">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>이름</th>
+                            <th>구분</th>
+                            <th>일/시간</th>
+                            <th style="text-align:right;">예상 지급액</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salaryTableBody"></tbody>
+                </table>
+            </div>
+            <div id="totalSalaryAmount" style="text-align:right; font-size:18px; font-weight:bold; color:#d32f2f;"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeSalaryModal()" style="width:100%; background:#666;">닫기</button>
+            </div>
         </div>
     </div>
 
@@ -238,7 +284,15 @@
 
         <div id="manage-content" class="tab-content">
             <div class="form-container">
-                <h2>직원 등록/관리</h2>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2>직원 등록/관리</h2>
+                    
+                    <div id="salarySection" style="display:none;">
+                        <button onclick="calculateMonthlySalary()" style="background:#673ab7; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                            💰 이번달 급여 예측
+                        </button>
+                    </div>
+                </div>
                 
                 <div id="bulkSection" style="margin-bottom: 30px; display: none;">
                     <h3>📑 일괄 등록 (사장님 전용)</h3>
@@ -248,11 +302,11 @@
                         이준호, 월화수금토일, 15~03<br>
                         임현준, 토일, 18:00~23:00
                     </div>
-                    <textarea id="bulkText" class="bulk-input-area" placeholder="이름, 근무요일, 시간&#13;&#10;이름, 근무요일, 시간" style="height: 200px;"></textarea>
+                    <textarea id="bulkText" class="bulk-input-area" placeholder="이름, 근무요일, 시간&#13;&#10;이름, 근무요일, 시간" style="height: 200px; width:100%; padding:10px; margin-top:5px;"></textarea>
                     <button class="btn" onclick="processBulkText()">한 번에 등록하기</button>
                 </div>
 
-                <hr>
+                <hr style="margin:20px 0;">
                 <h3>📋 직원 목록 (수정/삭제)</h3>
                 <div id="manageStaffList" style="margin-top:15px;"></div>
             </div>

@@ -1,3 +1,5 @@
+// staff.js - 정렬 및 급여 계산 기능 추가 버전
+
 // 전역 변수
 let currentUser = null;
 let staffList = [];
@@ -5,7 +7,7 @@ let currentDate = new Date();
 let calendarDate = new Date();
 let currentWeekStartDate = new Date();
 
-// [NEW] 현재 매장 정보 파싱 (기본값: chogazip)
+// 현재 매장 정보 파싱
 const urlParams = new URLSearchParams(window.location.search);
 const currentStore = urlParams.get('store') || 'chogazip';
 const storeNameKr = currentStore === 'yangeun' ? '양은이네' : '초가짚';
@@ -15,16 +17,14 @@ const DAY_MAP = { 'Sun':'일', 'Mon':'월', 'Tue':'화', 'Wed':'수', 'Thu':'목
 const DAY_KEYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 document.addEventListener('DOMContentLoaded', () => {
-    // [NEW] 제목 및 스타일 변경
     document.title = `${storeNameKr} 직원 관리`;
     document.getElementById('pageTitle').textContent = `👥 ${storeNameKr} 근무 현황`;
     
-    // 양은이네일 경우 테마 색상 변경 (시각적 구분)
     if (currentStore === 'yangeun') {
-        document.querySelector('.weekly-header').style.background = '#ff9800'; // 주황색 계열
+        document.querySelector('.weekly-header').style.background = '#ff9800'; 
     }
 
-    // 주간 기준일 초기화
+    // 주간 기준일 초기화 (일요일 시작)
     const today = new Date();
     const day = today.getDay();
     currentWeekStartDate.setDate(today.getDate() - day);
@@ -32,8 +32,50 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStaffData();
 });
 
+// ==========================================
+// [헬퍼 함수] 시간 문자열을 분 단위 정수로 변환 (정렬용)
+// 예: "17:00" -> 1020, "17:00~23:00" -> 1020
+// ==========================================
+function getStartTimeValue(timeStr) {
+    if (!timeStr) return 99999;
+    // "17:00~23:00" 형식 등에서 앞부분만 추출
+    let start = timeStr.split('~')[0].trim();
+    // "17시" 같은 경우 처리
+    start = start.replace('시', '').replace(' ', '');
+    
+    if (!start.includes(':')) start += ':00';
+    
+    const [h, m] = start.split(':').map(Number);
+    return (h * 60) + (m || 0);
+}
+
+// ==========================================
+// [헬퍼 함수] 근무 시간 계산 (급여 계산용)
+// 예: "18:00~23:00" -> 5시간
+// 예: "22:00~02:00" -> 4시간 (자정 넘김 처리)
+// ==========================================
+function calculateDuration(timeStr) {
+    if (!timeStr || !timeStr.includes('~')) return 0;
+    
+    const parts = timeStr.split('~');
+    const startStr = parts[0].trim();
+    const endStr = parts[1].trim();
+    
+    const [sh, sm] = startStr.split(':').map(Number);
+    const [eh, em] = endStr.split(':').map(Number);
+    
+    const startMin = sh * 60 + (sm || 0);
+    let endMin = eh * 60 + (em || 0);
+    
+    // 종료 시간이 시작 시간보다 작으면(새벽) 24시간 더함
+    if (endMin < startMin) {
+        endMin += 24 * 60;
+    }
+    
+    return (endMin - startMin) / 60; // 시간 단위 반환
+}
+
 // 1. 로그인 관련
-// 1. 로그인 (기존 유지)
 function openLoginModal() {
     document.getElementById('loginOverlay').style.display = 'flex';
     document.getElementById('loginPassword').value = '';
@@ -69,12 +111,16 @@ async function tryLogin() {
             if (data.role === 'admin') {
                 document.getElementById('bulkSection').style.display = 'block';
                 document.getElementById('logTabBtn').style.display = 'inline-block';
+                // [NEW] 급여 계산 버튼 표시
+                document.getElementById('salarySection').style.display = 'block';
                 loadLogs();
             }
             renderDailyView();
             renderWeeklyView();
+            renderManageList(); // 관리 목록 갱신 (급여 정보 표시 여부 때문)
         } else {
             document.getElementById('loginError').style.display = 'block';
+            document.getElementById('loginError').textContent = '비밀번호가 일치하지 않습니다.';
         }
     } catch (e) { alert('서버 오류'); }
 }
@@ -93,7 +139,7 @@ function switchTab(tab) {
     if(tab === 'monthly') renderMonthlyView();
 }
 
-// 3. 데이터 로드 [UPDATED: store 파라미터 추가]
+// 3. 데이터 로드
 async function loadStaffData() {
     try {
         const res = await fetch(`/api/staff?store=${currentStore}`);
@@ -106,7 +152,7 @@ async function loadStaffData() {
     } catch(e) { console.error("데이터 로드 실패"); }
 }
 
-// [뷰 1] 일별 현황
+// [뷰 1] 일별 현황 (시간순 정렬 적용)
 function renderDailyView() {
     const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const todayKey = dayMap[currentDate.getDay()];
@@ -150,7 +196,8 @@ function renderDailyView() {
 
     document.getElementById('dailyCountBadge').textContent = `총 ${dailyWorkers.length}명 근무`;
 
-    dailyWorkers.sort((a,b) => parseInt(a.displayTime) - parseInt(b.displayTime));
+    // [UPDATED] 출근 시간 기준 정렬 (빠른 순)
+    dailyWorkers.sort((a,b) => getStartTimeValue(a.displayTime) - getStartTimeValue(b.displayTime));
 
     if (dailyWorkers.length === 0) {
         container.innerHTML = '<div class="empty-state">근무자가 없습니다.</div>';
@@ -187,9 +234,8 @@ function changeDate(d) {
     renderDailyView();
 }
 
-// [뷰 2] 주간 근무표 (대폭 수정됨)
+// [뷰 2] 주간 근무표 (시간순 정렬 적용)
 function renderWeeklyView() {
-    // 1. 주간 날짜 범위 표시 (일~토)
     const startWeek = new Date(currentWeekStartDate);
     const endWeek = new Date(currentWeekStartDate);
     endWeek.setDate(endWeek.getDate() + 6);
@@ -197,10 +243,9 @@ function renderWeeklyView() {
     document.getElementById('weeklyRangeDisplay').textContent = 
         `${startWeek.getMonth()+1}월 ${startWeek.getDate()}일 ~ ${endWeek.getMonth()+1}월 ${endWeek.getDate()}일`;
 
-    // 2. 컬럼 초기화
+    // 컬럼 초기화
     DAY_KEYS.forEach(k => document.getElementById(`col-${k}`).innerHTML = '');
 
-    // 3. 일요일부터 토요일까지 루프 돌면서 해당 날짜의 실제 근무자 확인
     for (let i = 0; i < 7; i++) {
         const loopDate = new Date(currentWeekStartDate);
         loopDate.setDate(loopDate.getDate() + i);
@@ -209,42 +254,45 @@ function renderWeeklyView() {
         const month = String(loopDate.getMonth() + 1).padStart(2, '0');
         const day = String(loopDate.getDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
-        
-        const dayKey = DAY_KEYS[i]; // Sun, Mon...
+        const dayKey = DAY_KEYS[i]; 
+
+        // 해당 요일의 근무자 수집
+        let dayWorkers = [];
 
         staffList.forEach(s => {
             let isWorking = false;
             let workTime = s.time;
             let isException = false;
 
-            // 예외 확인
             if (s.exceptions && s.exceptions[dateStr]) {
                 const ex = s.exceptions[dateStr];
                 if (ex.type === 'work') {
                     isWorking = true;
                     workTime = ex.time;
                     isException = true;
-                } else if (ex.type === 'off') {
-                    isWorking = false;
-                }
+                } else if (ex.type === 'off') isWorking = false;
             } else {
-                // 고정 패턴 확인
-                if (s.workDays.includes(dayKey)) {
-                    isWorking = true;
-                }
+                if (s.workDays.includes(dayKey)) isWorking = true;
             }
 
             if (isWorking) {
-                const col = document.getElementById(`col-${dayKey}`);
-                const exceptionClass = isException ? 'exception' : '';
-                // 카드에 날짜별 특이사항 표시
-                col.innerHTML += `
-                    <div class="staff-card-weekly ${exceptionClass}">
-                        <strong>${s.name}</strong>
-                        <span>${workTime}</span>
-                        ${isException ? '<br><span style="color:red; font-size:10px;">(변동)</span>' : ''}
-                    </div>`;
+                dayWorkers.push({ staff: s, time: workTime, isException });
             }
+        });
+
+        // [UPDATED] 요일별 근무자 시간순 정렬
+        dayWorkers.sort((a,b) => getStartTimeValue(a.time) - getStartTimeValue(b.time));
+
+        // 렌더링
+        const col = document.getElementById(`col-${dayKey}`);
+        dayWorkers.forEach(w => {
+            const exceptionClass = w.isException ? 'exception' : '';
+            col.innerHTML += `
+                <div class="staff-card-weekly ${exceptionClass}">
+                    <strong>${w.staff.name}</strong>
+                    <span>${w.time}</span>
+                    ${w.isException ? '<br><span style="color:red; font-size:10px;">(변동)</span>' : ''}
+                </div>`;
         });
     }
 }
@@ -254,7 +302,7 @@ function changeWeek(weeks) {
     renderWeeklyView();
 }
 
-// [뷰 3] 월별 캘린더
+// [뷰 3] 월별 캘린더 (기존 유지)
 function renderMonthlyView() {
     const year = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
@@ -263,7 +311,7 @@ function renderMonthlyView() {
 
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    const startDayOfWeek = firstDay.getDay(); // 0(일) ~ 6(토)
+    const startDayOfWeek = firstDay.getDay(); 
     const totalDays = lastDay.getDate();
 
     const container = document.getElementById('calendarBody');
@@ -277,7 +325,6 @@ function renderMonthlyView() {
     for (let day = 1; day <= totalDays; day++) {
         const currentIterDate = new Date(year, month, day);
         const dayKey = dayMap[currentIterDate.getDay()];
-        
         const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
         
         let count = 0;
@@ -313,8 +360,208 @@ function goToDailyDetail(year, month, day) {
     switchTab('daily');
 }
 
-// 일일 관리 버튼 액션 (로그인 체크)
-// 일일 예외 처리
+// ==========================================
+// 관리자 기능 (수정, 삭제, 급여)
+// ==========================================
+
+function renderManageList() {
+    const list = document.getElementById('manageStaffList');
+    list.innerHTML = '';
+    
+    const isAdmin = currentUser && currentUser.role === 'admin';
+
+    staffList.forEach(s => {
+        const daysStr = s.workDays.map(d => DAY_MAP[d]).join(',');
+        // 관리자인 경우 급여 정보 표시
+        const salaryInfo = isAdmin ? 
+            `<div style="font-size:12px; color:#28a745; margin-top:3px;">
+                💰 ${s.salaryType === 'monthly' ? '월급' : '시급'}: ${s.salary ? s.salary.toLocaleString() : '0'}원
+             </div>` : '';
+
+        list.innerHTML += `
+            <div class="reservation-item">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <strong style="font-size:16px;">${s.name}</strong> 
+                        <span style="font-size:12px; color:#666;">(${s.time})</span>
+                        <div style="font-size:13px; margin-top:5px;">📅 ${daysStr}</div>
+                        ${salaryInfo}
+                    </div>
+                    <div>
+                        <button class="edit-btn" onclick="openEditModal(${s.id})">수정</button>
+                        <button class="delete-btn" onclick="deleteStaff(${s.id})">삭제</button>
+                    </div>
+                </div>
+            </div>`;
+    });
+}
+
+// [UPDATED] 직원 정보 수정 모달 열기
+function openEditModal(id) {
+    if (!currentUser) { openLoginModal(); return; }
+    
+    const target = staffList.find(s => s.id === id);
+    if (!target) return;
+
+    document.getElementById('editId').value = target.id;
+    document.getElementById('editName').value = target.name;
+    document.getElementById('editTime').value = target.time;
+    
+    // 급여 필드 설정 (관리자만 가능)
+    const isAdmin = currentUser.role === 'admin';
+    const salarySection = document.getElementById('modalSalarySection');
+    
+    if (isAdmin) {
+        salarySection.style.display = 'block';
+        document.getElementById('editSalaryType').value = target.salaryType || 'hourly';
+        document.getElementById('editSalary').value = target.salary || 0;
+    } else {
+        salarySection.style.display = 'none';
+    }
+
+    document.getElementById('editModalOverlay').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editModalOverlay').style.display = 'none';
+}
+
+// [UPDATED] 직원 정보 저장 (API 호출)
+async function saveStaffEdit() {
+    const id = parseInt(document.getElementById('editId').value);
+    const time = document.getElementById('editTime').value;
+    const salaryType = document.getElementById('editSalaryType').value;
+    const salary = parseInt(document.getElementById('editSalary').value) || 0;
+
+    const updates = { time };
+    
+    // 관리자라면 급여 정보도 업데이트
+    if (currentUser && currentUser.role === 'admin') {
+        updates.salaryType = salaryType;
+        updates.salary = salary;
+    }
+
+    try {
+        await fetch(`/api/staff/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                updates: updates, 
+                actor: currentUser.name,
+                store: currentStore 
+            })
+        });
+        closeEditModal();
+        loadStaffData();
+        if(currentUser.role === 'admin') loadLogs();
+    } catch(e) { alert('수정 실패'); }
+}
+
+async function deleteStaff(id) {
+    if (!currentUser) { openLoginModal(); return; }
+    if (!confirm('삭제하시겠습니까?')) return;
+    
+    await fetch(`/api/staff/${id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });
+    loadStaffData();
+    if(currentUser.role === 'admin') loadLogs();
+}
+
+// ==========================================
+// [NEW] 급여 계산 로직 (이번 달 기준)
+// ==========================================
+function calculateMonthlySalary() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0~11
+    
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    
+    let salaryReport = [];
+
+    staffList.forEach(s => {
+        // 월급제인 경우 고정급
+        if (s.salaryType === 'monthly') {
+            salaryReport.push({
+                name: s.name,
+                type: '월급',
+                workCount: '-',
+                totalHours: '-',
+                amount: s.salary || 0
+            });
+            return;
+        }
+
+        // 시급제인 경우 계산
+        let totalHours = 0;
+        let workCount = 0;
+
+        for (let d = 1; d <= lastDay; d++) {
+            const date = new Date(year, month, d);
+            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const dayKey = dayMap[date.getDay()];
+
+            let isWorking = false;
+            let timeStr = s.time;
+
+            if (s.exceptions && s.exceptions[dateStr]) {
+                const ex = s.exceptions[dateStr];
+                if (ex.type === 'work') {
+                    isWorking = true;
+                    timeStr = ex.time;
+                }
+            } else {
+                if (s.workDays.includes(dayKey)) isWorking = true;
+            }
+
+            if (isWorking) {
+                workCount++;
+                totalHours += calculateDuration(timeStr);
+            }
+        }
+
+        const calculatedPay = Math.floor(totalHours * (s.salary || 0));
+        salaryReport.push({
+            name: s.name,
+            type: '시급',
+            workCount: workCount + '일',
+            totalHours: totalHours.toFixed(1) + '시간',
+            amount: calculatedPay
+        });
+    });
+
+    renderSalaryTable(salaryReport);
+}
+
+function renderSalaryTable(report) {
+    const tbody = document.getElementById('salaryTableBody');
+    tbody.innerHTML = '';
+    
+    let totalAll = 0;
+
+    report.forEach(r => {
+        totalAll += r.amount;
+        tbody.innerHTML += `
+            <tr>
+                <td>${r.name}</td>
+                <td><span class="badge ${r.type === '월급' ? 'alternative-badge' : ''}" style="background:${r.type === '월급'?'#28a745':'#17a2b8'}; color:white;">${r.type}</span></td>
+                <td>${r.workCount} / ${r.totalHours}</td>
+                <td style="text-align:right; font-weight:bold;">${r.amount.toLocaleString()}원</td>
+            </tr>
+        `;
+    });
+
+    document.getElementById('totalSalaryAmount').textContent = `총 지출 예상: ${totalAll.toLocaleString()}원`;
+    document.getElementById('salaryModal').style.display = 'flex';
+}
+
+function closeSalaryModal() {
+    document.getElementById('salaryModal').style.display = 'none';
+}
+
+// ==========================================
+// 기타 API 호출
+// ==========================================
 async function setDailyException(id, dateStr, action) {
     if (!currentUser) { openLoginModal(); return; }
 
@@ -349,36 +596,29 @@ async function addTempWorker() {
             body: JSON.stringify({ 
                 name, date: dateStr, time, 
                 actor: currentUser.name,
-                store: currentStore // [NEW] 매장 정보 추가
+                store: currentStore 
             })
         });
         const json = await res.json();
         if (json.success) {
             alert('일일 근무자가 추가되었습니다.');
             loadStaffData();
-        } else {
-            alert('추가 실패');
         }
     } catch(e) { alert('오류 발생'); }
 }
 
 async function callExceptionApi(payload) {
     try {
-        const res = await fetch('/api/staff/exception', {
+        await fetch('/api/staff/exception', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
                 ...payload, 
                 actor: currentUser.name,
-                store: currentStore // [NEW] 매장 정보 추가
+                store: currentStore 
             })
         });
-        const json = await res.json();
-        if (json.success) {
-            loadStaffData();
-        } else {
-            alert('처리 실패');
-        }
+        loadStaffData();
     } catch(e) { alert('오류 발생'); }
 }
 
@@ -386,15 +626,10 @@ async function processBulkText() {
     const text = document.getElementById('bulkText').value;
     if (!text.trim()) return;
 
-    // ... (파싱 로직 기존과 동일) ...
-    // 기존 파싱 로직 복사해서 사용하세요. 공간 절약을 위해 생략했지만, 로직은 똑같습니다.
     const lines = text.split('\n');
     const payload = [];
     
-    // (간략화된 파싱 로직)
     lines.forEach((line) => {
-       // ... 기존 파싱 코드 ...
-       // 파싱해서 payload 배열에 넣음
        let parts = line.split(',').map(p => p.trim());
        if (parts.length < 3) parts = line.split(/\s+/);
        if(parts.length >= 3) {
@@ -412,7 +647,8 @@ async function processBulkText() {
                 const cleanEnd = end.includes(':') ? end : end + ':00';
                 timeStr = `${cleanStart}~${cleanEnd}`;
             }
-           if (name && workDays.length > 0) payload.push({ name, time: timeStr, workDays, position: '직원' });
+           // 기본 시급 설정 (0원)
+           if (name && workDays.length > 0) payload.push({ name, time: timeStr, workDays, position: '직원', salaryType:'hourly', salary:0 });
        }
     });
 
@@ -425,7 +661,7 @@ async function processBulkText() {
                     body: JSON.stringify({ 
                         staffList: payload, 
                         actor: currentUser.name,
-                        store: currentStore // [NEW] 매장 정보 추가
+                        store: currentStore 
                     })
                 });
                 const json = await res.json();
@@ -439,62 +675,7 @@ async function processBulkText() {
     } else alert('등록할 데이터 없음');
 }
 
-function renderManageList() {
-    const list = document.getElementById('manageStaffList');
-    list.innerHTML = '';
-    
-    staffList.forEach(s => {
-        const daysStr = s.workDays.map(d => DAY_MAP[d]).join(',');
-        list.innerHTML += `
-            <div class="reservation-item">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <strong style="font-size:16px;">${s.name}</strong> 
-                        <span style="font-size:12px; color:#666;">(${s.time})</span>
-                        <div style="font-size:13px; margin-top:5px;">📅 ${daysStr}</div>
-                    </div>
-                    <div>
-                        <button class="edit-btn" onclick="editStaff(${s.id})">수정</button>
-                        <button class="delete-btn" onclick="deleteStaff(${s.id})">삭제</button>
-                    </div>
-                </div>
-            </div>`;
-    });
-}
-
-async function editStaff(id) {
-    if (!currentUser) { openLoginModal(); return; }
-    
-    const target = staffList.find(s => s.id === id);
-    const newTime = prompt('근무 시간을 수정하세요:', target.time);
-    if (newTime === null) return;
-    
-    await fetch(`/api/staff/${id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ 
-            updates: { time: newTime }, 
-            actor: currentUser.name,
-            store: currentStore // [NEW] 매장 정보 추가
-        })
-    });
-    loadStaffData();
-    if(currentUser.role === 'admin') loadLogs();
-}
-
-async function deleteStaff(id) {
-    if (!currentUser) { openLoginModal(); return; }
-
-    if (!confirm('삭제하시겠습니까?')) return;
-    // DELETE 메서드는 body를 잘 지원하지 않는 경우가 있어 쿼리로 보냄
-    await fetch(`/api/staff/${id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });
-    loadStaffData();
-    if(currentUser.role === 'admin') loadLogs();
-}
-
 async function loadLogs() {
-    // [NEW] 로그도 매장별로 필터링해서 보여줄지, 통합으로 보여줄지 결정해야 함.
-    // 여기서는 매장별로 로그 파일이 나뉘므로 해당 매장 로그만 가져옴
     const res = await fetch(`/api/logs?store=${currentStore}`);
     const json = await res.json();
     const tbody = document.getElementById('logTableBody');
