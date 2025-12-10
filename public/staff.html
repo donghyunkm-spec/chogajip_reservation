@@ -368,6 +368,20 @@
                 <label>근무 시간 (예: 18:00~23:00)</label>
                 <input type="text" id="editTime">
             </div>
+            <div style="background:#fff3e0; padding:10px; border-radius:5px; margin-bottom:15px; margin-top:10px;">
+                <h4 style="margin:0 0 10px 0; font-size:13px; color:#ef6c00;">📅 입/퇴사 관리 (급여 계산용)</h4>
+                <div class="input-group-row"> 
+                    <div style="margin-right:10px;">
+                        <label style="font-size:12px; font-weight:bold;">입사일 (Start)</label>
+                        <input type="date" id="editStartDate" style="width:100%; padding:5px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; font-weight:bold;">퇴사일 (End)</label>
+                        <input type="date" id="editEndDate" style="width:100%; padding:5px;">
+                    </div>
+                </div>
+                <p style="font-size:11px; color:#666; margin-top:5px;">* 비워두면 해당 월 전체 근무로 간주합니다. 입사일 관계없이 월급기준으로 입력하면 자동계산됩니다</p>
+            </div>
             
             <div id="modalSalarySection" style="display:none; background:#f0f8ff; padding:10px; border-radius:5px;">
                 <div class="modal-field">
