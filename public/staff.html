@@ -258,31 +258,31 @@
                     </div>
                 </div>
 
-                <h4 style="color:#1976D2; margin-bottom:10px;">💳 기타 매출 입력</h4>
-                <div class="input-grid">
-                    <div>
-                        <span class="category-label">💳 카드 매출</span>
-                        <input type="number" id="inpCard" class="money-input" placeholder="0">
+                <h4 style="color:#1976D2; margin-bottom:10px;">💳 매출 상세 입력</h4>
+                    <div class="input-grid" id="salesInputGrid">
+                        <div>
+                            <span class="category-label">💳 카드 매출</span>
+                            <input type="number" id="inpCard" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">🎫 상품권/기타</span>
+                            <input type="number" id="inpGift" class="money-input" placeholder="0">
+                        </div>
                     </div>
-                    <div>
-                        <span class="category-label">🎫 상품권/기타</span>
-                        <input type="number" id="inpGift" class="money-input" placeholder="0">
-                    </div>
-                </div>
 
                 <div style="margin-top:15px;">
                     <span class="category-label">📝 특이사항 (메모)</span>
                     <input type="text" id="inpNote" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;" placeholder="예: 단체 예약 취소, 비 많이 옴">
                 </div>
 
-                <h4 style="color:#d32f2f; margin-top:25px; margin-bottom:10px; border-top:1px dashed #ddd; padding-top:15px;">📤 일일 지출 (식자재/잡비)</h4>
+                <h4 style="color:#d32f2f; margin-top:25px; margin-bottom:10px; border-top:1px dashed #ddd; padding-top:15px;">📤 일일 지출</h4>
                 <div class="input-grid">
                     <div>
                         <span class="category-label">🥬 삼시세끼(야채)</span>
                         <input type="number" id="inpFood" class="money-input" placeholder="0">
                     </div>
                     <div>
-                        <span class="category-label">🥩 한강유통(고기)</span>
+                        <span class="category-label" id="labelMeat">🥩 한강유통(고기)</span>
                         <input type="number" id="inpMeat" class="money-input" placeholder="0">
                     </div>
                     <div>

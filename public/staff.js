@@ -33,6 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(header) header.style.background = '#ff9800'; 
     }
 
+    // [추가] 매장에 따른 가계부 UI 변경 실행
+    initStoreSettings();
+
     // 주간 기준일 초기화
     const today = new Date();
     const day = today.getDay();
@@ -41,6 +44,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // 초기 데이터 로드
     loadStaffData();
 });
+
+// [신규 함수] 매장별 UI 세팅
+function initStoreSettings() {
+    // 1. 양은이네인 경우 지출 라벨 변경 (한강유통 -> SPC유통)
+    if (currentStore === 'yangeun') {
+        const meatLabel = document.getElementById('labelMeat');
+        if (meatLabel) meatLabel.textContent = '🍞 SPC 유통';
+        
+        // 2. 매출 입력칸 변경 (상품권 제거 -> 배달앱 3사 추가)
+        const salesGrid = document.getElementById('salesInputGrid');
+        if (salesGrid) {
+            salesGrid.innerHTML = `
+                <div>
+                    <span class="category-label">💳 카드 매출</span>
+                    <input type="number" id="inpCard" class="money-input" placeholder="0">
+                </div>
+                <div>
+                    <span class="category-label">🛵 배달의민족</span>
+                    <input type="number" id="inpBaemin" class="money-input" placeholder="0">
+                </div>
+                <div>
+                    <span class="category-label">🛵 요기요</span>
+                    <input type="number" id="inpYogiyo" class="money-input" placeholder="0">
+                </div>
+                <div>
+                    <span class="category-label">🛵 쿠팡이츠</span>
+                    <input type="number" id="inpCoupang" class="money-input" placeholder="0">
+                </div>
+            `;
+            // 배달앱이 많아졌으므로 그리드 스타일 조정 (2열 -> 모바일에서도 보기 좋게)
+            salesGrid.style.gridTemplateColumns = "1fr 1fr"; 
+        }
+    }
+}
 
 // ==========================================
 // 2. 탭 전환 및 화면 제어
@@ -241,22 +278,28 @@ function loadDailyAccounting() {
 
     const dayData = (accountingData.daily && accountingData.daily[datePicker]) ? accountingData.daily[datePicker] : {};
     
-    // 매출 관련
-    document.getElementById('inpCard').value = dayData.card || '';
-    document.getElementById('inpTransfer').value = dayData.transfer || '';
-    document.getElementById('inpGift').value = dayData.gift || '';
+    // [수정] 공통 필드
+    if(document.getElementById('inpCard')) document.getElementById('inpCard').value = dayData.card || '';
+    if(document.getElementById('inpTransfer')) document.getElementById('inpTransfer').value = dayData.transfer || '';
     
-    // [NEW] 현금 관리 (시재, 매출, 입금)
-    // startCash가 없으면 기본값 100,000원으로 세팅
+    // [수정] 매장별 필드 분기 처리
+    if (currentStore === 'yangeun') {
+        if(document.getElementById('inpBaemin')) document.getElementById('inpBaemin').value = dayData.baemin || '';
+        if(document.getElementById('inpYogiyo')) document.getElementById('inpYogiyo').value = dayData.yogiyo || '';
+        if(document.getElementById('inpCoupang')) document.getElementById('inpCoupang').value = dayData.coupang || '';
+    } else {
+        // 초가짚 (기존 로직)
+        if(document.getElementById('inpGift')) document.getElementById('inpGift').value = dayData.gift || '';
+    }
+    
+    // 나머지 현금/지출 로직은 그대로 유지
     document.getElementById('inpStartCash').value = (dayData.startCash !== undefined) ? dayData.startCash : 100000;
     document.getElementById('inpCash').value = dayData.cash || '';
-    document.getElementById('inpDeposit').value = dayData.bankDeposit || ''; // 통장 입금액
+    document.getElementById('inpDeposit').value = dayData.bankDeposit || ''; 
 
-    // 지출 관련
     document.getElementById('inpFood').value = dayData.food || '';
-    document.getElementById('inpMeat').value = dayData.meat || '';
+    document.getElementById('inpMeat').value = dayData.meat || ''; // ID는 그대로 inpMeat 사용 (라벨만 SPC로 보임)
     document.getElementById('inpEtc').value = dayData.etc || ''; 
-    
     document.getElementById('inpNote').value = dayData.note || '';
 
     calcDrawerTotal(); 
@@ -308,28 +351,45 @@ async function saveDailyAccounting() {
     const dateStr = document.getElementById('accDate').value;
     if (!dateStr) { alert('날짜를 선택해주세요.'); return; }
 
-    // (3) 데이터 파싱
+    // 공통 데이터
     const startCash = parseInt(document.getElementById('inpStartCash').value) || 0;
     const cash = parseInt(document.getElementById('inpCash').value) || 0;
     const bankDeposit = parseInt(document.getElementById('inpDeposit').value) || 0;
-    
-    const card = parseInt(document.getElementById('inpCard').value) || 0;
     const transfer = parseInt(document.getElementById('inpTransfer').value) || 0;
-    const gift = parseInt(document.getElementById('inpGift').value) || 0;
     
     const food = parseInt(document.getElementById('inpFood').value) || 0;
     const meat = parseInt(document.getElementById('inpMeat').value) || 0;
     const etc = parseInt(document.getElementById('inpEtc').value) || 0;
-
     const note = document.getElementById('inpNote').value || '';
 
-    // (4) 확인 메시지
-    if(!confirm(`${dateStr} 매출/지출 데이터를 저장하시겠습니까?`)) return;
+    // [수정] 매장별 매출 데이터 수집
+    let card = 0, gift = 0, baemin = 0, yogiyo = 0, coupang = 0;
+    let totalSales = 0;
+
+    if (currentStore === 'yangeun') {
+        card = parseInt(document.getElementById('inpCard').value) || 0;
+        baemin = parseInt(document.getElementById('inpBaemin').value) || 0;
+        yogiyo = parseInt(document.getElementById('inpYogiyo').value) || 0;
+        coupang = parseInt(document.getElementById('inpCoupang').value) || 0;
+        // 양은이네 총매출 공식
+        totalSales = card + cash + transfer + baemin + yogiyo + coupang;
+    } else {
+        card = parseInt(document.getElementById('inpCard').value) || 0;
+        gift = parseInt(document.getElementById('inpGift').value) || 0;
+        // 초가짚 총매출 공식
+        totalSales = card + cash + transfer + gift;
+    }
+
+    if(!confirm(`${dateStr} 데이터를 저장하시겠습니까?`)) return;
 
     const data = {
         startCash, cash, bankDeposit,
-        card, transfer, gift,
-        sales: card + cash + transfer + gift,
+        card, transfer, 
+        // 기존 필드 유지하되 안쓰면 0
+        gift: (currentStore === 'yangeun' ? 0 : gift),
+        // 신규 필드 추가
+        baemin, yogiyo, coupang,
+        sales: totalSales,
         food, meat, etc,
         cost: food + meat + etc,
         note: note
@@ -389,10 +449,18 @@ function loadHistoryTable() {
             if(d.card) details.push(`💳카드:${d.card.toLocaleString()}`);
             if(d.cash) details.push(`💵현금:${d.cash.toLocaleString()}`);
             if(d.transfer) details.push(`🏦이체:${d.transfer.toLocaleString()}`);
-            if(d.gift) details.push(`🎫기타:${d.gift.toLocaleString()}`);
             
-            // (2) [NEW] 지출 상세 추가 (요청사항 반영)
-            if(d.meat) details.push(`고기:${d.meat.toLocaleString()}`);
+            if (currentStore === 'yangeun') {
+                if(d.baemin) details.push(`배민:${d.baemin.toLocaleString()}`);
+                if(d.yogiyo) details.push(`요기:${d.yogiyo.toLocaleString()}`);
+                if(d.coupang) details.push(`쿠팡:${d.coupang.toLocaleString()}`);
+            } else {
+                if(d.gift) details.push(`🎫기타:${d.gift.toLocaleString()}`);
+            }
+            
+            // (2) 지출 상세 (고기 명칭 변경)
+            const meatName = (currentStore === 'yangeun') ? 'SPC' : '고기';
+            if(d.meat) details.push(`${meatName}:${d.meat.toLocaleString()}`);
             if(d.food) details.push(`유통:${d.food.toLocaleString()}`);
             if(d.etc) details.push(`잡비:${d.etc.toLocaleString()}`);
             
@@ -503,7 +571,7 @@ function renderDashboardStats() {
     // 데이터 안전성 체크
     const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
     
-    let sales = { card:0, cash:0, transfer:0, gift:0, total:0 };
+    let sales = { card:0, cash:0, transfer:0, gift:0, baemin:0, yogiyo:0, coupang:0, total:0 };
     let costs = { 
         meat:0, food:0, dailyEtc:0,
         rent: (mData.rent||0), utility: (mData.utility||0), gas: (mData.gas||0),
@@ -511,21 +579,36 @@ function renderDashboardStats() {
         staff: 0 
     };
 
-    // 인건비 계산 (함수가 아래 정의됨)
+    // 인건비 계산
     costs.staff = getEstimatedStaffCost(monthStr);
 
     if (accountingData.daily) {
         Object.keys(accountingData.daily).forEach(date => {
             if (date.startsWith(monthStr)) {
                 const d = accountingData.daily[date];
-                sales.card += (d.card||0); sales.cash += (d.cash||0);
-                sales.transfer += (d.transfer||0); sales.gift += (d.gift||0);
-                costs.meat += (d.meat||0); costs.food += (d.food||0); costs.dailyEtc += (d.etc||0);
+                
+                // [수정] 중복 합산 방지 및 깔끔하게 정리
+                sales.card += (d.card||0); 
+                sales.cash += (d.cash||0);
+                sales.transfer += (d.transfer||0); 
+                sales.gift += (d.gift||0);
+                
+                // 배달앱 합산 (양은이네용)
+                sales.baemin += (d.baemin||0);
+                sales.yogiyo += (d.yogiyo||0);
+                sales.coupang += (d.coupang||0);
+                
+                // 지출 합산
+                costs.meat += (d.meat||0); 
+                costs.food += (d.food||0); 
+                costs.dailyEtc += (d.etc||0);
             }
         });
     }
-    sales.total = sales.card + sales.cash + sales.transfer + sales.gift;
 
+    // 총매출 계산
+    sales.total = sales.card + sales.cash + sales.transfer + sales.gift + sales.baemin + sales.yogiyo + sales.coupang;
+    
     const totalFixed = costs.rent + costs.utility + costs.gas + costs.liquor + costs.beverage + costs.fixedEtc + costs.staff;
     const totalVariable = costs.meat + costs.food + costs.dailyEtc;
     const totalCost = totalFixed + totalVariable;
@@ -547,7 +630,7 @@ function renderDashboardStats() {
     else bepMsg = `⚠️ 손익분기까지 ${Math.abs(netProfit).toLocaleString()}원 남음`;
     document.getElementById('dashBreakEven').textContent = bepMsg;
 
-    // 차트 그리기
+    // 차트 그리기 헬퍼 함수
     const renderBar = (label, val, color, total) => {
         if(total === 0 || val === 0) return '';
         const pct = Math.max((val / total) * 100, 1);
@@ -561,27 +644,44 @@ function renderDashboardStats() {
             </div>`;
     };
 
+    // [매출 차트]
     const chartEl = document.getElementById('salesBreakdownChart');
     if(chartEl) {
         if(sales.total === 0) {
             chartEl.innerHTML = '<div style="text-align:center; color:#999; padding:10px;">매출 데이터 없음</div>';
         } else {
-            chartEl.innerHTML = `
-                ${renderBar('💳 카드', sales.card, '#42a5f5', sales.total)}
-                ${renderBar('💵 현금', sales.cash, '#66bb6a', sales.total)}
-                ${renderBar('🏦 계좌', sales.transfer, '#ab47bc', sales.total)}
-                ${renderBar('🎫 기타', sales.gift, '#ffa726', sales.total)}
-            `;
+            // 양은이네(배달) vs 초가짚(상품권) 분기 처리
+            if (currentStore === 'yangeun') {
+                 chartEl.innerHTML = `
+                    ${renderBar('💳 카드', sales.card, '#42a5f5', sales.total)}
+                    ${renderBar('🛵 배민', sales.baemin, '#2ac1bc', sales.total)}
+                    ${renderBar('🛵 요기요', sales.yogiyo, '#fa0050', sales.total)}
+                    ${renderBar('🛵 쿠팡', sales.coupang, '#00a5ff', sales.total)}
+                    ${renderBar('💵 현금', sales.cash, '#66bb6a', sales.total)}
+                    ${renderBar('🏦 계좌', sales.transfer, '#ab47bc', sales.total)}
+                `;
+            } else {
+                chartEl.innerHTML = `
+                    ${renderBar('💳 카드', sales.card, '#42a5f5', sales.total)}
+                    ${renderBar('💵 현금', sales.cash, '#66bb6a', sales.total)}
+                    ${renderBar('🏦 계좌', sales.transfer, '#ab47bc', sales.total)}
+                    ${renderBar('🎫 기타', sales.gift, '#ffa726', sales.total)}
+                `;
+            }
         }
     }
 
+    // [지출 차트]
     const costListEl = document.getElementById('costBreakdownList');
     if(costListEl) {
         if(totalCost === 0) {
             costListEl.innerHTML = '<div style="text-align:center; color:#999; padding:10px;">지출 내역 없음</div>';
         } else {
+            // [수정] 매장에 따라 고기 거래처 이름 변경 (한강유통 vs SPC유통)
+            const meatLabel = (currentStore === 'yangeun') ? '🍞 SPC유통' : '🥩 한강유통';
+
             const costItems = [
-                { label: '🥩 한강유통', val: costs.meat, color: '#ef5350' },
+                { label: meatLabel, val: costs.meat, color: '#ef5350' }, // 라벨 변수 적용
                 { label: '🏠 임대료', val: costs.rent, color: '#5c6bc0' },
                 { label: '👥 인건비', val: costs.staff, color: '#26a69a' },
                 { label: '🍺 주류/음료', val: costs.liquor + costs.beverage, color: '#ff7043' },
@@ -599,44 +699,76 @@ function renderDashboardStats() {
     }
 }
 
-// [서브탭 3] 월간 고정비 로드/저장
+// [여기서부터 복사하세요] ==============================================
+
+// [서브탭 3] 월간 고정비 데이터 로드 (누락된 함수 복구)
 function loadMonthlyForm() {
-    const monthStr = getMonthStr(currentDashboardDate);
-    const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
+    const monthStr = getMonthStr(currentDashboardDate); // 예: "2024-12"
     
-    document.getElementById('fixLiquor').value = mData.liquor || '';
-    document.getElementById('fixBeverage').value = mData.beverage || '';
-    document.getElementById('fixRent').value = mData.rent || '';
-    document.getElementById('fixUtility').value = mData.utility || '';
-    document.getElementById('fixGas').value = mData.gas || '';
-    document.getElementById('fixEtc').value = mData.etc_fixed || '';
+    // 데이터 가져오기 (없으면 빈 객체)
+    const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
+
+    // 화면(input)에 값 채워넣기
+    if(document.getElementById('fixRent')) document.getElementById('fixRent').value = mData.rent || '';
+    if(document.getElementById('fixUtility')) document.getElementById('fixUtility').value = mData.utility || '';
+    if(document.getElementById('fixGas')) document.getElementById('fixGas').value = mData.gas || '';
+    if(document.getElementById('fixLiquor')) document.getElementById('fixLiquor').value = mData.liquor || '';
+    if(document.getElementById('fixBeverage')) document.getElementById('fixBeverage').value = mData.beverage || '';
+    if(document.getElementById('fixEtc')) document.getElementById('fixEtc').value = mData.etc_fixed || '';
 }
 
+// [서브탭 3] 월간 고정비 저장 (누락된 함수 복구)
 async function saveFixedCost() {
-    const monthStr = getMonthStr(currentDashboardDate); 
-    const data = {
-        liquor: parseInt(document.getElementById('fixLiquor').value) || 0,
-        beverage: parseInt(document.getElementById('fixBeverage').value) || 0,
-        rent: parseInt(document.getElementById('fixRent').value) || 0,
-        utility: parseInt(document.getElementById('fixUtility').value) || 0,
-        gas: parseInt(document.getElementById('fixGas').value) || 0,
-        etc_fixed: parseInt(document.getElementById('fixEtc').value) || 0
-    };
+    // 1. 권한 체크
+    if (!currentUser) { openLoginModal(); return; }
+    if (!['admin', 'manager'].includes(currentUser.role)) {
+        alert("관리자 권한이 필요합니다.");
+        return;
+    }
+
+    const monthStr = getMonthStr(currentDashboardDate); // 예: "2024-12"
+
+    // 2. 데이터 가져오기
+    const rent = parseInt(document.getElementById('fixRent').value) || 0;
+    const utility = parseInt(document.getElementById('fixUtility').value) || 0;
+    const gas = parseInt(document.getElementById('fixGas').value) || 0;
+    const liquor = parseInt(document.getElementById('fixLiquor').value) || 0;
+    const beverage = parseInt(document.getElementById('fixBeverage').value) || 0;
+    const etc_fixed = parseInt(document.getElementById('fixEtc').value) || 0;
+
+    if(!confirm(`${monthStr} 고정 지출을 저장하시겠습니까?`)) return;
+
+    const data = { rent, utility, gas, liquor, beverage, etc_fixed };
 
     try {
-        await fetch('/api/accounting/fixed', {
+        // 3. 서버 전송
+        await fetch('/api/accounting/monthly', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ month: monthStr, data, store: currentStore })
+            body: JSON.stringify({
+                month: monthStr,
+                data: data,
+                store: currentStore,
+                actor: currentUser.name
+            })
         });
-        
+
+        // 4. 로컬 데이터 갱신 및 UI 업데이트
         if(!accountingData.monthly) accountingData.monthly = {};
         accountingData.monthly[monthStr] = data;
+
+        alert('저장되었습니다.');
         
-        alert(`${monthStr.split('-')[1]}월 고정비가 저장되었습니다.`);
+        // 저장 후 차트 갱신을 위해 대시보드로 이동하거나 현재 화면 유지
         updateDashboardUI();
-    } catch(e) { alert('저장 실패'); }
+        
+    } catch(e) {
+        console.error(e);
+        alert('저장 실패: 서버 오류');
+    }
 }
+
+// [여기까지 복사하세요] ==============================================
 
 // ==========================================
 // 5. 직원 관리 (조회/등록/수정/삭제)
@@ -1265,12 +1397,20 @@ async function setDailyException(id, dateStr, action) {
         await callExceptionApi({ id, date: dateStr, type: 'work', time: newTime });
     }
 }
+
+// ==========================================
+// [여기서부터 파일 끝까지 덮어쓰기 하세요]
+// ==========================================
+
 async function addTempWorker() {
     if (!currentUser) { openLoginModal(); return; }
+    
     const name = prompt('추가할 근무자(대타) 이름을 입력하세요:');
     if (!name) return;
+    
     const time = prompt('근무 시간 (예: 18:00~23:00):', '18:00~23:00');
     if (!time) return;
+
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const day = String(currentDate.getDate()).padStart(2, '0');
@@ -1280,32 +1420,62 @@ async function addTempWorker() {
         const res = await fetch('/api/staff/temp', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name, date: dateStr, time, actor: currentUser.name, store: currentStore })
+            body: JSON.stringify({ 
+                name, 
+                date: dateStr, 
+                time, 
+                actor: currentUser.name, 
+                store: currentStore 
+            })
         });
         const json = await res.json();
-        if (json.success) { alert('등록되었습니다.'); loadStaffData(); }
-    } catch(e) { alert('오류'); }
+        if (json.success) { 
+            alert('등록되었습니다.'); 
+            loadStaffData(); 
+        } else {
+            alert('등록 실패');
+        }
+    } catch(e) { 
+        alert('서버 오류'); 
+    }
 }
+
 async function callExceptionApi(payload) {
     try {
         await fetch('/api/staff/exception', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ ...payload, actor: currentUser.name, store: currentStore })
+            body: JSON.stringify({ 
+                ...payload, 
+                actor: currentUser.name, 
+                store: currentStore 
+            })
         });
         loadStaffData();
-    } catch(e) { alert('오류'); }
+    } catch(e) { 
+        alert('오류 발생'); 
+    }
 }
+
+// staff.js 맨 마지막 부분 (loadLogs 함수 끝부분)
 
 async function loadLogs() {
     try {
         const res = await fetch(`/api/logs?store=${currentStore}`);
         const json = await res.json();
         const tbody = document.getElementById('logTableBody');
+        
         if(tbody) {
             tbody.innerHTML = '';
+            if (!json.data || json.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">기록이 없습니다.</td></tr>';
+                return;
+            }
+
             json.data.forEach(log => {
-                const date = new Date(log.timestamp).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+                const date = new Date(log.timestamp).toLocaleString('ko-KR', {
+                    month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'
+                });
                 tbody.innerHTML += `
                     <tr>
                         <td>${date}</td>
@@ -1316,5 +1486,8 @@ async function loadLogs() {
                     </tr>`;
             });
         }
-    } catch(e) { console.error(e); }
+    } catch(e) { 
+        console.error("로그 로드 실패", e); 
+    }
 }
+// ⚠️ 중요: 여기에 있던 '}' 기호를 지웠습니다. 이 아래에는 아무것도 없어야 합니다.
