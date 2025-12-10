@@ -392,9 +392,9 @@ function loadHistoryTable() {
             if(d.gift) details.push(`🎫기타:${d.gift.toLocaleString()}`);
             
             // (2) [NEW] 지출 상세 추가 (요청사항 반영)
-            if(d.meat) details.push(`🥩고기:${d.meat.toLocaleString()}`);
-            if(d.food) details.push(`🥬야채:${d.food.toLocaleString()}`);
-            if(d.etc) details.push(`🍦잡비:${d.etc.toLocaleString()}`);
+            if(d.meat) details.push(`고기:${d.meat.toLocaleString()}`);
+            if(d.food) details.push(`유통:${d.food.toLocaleString()}`);
+            if(d.etc) details.push(`잡비:${d.etc.toLocaleString()}`);
             
             // (3) 메모
             if(d.note) details.push(`📝"${d.note}"`);
