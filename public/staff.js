@@ -566,6 +566,7 @@ function editHistoryDate(date) {
 }
 
 // [서브탭 2] 대시보드 통계 (그래프 및 손익분기)
+// [서브탭 2] 대시보드 통계 (그래프 및 손익분기)
 function renderDashboardStats() {
     const monthStr = getMonthStr(currentDashboardDate);
     // 데이터 안전성 체크
@@ -587,7 +588,7 @@ function renderDashboardStats() {
             if (date.startsWith(monthStr)) {
                 const d = accountingData.daily[date];
                 
-                // [수정] 중복 합산 방지 및 깔끔하게 정리
+                // 매출 합산
                 sales.card += (d.card||0); 
                 sales.cash += (d.cash||0);
                 sales.transfer += (d.transfer||0); 
@@ -630,17 +631,34 @@ function renderDashboardStats() {
     else bepMsg = `⚠️ 손익분기까지 ${Math.abs(netProfit).toLocaleString()}원 남음`;
     document.getElementById('dashBreakEven').textContent = bepMsg;
 
-    // 차트 그리기 헬퍼 함수
-    const renderBar = (label, val, color, total) => {
-        if(total === 0 || val === 0) return '';
-        const pct = Math.max((val / total) * 100, 1);
+    // -----------------------------------------------------------
+    // [차트 그리기 헬퍼 함수 - 개선됨]
+    // barBase: 그래프 바 길이 계산용 분모 (매출차트면 총매출, 지출차트면 총지출)
+    // pctBase: 퍼센트 텍스트 계산용 분모 (항상 총매출 기준)
+    // -----------------------------------------------------------
+    const renderBar = (label, val, color, barBase, pctBase) => {
+        if(val === 0) return '';
+        
+        // 1. 그래프 바 길이 (시각적 비율)
+        // barBase가 0이면 0%, 아니면 비율 계산
+        const widthPct = barBase > 0 ? Math.max((val / barBase) * 100, 1) : 0;
+        
+        // 2. 텍스트 표시용 퍼센트 (총매출 대비 비율)
+        // pctBase(총매출)가 0이면 0.0, 아니면 실제 비율
+        const textPct = pctBase > 0 ? ((val / pctBase) * 100).toFixed(1) : '0.0';
+
         return `
             <div class="bar-row">
                 <div class="bar-label">${label}</div>
                 <div class="bar-track">
-                    <div class="bar-fill" style="width:${pct}%; background:${color};"></div>
+                    <div class="bar-fill" style="width:${widthPct}%; background:${color};"></div>
                 </div>
-                <div class="bar-value">${val.toLocaleString()}</div>
+                <div class="bar-value">
+                    ${val.toLocaleString()}
+                    <span style="font-size:11px; color:#999; font-weight:normal; margin-left:2px;">
+                        (${textPct}%)
+                    </span>
+                </div>
             </div>`;
     };
 
@@ -650,22 +668,22 @@ function renderDashboardStats() {
         if(sales.total === 0) {
             chartEl.innerHTML = '<div style="text-align:center; color:#999; padding:10px;">매출 데이터 없음</div>';
         } else {
-            // 양은이네(배달) vs 초가짚(상품권) 분기 처리
+            // 매출 차트는 '바 길이'와 '텍스트 비율' 모두 sales.total 기준
             if (currentStore === 'yangeun') {
                  chartEl.innerHTML = `
-                    ${renderBar('💳 카드', sales.card, '#42a5f5', sales.total)}
-                    ${renderBar('🛵 배민', sales.baemin, '#2ac1bc', sales.total)}
-                    ${renderBar('🛵 요기요', sales.yogiyo, '#fa0050', sales.total)}
-                    ${renderBar('🛵 쿠팡', sales.coupang, '#00a5ff', sales.total)}
-                    ${renderBar('💵 현금', sales.cash, '#66bb6a', sales.total)}
-                    ${renderBar('🏦 계좌', sales.transfer, '#ab47bc', sales.total)}
+                    ${renderBar('💳 카드', sales.card, '#42a5f5', sales.total, sales.total)}
+                    ${renderBar('🛵 배민', sales.baemin, '#2ac1bc', sales.total, sales.total)}
+                    ${renderBar('🛵 요기요', sales.yogiyo, '#fa0050', sales.total, sales.total)}
+                    ${renderBar('🛵 쿠팡', sales.coupang, '#00a5ff', sales.total, sales.total)}
+                    ${renderBar('💵 현금', sales.cash, '#66bb6a', sales.total, sales.total)}
+                    ${renderBar('🏦 계좌', sales.transfer, '#ab47bc', sales.total, sales.total)}
                 `;
             } else {
                 chartEl.innerHTML = `
-                    ${renderBar('💳 카드', sales.card, '#42a5f5', sales.total)}
-                    ${renderBar('💵 현금', sales.cash, '#66bb6a', sales.total)}
-                    ${renderBar('🏦 계좌', sales.transfer, '#ab47bc', sales.total)}
-                    ${renderBar('🎫 기타', sales.gift, '#ffa726', sales.total)}
+                    ${renderBar('💳 카드', sales.card, '#42a5f5', sales.total, sales.total)}
+                    ${renderBar('💵 현금', sales.cash, '#66bb6a', sales.total, sales.total)}
+                    ${renderBar('🏦 계좌', sales.transfer, '#ab47bc', sales.total, sales.total)}
+                    ${renderBar('🎫 기타', sales.gift, '#ffa726', sales.total, sales.total)}
                 `;
             }
         }
@@ -677,11 +695,10 @@ function renderDashboardStats() {
         if(totalCost === 0) {
             costListEl.innerHTML = '<div style="text-align:center; color:#999; padding:10px;">지출 내역 없음</div>';
         } else {
-            // [수정] 매장에 따라 고기 거래처 이름 변경 (한강유통 vs SPC유통)
             const meatLabel = (currentStore === 'yangeun') ? '🍞 SPC유통' : '🥩 한강유통';
 
             const costItems = [
-                { label: meatLabel, val: costs.meat, color: '#ef5350' }, // 라벨 변수 적용
+                { label: meatLabel, val: costs.meat, color: '#ef5350' },
                 { label: '🏠 임대료', val: costs.rent, color: '#5c6bc0' },
                 { label: '👥 인건비', val: costs.staff, color: '#26a69a' },
                 { label: '🍺 주류/음료', val: costs.liquor + costs.beverage, color: '#ff7043' },
@@ -692,7 +709,10 @@ function renderDashboardStats() {
 
             let costHtml = '';
             costItems.forEach(item => {
-                if (item.val > 0) costHtml += renderBar(item.label, item.val, item.color, totalCost);
+                // 지출 차트는 '바 길이'는 totalCost(지출총액) 기준, '텍스트 비율'은 sales.total(총매출) 기준
+                if (item.val > 0) {
+                    costHtml += renderBar(item.label, item.val, item.color, totalCost, sales.total);
+                }
             });
             costListEl.innerHTML = costHtml;
         }

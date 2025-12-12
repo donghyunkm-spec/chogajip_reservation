@@ -397,6 +397,67 @@ app.post('/api/accounting/fixed', (req, res) => {
     }
 });
 
+// [NEW] 가계부 일괄 등록 API (엑셀 업로드용)
+app.post('/api/accounting/bulk', (req, res) => {
+    const { store, bulkData } = req.body; // bulkData는 배열 형태
+    const targetStore = store || 'chogazip';
+    const file = getAccountingFile(targetStore);
+    
+    let accData = readJson(file);
+    if (!accData.daily) accData.daily = {};
+    
+    let count = 0;
+
+    bulkData.forEach(item => {
+        // 1. 필수값 0 처리 (빈칸 방지)
+        const parse = (val) => parseInt(val) || 0;
+        
+        const card = parse(item.card);
+        const cash = parse(item.cash);
+        const transfer = parse(item.transfer);
+        const gift = parse(item.gift); // 초가짚용
+        const baemin = parse(item.baemin); // 양은이네용
+        const yogiyo = parse(item.yogiyo); // 양은이네용
+        const coupang = parse(item.coupang); // 양은이네용
+        
+        const food = parse(item.food);
+        const meat = parse(item.meat);
+        const etc = parse(item.etc);
+
+        // 2. 매출/지출 합계 자동 계산
+        let totalSales = 0;
+        if (targetStore === 'yangeun') {
+            totalSales = card + cash + transfer + baemin + yogiyo + coupang;
+        } else {
+            totalSales = card + cash + transfer + gift;
+        }
+        const totalCost = food + meat + etc;
+
+        // 3. 데이터 구성
+        const dateStr = item.date; // YYYY-MM-DD
+        if (dateStr) {
+            accData.daily[dateStr] = {
+                startCash: parse(item.startCash) || 100000, // 시재 기본값
+                cash, transfer, bankDeposit: parse(item.bankDeposit),
+                card, gift, 
+                baemin, yogiyo, coupang,
+                sales: totalSales,
+                food, meat, etc,
+                cost: totalCost,
+                note: item.note || '일괄등록됨'
+            };
+            count++;
+        }
+    });
+
+    if (writeJson(file, accData)) {
+        addLog(targetStore, '사장님', '일괄등록', `${count}건`, '과거 데이터 업로드');
+        res.json({ success: true, count: count });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
 // 404 및 실행
 app.use('*', (req, res) => res.status(404).json({ success: false, error: 'Not Found' }));
 
