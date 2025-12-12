@@ -380,7 +380,7 @@ app.post('/api/accounting/daily', (req, res) => {
 });
 
 // 3. 월 고정비 저장
-app.post('/api/accounting/fixed', (req, res) => {
+app.post('/api/accounting/monthly', (req, res) => {
     const { month, data, store } = req.body; // month = "2024-12", data = { rent, gas... }
     const targetStore = store || 'chogazip';
     const file = getAccountingFile(targetStore);

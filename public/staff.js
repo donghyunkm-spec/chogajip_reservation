@@ -738,6 +738,7 @@ function loadMonthlyForm() {
 }
 
 // [서브탭 3] 월간 고정비 저장 (누락된 함수 복구)
+// [서브탭 3] 월간 고정비 저장 (수정 및 보완 버전)
 async function saveFixedCost() {
     // 1. 권한 체크
     if (!currentUser) { openLoginModal(); return; }
@@ -748,7 +749,7 @@ async function saveFixedCost() {
 
     const monthStr = getMonthStr(currentDashboardDate); // 예: "2024-12"
 
-    // 2. 데이터 가져오기
+    // 2. 데이터 가져오기 (DOM ID 확인 완료)
     const rent = parseInt(document.getElementById('fixRent').value) || 0;
     const utility = parseInt(document.getElementById('fixUtility').value) || 0;
     const gas = parseInt(document.getElementById('fixGas').value) || 0;
@@ -762,7 +763,7 @@ async function saveFixedCost() {
 
     try {
         // 3. 서버 전송
-        await fetch('/api/accounting/monthly', {
+        const res = await fetch('/api/accounting/monthly', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -773,18 +774,30 @@ async function saveFixedCost() {
             })
         });
 
-        // 4. 로컬 데이터 갱신 및 UI 업데이트
+        // [중요] 서버 응답 결과 확인 로직 추가
+        if (!res.ok) throw new Error('Network response was not ok'); // 404, 500 에러 체크
+        const json = await res.json();
+        
+        // 서버가 { success: false }를 보냈는지 체크
+        if (!json.success) {
+            throw new Error(json.message || '서버 저장 실패');
+        }
+
+        // 4. 로컬 데이터 갱신 및 UI 업데이트 (서버 성공 확인 후에만 실행)
         if(!accountingData.monthly) accountingData.monthly = {};
         accountingData.monthly[monthStr] = data;
 
-        alert('저장되었습니다.');
+        alert('성공적으로 저장되었습니다.');
         
-        // 저장 후 차트 갱신을 위해 대시보드로 이동하거나 현재 화면 유지
+        // 저장 후 데이터가 바로 반영되도록 대시보드 UI 강제 갱신
         updateDashboardUI();
         
+        // (선택사항) 저장 후 확실한 확인을 위해 차트 화면으로 이동하려면 아래 주석 해제
+        // switchAccSubTab('acc-dashboard');
+
     } catch(e) {
-        console.error(e);
-        alert('저장 실패: 서버 오류');
+        console.error('고정비 저장 에러:', e);
+        alert('저장에 실패했습니다.\n사유: ' + e.message);
     }
 }
 
