@@ -1,4 +1,4 @@
-// staff.js - 통합 버전 (직원관리 + 가계부 고도화) - 수정본
+// staff.js - 통합 버전 (직원관리 + 가계부 고도화) - 최종 수정본
 
 // ==========================================
 // 1. 전역 변수 및 초기화
@@ -42,10 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStaffData();
 });
 
-// [헬퍼 함수] 숫자 파싱 (콤마 제거 포함)
+// [헬퍼 함수] 숫자 파싱 (콤마 제거 포함 - 핵심 수정사항)
 function parseMoney(val) {
     if (!val) return 0;
-    // 문자열인 경우 콤마 제거
+    // 문자열인 경우 콤마 제거 후 정수 변환
     if (typeof val === 'string') {
         return parseInt(val.replace(/,/g, '')) || 0;
     }
@@ -253,7 +253,7 @@ function updateDashboardUI() {
     }
 }
 
-// [수정] 일일 데이터 로드 (값이 없으면 빈 문자열로 초기화)
+// [수정] 일일 데이터 로드
 function loadDailyAccounting() {
     const datePicker = document.getElementById('accDate').value;
     if (!datePicker) return;
@@ -303,7 +303,7 @@ function calcDrawerTotal() {
     }
 }
 
-// [수정] 데이터 저장 함수 (parseMoney 적용 및 0원 저장 방지)
+// [수정] 일일 데이터 저장 함수 (parseMoney 적용 및 0원 저장 방지)
 async function saveDailyAccounting() {
     if (!currentUser) { 
         alert("로그인이 필요합니다."); 
@@ -319,6 +319,7 @@ async function saveDailyAccounting() {
     const dateStr = document.getElementById('accDate').value;
     if (!dateStr) { alert('날짜를 선택해주세요.'); return; }
 
+    // 콤마 제거 및 숫자 변환
     const startCash = parseMoney(document.getElementById('inpStartCash').value);
     const cash = parseMoney(document.getElementById('inpCash').value);
     const bankDeposit = parseMoney(document.getElementById('inpDeposit').value);
@@ -340,7 +341,6 @@ async function saveDailyAccounting() {
         totalSales = card + cash + transfer + baemin + yogiyo + coupang;
     } else {
         // 초가짚
-        // 안전 장치: 요소가 존재하는지 확인
         const elCard = document.getElementById('inpCard');
         const elGift = document.getElementById('inpGift');
         card = elCard ? parseMoney(elCard.value) : 0;
@@ -348,7 +348,7 @@ async function saveDailyAccounting() {
         totalSales = card + cash + transfer + gift;
     }
 
-    // [추가] 모든 값이 0원인 경우 경고 (실수로 날짜 바꿔서 지워진 상태로 저장하는 것 방지)
+    // [중요] 모든 값이 0원인 경우 경고 (실수로 날짜 바꿔서 지워진 상태로 저장하는 것 방지)
     const totalCost = food + meat + etc;
     if (totalSales === 0 && totalCost === 0 && note === '') {
         if (!confirm('⚠️ 매출과 지출이 모두 0원입니다.\n\n혹시 날짜를 변경해서 입력한 내용이 초기화되었나요?\n\n그래도 저장하시겠습니까?')) {
@@ -370,7 +370,7 @@ async function saveDailyAccounting() {
     };
 
     try {
-        await fetch('/api/accounting/daily', {
+        const res = await fetch('/api/accounting/daily', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
@@ -381,6 +381,9 @@ async function saveDailyAccounting() {
             })
         });
         
+        const json = await res.json();
+        if (!json.success) throw new Error('저장 실패');
+
         if(!accountingData.daily) accountingData.daily = {};
         accountingData.daily[dateStr] = data;
         
@@ -632,6 +635,7 @@ function loadMonthlyForm() {
     if(document.getElementById('fixEtc')) document.getElementById('fixEtc').value = mData.etc_fixed || '';
 }
 
+// [수정] 충돌 해결된 고정비 저장 함수
 async function saveFixedCost() {
     if (!currentUser) { openLoginModal(); return; }
     if (!['admin', 'manager'].includes(currentUser.role)) {
@@ -639,37 +643,21 @@ async function saveFixedCost() {
         return;
     }
 
-<<<<<<< HEAD
     const monthStr = getMonthStr(currentDashboardDate);
+    
     const rent = parseMoney(document.getElementById('fixRent').value);
     const utility = parseMoney(document.getElementById('fixUtility').value);
     const gas = parseMoney(document.getElementById('fixGas').value);
     const liquor = parseMoney(document.getElementById('fixLiquor').value);
     const beverage = parseMoney(document.getElementById('fixBeverage').value);
     const etc_fixed = parseMoney(document.getElementById('fixEtc').value);
-=======
-    const monthStr = getMonthStr(currentDashboardDate); // 예: "2024-12"
-
-    // 2. 데이터 가져오기 (DOM ID 확인 완료)
-    const rent = parseInt(document.getElementById('fixRent').value) || 0;
-    const utility = parseInt(document.getElementById('fixUtility').value) || 0;
-    const gas = parseInt(document.getElementById('fixGas').value) || 0;
-    const liquor = parseInt(document.getElementById('fixLiquor').value) || 0;
-    const beverage = parseInt(document.getElementById('fixBeverage').value) || 0;
-    const etc_fixed = parseInt(document.getElementById('fixEtc').value) || 0;
->>>>>>> 29b785e367eaa21e7da304d13e7d412c6c99859a
 
     if(!confirm(`${monthStr} 고정 지출을 저장하시겠습니까?`)) return;
 
     const data = { rent, utility, gas, liquor, beverage, etc_fixed };
 
     try {
-<<<<<<< HEAD
-        await fetch('/api/accounting/monthly', {
-=======
-        // 3. 서버 전송
         const res = await fetch('/api/accounting/monthly', {
->>>>>>> 29b785e367eaa21e7da304d13e7d412c6c99859a
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -680,41 +668,23 @@ async function saveFixedCost() {
             })
         });
 
-<<<<<<< HEAD
-        if(!accountingData.monthly) accountingData.monthly = {};
-        accountingData.monthly[monthStr] = data;
-
-        alert('저장되었습니다.');
-        updateDashboardUI();
-        
-    } catch(e) { console.error(e); alert('저장 실패: 서버 오류'); }
-=======
-        // [중요] 서버 응답 결과 확인 로직 추가
-        if (!res.ok) throw new Error('Network response was not ok'); // 404, 500 에러 체크
+        if (!res.ok) throw new Error('Network response was not ok');
         const json = await res.json();
         
-        // 서버가 { success: false }를 보냈는지 체크
         if (!json.success) {
             throw new Error(json.message || '서버 저장 실패');
         }
 
-        // 4. 로컬 데이터 갱신 및 UI 업데이트 (서버 성공 확인 후에만 실행)
         if(!accountingData.monthly) accountingData.monthly = {};
         accountingData.monthly[monthStr] = data;
 
         alert('성공적으로 저장되었습니다.');
-        
-        // 저장 후 데이터가 바로 반영되도록 대시보드 UI 강제 갱신
         updateDashboardUI();
         
-        // (선택사항) 저장 후 확실한 확인을 위해 차트 화면으로 이동하려면 아래 주석 해제
-        // switchAccSubTab('acc-dashboard');
-
     } catch(e) {
         console.error('고정비 저장 에러:', e);
         alert('저장에 실패했습니다.\n사유: ' + e.message);
     }
->>>>>>> 29b785e367eaa21e7da304d13e7d412c6c99859a
 }
 
 // ==========================================
