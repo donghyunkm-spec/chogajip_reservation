@@ -334,6 +334,7 @@ function calcDrawerTotal() {
 }
 
 // [JS 수정 3] 데이터 저장: 시재금과 입금액도 함께 저장
+// [JS 수정 3] 데이터 저장: 시재금과 입금액도 함께 저장
 async function saveDailyAccounting() {
     // (1) 로그인 체크
     if (!currentUser) { 
@@ -380,10 +381,26 @@ async function saveDailyAccounting() {
         totalSales = card + cash + transfer + gift;
     }
 
-    // 수정된 코드 (입력값 확인 가능하도록 변경)
-    const confirmMsg = `${dateStr} 데이터를 저장하시겠습니까?\n\n💳 총매출: ${totalSales.toLocaleString()}원\n  ├ 카드: ${card.toLocaleString()}원\n  ├ 현금: ${cash.toLocaleString()}원\n  └ 이체/기타: ${(transfer + gift).toLocaleString()}원\n\n📤 총지출: ${(food + meat + etc).toLocaleString()}원\n\n⚠️ 모든 금액이 0원이면 입력이 안 된 것입니다!`;
+    const totalCost = food + meat + etc;
 
-    if(!confirm(confirmMsg)) return;
+    // ============================================================
+    // [수정된 부분 시작] confirm 제거 및 안전장치 로직
+    // ============================================================
+    
+    // 1. 모든 금액이 0원인 경우에만 확인창을 띄움 (실수로 빈 값 저장 방지)
+    //    브라우저 팝업 차단이 되어도, 실제 데이터가 있을  때는 이 if문에 걸리지 않으므로 바로 저장됨
+    if (totalSales === 0 && totalCost === 0) {
+        if(!confirm(`${dateStr} 입력된 금액이 없습니다 (0원).\n그래도 저장하시겠습니까?`)) {
+            return; // 취소 시 저장 안 함
+        }
+    }
+
+    // 2. 데이터가 있다면 묻지 않고 즉시 저장 (팝업 차단 이슈 해결)
+    // 기존의 confirmMsg 생성 및 confirm 호출 로직 삭제됨
+    
+    // ============================================================
+    // [수정된 부분 끝]
+    // ============================================================
 
     const data = {
         startCash, cash, bankDeposit,
@@ -394,9 +411,12 @@ async function saveDailyAccounting() {
         baemin, yogiyo, coupang,
         sales: totalSales,
         food, meat, etc,
-        cost: food + meat + etc,
+        cost: totalCost,
         note: note
     };
+
+    // [디버깅용] 실제 전송되는 데이터를 콘솔에 찍어 0원이 뜨는지 확인 가능
+    console.log('Sending Data:', data);
 
     try {
         // (5) API 전송 (actor 정보 포함)
@@ -415,6 +435,7 @@ async function saveDailyAccounting() {
         if(!accountingData.daily) accountingData.daily = {};
         accountingData.daily[dateStr] = data;
         
+        // alert 대신 가볍게 처리하거나, 성공했다는 메시지 띄움
         alert('저장되었습니다.');
         
         // 저장 후 '입력 내역' 탭으로 자동 이동하여 확인시켜줌
