@@ -639,6 +639,7 @@ async function saveFixedCost() {
         return;
     }
 
+<<<<<<< HEAD
     const monthStr = getMonthStr(currentDashboardDate);
     const rent = parseMoney(document.getElementById('fixRent').value);
     const utility = parseMoney(document.getElementById('fixUtility').value);
@@ -646,13 +647,29 @@ async function saveFixedCost() {
     const liquor = parseMoney(document.getElementById('fixLiquor').value);
     const beverage = parseMoney(document.getElementById('fixBeverage').value);
     const etc_fixed = parseMoney(document.getElementById('fixEtc').value);
+=======
+    const monthStr = getMonthStr(currentDashboardDate); // 예: "2024-12"
+
+    // 2. 데이터 가져오기 (DOM ID 확인 완료)
+    const rent = parseInt(document.getElementById('fixRent').value) || 0;
+    const utility = parseInt(document.getElementById('fixUtility').value) || 0;
+    const gas = parseInt(document.getElementById('fixGas').value) || 0;
+    const liquor = parseInt(document.getElementById('fixLiquor').value) || 0;
+    const beverage = parseInt(document.getElementById('fixBeverage').value) || 0;
+    const etc_fixed = parseInt(document.getElementById('fixEtc').value) || 0;
+>>>>>>> 29b785e367eaa21e7da304d13e7d412c6c99859a
 
     if(!confirm(`${monthStr} 고정 지출을 저장하시겠습니까?`)) return;
 
     const data = { rent, utility, gas, liquor, beverage, etc_fixed };
 
     try {
+<<<<<<< HEAD
         await fetch('/api/accounting/monthly', {
+=======
+        // 3. 서버 전송
+        const res = await fetch('/api/accounting/monthly', {
+>>>>>>> 29b785e367eaa21e7da304d13e7d412c6c99859a
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -663,6 +680,7 @@ async function saveFixedCost() {
             })
         });
 
+<<<<<<< HEAD
         if(!accountingData.monthly) accountingData.monthly = {};
         accountingData.monthly[monthStr] = data;
 
@@ -670,6 +688,33 @@ async function saveFixedCost() {
         updateDashboardUI();
         
     } catch(e) { console.error(e); alert('저장 실패: 서버 오류'); }
+=======
+        // [중요] 서버 응답 결과 확인 로직 추가
+        if (!res.ok) throw new Error('Network response was not ok'); // 404, 500 에러 체크
+        const json = await res.json();
+        
+        // 서버가 { success: false }를 보냈는지 체크
+        if (!json.success) {
+            throw new Error(json.message || '서버 저장 실패');
+        }
+
+        // 4. 로컬 데이터 갱신 및 UI 업데이트 (서버 성공 확인 후에만 실행)
+        if(!accountingData.monthly) accountingData.monthly = {};
+        accountingData.monthly[monthStr] = data;
+
+        alert('성공적으로 저장되었습니다.');
+        
+        // 저장 후 데이터가 바로 반영되도록 대시보드 UI 강제 갱신
+        updateDashboardUI();
+        
+        // (선택사항) 저장 후 확실한 확인을 위해 차트 화면으로 이동하려면 아래 주석 해제
+        // switchAccSubTab('acc-dashboard');
+
+    } catch(e) {
+        console.error('고정비 저장 에러:', e);
+        alert('저장에 실패했습니다.\n사유: ' + e.message);
+    }
+>>>>>>> 29b785e367eaa21e7da304d13e7d412c6c99859a
 }
 
 // ==========================================
