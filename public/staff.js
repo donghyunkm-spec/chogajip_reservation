@@ -380,7 +380,10 @@ async function saveDailyAccounting() {
         totalSales = card + cash + transfer + gift;
     }
 
-    if(!confirm(`${dateStr} 데이터를 저장하시겠습니까?`)) return;
+    // 수정된 코드 (입력값 확인 가능하도록 변경)
+    const confirmMsg = `${dateStr} 데이터를 저장하시겠습니까?\n\n💳 총매출: ${totalSales.toLocaleString()}원\n  ├ 카드: ${card.toLocaleString()}원\n  ├ 현금: ${cash.toLocaleString()}원\n  └ 이체/기타: ${(transfer + gift).toLocaleString()}원\n\n📤 총지출: ${(food + meat + etc).toLocaleString()}원\n\n⚠️ 모든 금액이 0원이면 입력이 안 된 것입니다!`;
+
+    if(!confirm(confirmMsg)) return;
 
     const data = {
         startCash, cash, bankDeposit,
