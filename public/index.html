@@ -763,11 +763,25 @@
 		.table-cell.reserved-color-6:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(233, 30, 99, 0.4); }
 		.table-cell.reserved-color-7:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(255, 152, 0, 0.4); }
 		.table-cell.reserved-color-8:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4); }
+
+        /* [NEW] 양은이네 버튼 스타일 (눈에 띄게) */
+        .yangeun-link-btn {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            color: white; border: none; padding: 8px 15px; border-radius: 5px; 
+            cursor: pointer; font-weight: bold; text-decoration: none;
+            display: inline-block; font-size: 13px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .yangeun-link-btn:hover { transform: translateY(-2px); }
     </style>
 </head>
 <body>
     <div class="container">
         <div style="text-align: right; margin-bottom: 10px; display: flex; justify-content: flex-end; gap: 10px;">
+            <a href="https://yyyn-reservation-production.up.railway.app/" target="_blank" class="yangeun-link-btn">
+                🥘 양은이네 예약홈
+            </a>
             <button onclick="location.href='staff.html?store=chogazip'" style="background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">
                 👥 초가짚 근무표
             </button>

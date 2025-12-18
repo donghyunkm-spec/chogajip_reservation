@@ -143,7 +143,7 @@
 
         .tabs {
             display: grid;
-            grid-template-columns: repeat(3, 1fr); /* 한 줄에 3개씩 */
+            grid-template-columns: repeat(4, 1fr); /* 버튼 개수에 맞춰 4열로 변경 */
             gap: 5px;
             background: transparent;
             box-shadow: none;
@@ -186,252 +186,20 @@
         .acc-table th { background: #f1f3f5; padding: 8px; border-bottom: 1px solid #ddd; }
         .acc-table td { padding: 8px; border-bottom: 1px solid #eee; text-align: right; }
         .acc-table td:first-child { text-align: left; }
-    </style>
 
-    <div class="tabs">
-        <button class="tab active" onclick="switchTab('daily')">📅 일별현황</button>
-        <button class="tab" onclick="switchTab('weekly')">📊 주간근무</button>
-        <button class="tab" onclick="switchTab('monthly')">📆 캘린더</button>
-        <button class="tab" onclick="switchTab('accounting')" style="background:#e3f2fd; color:#0d47a1;">💰 매출/지출</button>
-        <button class="tab" id="manageTabBtn" onclick="switchTab('manage')" style="display:none; background:#fff3cd;">⚙️ 직원관리</button>
-        <button class="tab" id="logTabBtn" onclick="switchTab('logs')" style="display:none;">📝 변경이력</button>
-    </div>
-
-    <div id="accounting-content" class="tab-content">
-        <div class="accounting-header-nav">
-            <button onclick="changeAccMonth(-1)" class="nav-btn">◀ 전월</button>
-            <div class="current-month-display">
-                <h2 id="dashboardTitle" style="margin:0;">2024년 12월</h2>
-                <button onclick="resetAccMonth()" class="reset-btn-mini">이번 달로 이동</button>
-            </div>
-            <button onclick="changeAccMonth(1)" class="nav-btn">익월 ▶</button>
-        </div>
-
-        <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 15px;">
-            <button class="tab active" onclick="switchAccSubTab('acc-daily', this)">✏️ 일일 입력</button>
-            <button class="tab" onclick="switchAccSubTab('acc-history', this)">📜 입력 내역</button>
-            <button class="tab" onclick="switchAccSubTab('acc-dashboard', this)">📊 월간 분석</button>
-            <button class="tab" onclick="switchAccSubTab('acc-monthly', this)">🏢 고정비</button>
-        </div>
-
-        <div id="acc-daily" class="acc-sub-content active">
-            <div class="accounting-card">
-                <div style="background:#e3f2fd; padding:10px; border-radius:5px; margin-bottom:15px; font-size:13px; color:#0d47a1;">
-                    💡 <strong>안내:</strong> 날짜를 선택하고 금액을 입력한 뒤 [저장하기]를 누르세요.<br>
-                    수정이 필요한 경우 <strong>[입력 내역]</strong> 탭에서 수정 버튼을 눌러주세요.
-                </div>
-
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
-                    <input type="date" id="accDate" class="date-picker" onchange="loadDailyAccounting()" style="padding:10px; font-size:15px; width:60%;">
-                    <button onclick="saveDailyAccounting()" style="width:35%; background:#29b6f6; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">💾 저장하기</button>
-                </div>
-
-                <h4 style="color:#607d8b; margin-bottom:10px;">💵 돈통(시재) 정산</h4>
-                <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #ddd; margin-bottom:20px;">
-                    
-                    <div style="margin-bottom: 10px;">
-                        <span class="category-label" style="font-weight:bold; color:#00796b;">① 영업 시작 전 돈통 금액 (시재금+돈통금액)</span>
-                        <input type="number" id="inpStartCash" class="money-input" value="100000" oninput="calcDrawerTotal()" style="width:100%; padding:10px; font-size:16px; border:2px solid #00796b;">
-                    </div>
-
-                    <div class="input-group-row" style="align-items: center; border-top:1px dashed #ccc; padding-top:10px; margin-top:10px;">
-                        <div style="flex:1;">
-                            <span class="category-label">➕ 오늘 현금 매출</span>
-                            <input type="number" id="inpCash" class="money-input" placeholder="0" oninput="calcDrawerTotal()" style="background:#fff;">
-                        </div>
-                    </div>
-
-                    <div class="input-group-row" style="align-items: center; margin-top:10px;">
-                        <div style="flex:1;">
-                            <span class="category-label">➖ 계좌이체 (현금X)</span>
-                            <input type="number" id="inpTransfer" class="money-input" placeholder="0" oninput="calcDrawerTotal()" style="color:#e65100; background:#fff3e0;">
-                        </div>
-                        <div style="flex:1;">
-                            <span class="category-label">➖ 중간/마감 입금</span>
-                            <input type="number" id="inpDeposit" class="money-input" placeholder="0" oninput="calcDrawerTotal()" style="color:#d32f2f;">
-                        </div>
-                    </div>
-
-                    <div style="margin-top:15px; padding:15px; background:#e3f2fd; border-radius:5px; text-align:right;">
-                        <span class="category-label" style="color:#1565c0; font-weight:bold; font-size:14px;">👉 지금 돈통에 있어야 할 돈</span>
-                        <div id="drawerTotalDisplay" style="font-size:28px; font-weight:bold; color:#1565c0; margin-top:5px;">100,000원</div>
-                    </div>
-                </div>
-
-                <h4 style="color:#1976D2; margin-bottom:10px;">💳 매출 상세 입력</h4>
-                    <div class="input-grid" id="salesInputGrid">
-                        <div>
-                            <span class="category-label">💳 카드 매출</span>
-                            <input type="number" id="inpCard" class="money-input" placeholder="0">
-                        </div>
-                        <div>
-                            <span class="category-label">🎫 상품권/기타</span>
-                            <input type="number" id="inpGift" class="money-input" placeholder="0">
-                        </div>
-                    </div>
-
-                <div style="margin-top:15px;">
-                    <span class="category-label">📝 특이사항 (메모)</span>
-                    <input type="text" id="inpNote" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;" placeholder="예: 단체 예약 취소, 비 많이 옴">
-                </div>
-
-                <h4 style="color:#d32f2f; margin-top:25px; margin-bottom:10px; border-top:1px dashed #ddd; padding-top:15px;">📤 일일 지출</h4>
-                <div class="input-grid">
-                    <div>
-                        <span class="category-label">🥬 삼시세끼(야채)</span>
-                        <input type="number" id="inpFood" class="money-input" placeholder="0">
-                    </div>
-                    <div>
-                        <span class="category-label" id="labelMeat">🥩 한강유통(고기)</span>
-                        <input type="number" id="inpMeat" class="money-input" placeholder="0">
-                    </div>
-                    <div>
-                        <span class="category-label">🍦 기타 잡비</span>
-                        <input type="number" id="inpEtc" class="money-input" placeholder="0">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="acc-history" class="acc-sub-content">
-            <div class="accounting-card">
-                <h3 class="chart-title">📜 이번 달 입력 내역</h3>
-                <div style="overflow-x: auto;">
-                    <table class="log-table" style="margin-top:0;">
-                        <thead>
-                            <tr>
-                                <th style="width:50px;">날짜</th>
-                                <th>총매출</th>
-                                <th>총지출</th>
-                                <th>상세내역</th>
-                                <th style="width:50px;">관리</th>
-                            </tr>
-                        </thead>
-                        <tbody id="historyTableBody">
-                            </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div id="acc-dashboard" class="acc-sub-content">
-            <div class="dashboard-summary">
-                <div class="summary-card total-sales">
-                    <div class="lbl">총 매출</div>
-                    <div class="val" id="dashTotalSales">0원</div>
-                </div>
-                <div class="summary-card total-cost">
-                    <div class="lbl">총 지출</div>
-                    <div class="val" id="dashTotalCost">0원</div>
-                </div>
-                <div class="summary-card net-profit">
-                    <div class="lbl">순수익 (마진율)</div>
-                    <div class="val" id="dashNetProfit">0원</div>
-                    <div class="sub-val" id="dashMargin">0%</div>
-                </div>
-                <div class="summary-card break-even" style="background:#fff3e0; grid-column: span 3;">
-                        <div class="lbl" style="color:#ef6c00;">💡 손익분기점 분석</div>
-                        <div class="val" id="dashBreakEven" style="font-size:13px; color:#333; font-weight:normal;">계산 중...</div>
-                </div>
-            </div>
-
-            <div class="accounting-card">
-                <h3 class="chart-title">📊 매출 상세 분석 (유형별)</h3>
-                <div id="salesBreakdownChart"></div>
-            </div>
-
-            <div class="accounting-card">
-                <h3 class="chart-title">📉 지출 상세 분석 (큰 지출 순)</h3>
-                <div id="costBreakdownList" class="cost-list"></div>
-                <div style="margin-top:15px; padding-top:10px; border-top:1px solid #eee; text-align:right; font-size:12px; color:#666;">
-                    * 직원 인건비(예상) <span id="dashStaffCost">0</span>원 포함됨
-                </div>
-            </div>
-        </div>
-
-        <div id="acc-monthly" class="acc-sub-content">
-            <div class="accounting-card">
-                <h4 style="color:#00796b; margin-bottom:10px;">🗓️ <span id="fixCostTitle">12월</span> 고정 지출 설정</h4>
-                <p style="font-size:12px; color:#666; margin-bottom:15px;">* 월 1회 청구되거나 매월 고정적으로 나가는 비용</p>
-
-                <div class="input-grid">
-                    <div>
-                        <span class="category-label">🏠 임대료</span>
-                        <input type="number" id="fixRent" class="money-input" placeholder="0">
-                    </div>
-                    <div>
-                        <span class="category-label">💡 관리비/공과금</span>
-                        <input type="number" id="fixUtility" class="money-input" placeholder="0">
-                    </div>
-                    <div>
-                        <span class="category-label">🔥 가스비</span>
-                        <input type="number" id="fixGas" class="money-input" placeholder="0">
-                    </div>
-                    <div>
-                        <span class="category-label">🍺 주류 (월말결제)</span>
-                        <input type="number" id="fixLiquor" class="money-input" placeholder="0">
-                    </div>
-                    <div>
-                        <span class="category-label">🥤 음료 (월말결제)</span>
-                        <input type="number" id="fixBeverage" class="money-input" placeholder="0">
-                    </div>
-                    <div>
-                        <span class="category-label">🔧 기타 고정비</span>
-                        <input type="number" id="fixEtc" class="money-input" placeholder="0">
-                    </div>
-                </div>
-                
-                <button onclick="saveFixedCost()" style="width:100%; background:#00796b; color:white; padding:12px; border:none; border-radius:5px; font-weight:bold; margin-top:20px;">
-                    💾 <span id="fixBtnMonth">12월</span> 데이터 저장
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <style>
-        .accounting-header-nav { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .current-month-display { text-align: center; }
-        .nav-btn { background: none; border: 1px solid #ddd; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
-        .reset-btn-mini { background: #f1f3f5; border: none; font-size: 11px; padding: 2px 8px; border-radius: 10px; cursor: pointer; margin-top: 5px; }
-
-        .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        /* 가계부 서브 탭 스타일 및 애니메이션 */
+        .acc-sub-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .acc-sub-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         
-        .dashboard-summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        .summary-card { background: white; padding: 15px 5px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .summary-card .lbl { font-size: 11px; color: #666; margin-bottom: 5px; }
-        .summary-card .val { font-size: 14px; font-weight: bold; }
-        .summary-card.total-sales .val { color: #1976D2; }
-        .summary-card.total-cost .val { color: #d32f2f; }
-        .summary-card.net-profit { background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; }
-        .summary-card.net-profit .lbl { color: #bbdefb; }
-        .summary-card.net-profit .val { color: #fff; font-size: 15px; }
-
-        .chart-title { font-size: 14px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-bottom: 10px; }
-        .bar-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; }
-        .bar-label { width: 80px; text-align: right; margin-right: 10px; color: #555; }
-        .bar-track { flex: 1; background: #f1f3f5; height: 15px; border-radius: 4px; overflow: hidden; }
-        .bar-fill { height: 100%; display: block; }
-        .bar-value { margin-left: 10px; font-weight: bold; width: 60px; text-align: right; }
-    </style>
-
-    <style>
-        /* 새로운 가계부용 스타일 */
-        /* 기본적으로 모든 서브 탭 내용은 숨김 */
-    .acc-sub-content {
-        display: none;
-        animation: fadeIn 0.3s ease-in-out;
-    }
-
-    /* active 클래스가 붙은 탭만 표시 */
-    .acc-sub-content.active {
-        display: block;
-    }
-
-    /* 부드러운 전환 효과 */
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(5px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
         .accounting-header-nav {
             display: flex; justify-content: space-between; align-items: center;
             background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 15px;
@@ -577,6 +345,7 @@
             <button class="tab active" onclick="switchTab('daily')">일별 현황</button>
             <button class="tab" onclick="switchTab('weekly')">주간 근무표</button>
             <button class="tab" onclick="switchTab('monthly')">월별 캘린더</button>
+            <button class="tab" onclick="switchTab('accounting')" style="background:#e3f2fd; color:#0d47a1;">💰 매출/지출</button>
             <button class="tab" id="manageTabBtn" onclick="switchTab('manage')" style="display:none; background:#fff3cd;">⚙️ 인원 관리</button>
             <button class="tab" id="logTabBtn" onclick="switchTab('logs')" style="display:none;">📝 변경 이력</button>
         </div>
@@ -652,6 +421,222 @@
                     <div class="calendar-head">금</div>
                     <div class="calendar-head" style="color:blue">토</div>
                     <div id="calendarBody" style="display:contents;"></div>
+                </div>
+            </div>
+        </div>
+    
+        <div id="accounting-content" class="tab-content">
+            <div class="accounting-header-nav">
+                <button onclick="changeAccMonth(-1)" class="nav-btn">◀ 전월</button>
+                <div class="current-month-display">
+                    <h2 id="dashboardTitle" style="margin:0;">2024년 12월</h2>
+                    <button onclick="resetAccMonth()" class="reset-btn-mini">이번 달로 이동</button>
+                </div>
+                <button onclick="changeAccMonth(1)" class="nav-btn">익월 ▶</button>
+            </div>
+    
+            <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 15px;">
+                <button class="tab active" onclick="switchAccSubTab('acc-daily', this)">✏️ 일일 입력</button>
+                <button class="tab" onclick="switchAccSubTab('acc-history', this)">📜 입력 내역</button>
+                <button class="tab" onclick="switchAccSubTab('acc-dashboard', this)">📊 월간 분석</button>
+                <button class="tab" onclick="switchAccSubTab('acc-monthly', this)">🏢 고정비</button>
+            </div>
+    
+            <div id="acc-daily" class="acc-sub-content active">
+                <div class="accounting-card">
+                    <div style="background:#e3f2fd; padding:10px; border-radius:5px; margin-bottom:15px; font-size:13px; color:#0d47a1;">
+                        💡 <strong>안내:</strong> 날짜를 선택하고 금액을 입력한 뒤 [저장하기]를 누르세요.<br>
+                        수정이 필요한 경우 <strong>[입력 내역]</strong> 탭에서 수정 버튼을 눌러주세요.
+                    </div>
+    
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
+                        <input type="date" id="accDate" class="date-picker" onchange="loadDailyAccounting()" style="padding:10px; font-size:15px; width:60%;">
+                        <button onclick="saveDailyAccounting()" style="width:35%; background:#29b6f6; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">💾 저장하기</button>
+                    </div>
+    
+                    <h4 style="color:#607d8b; margin-bottom:10px;">💵 돈통(시재) 정산</h4>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #ddd; margin-bottom:20px;">
+                        
+                        <div style="margin-bottom: 10px;">
+                            <span class="category-label" style="font-weight:bold; color:#00796b;">① 영업 시작 전 돈통 금액 (시재금+돈통금액)</span>
+                            <input type="number" id="inpStartCash" class="money-input" value="100000" oninput="calcDrawerTotal()" style="width:100%; padding:10px; font-size:16px; border:2px solid #00796b;">
+                        </div>
+    
+                        <div class="input-group-row" style="align-items: center; border-top:1px dashed #ccc; padding-top:10px; margin-top:10px;">
+                            <div style="flex:1;">
+                                <span class="category-label">➕ 오늘 현금 매출</span>
+                                <input type="number" id="inpCash" class="money-input" placeholder="0" oninput="calcDrawerTotal()" style="background:#fff;">
+                            </div>
+                        </div>
+    
+                        <div class="input-group-row" style="align-items: center; margin-top:10px;">
+                            <div style="flex:1;">
+                                <span class="category-label">➖ 계좌이체 (현금X)</span>
+                                <input type="number" id="inpTransfer" class="money-input" placeholder="0" oninput="calcDrawerTotal()" style="color:#e65100; background:#fff3e0;">
+                            </div>
+                            <div style="flex:1;">
+                                <span class="category-label">➖ 중간/마감 입금</span>
+                                <input type="number" id="inpDeposit" class="money-input" placeholder="0" oninput="calcDrawerTotal()" style="color:#d32f2f;">
+                            </div>
+                        </div>
+    
+                        <div style="margin-top:15px; padding:15px; background:#e3f2fd; border-radius:5px; text-align:right;">
+                            <span class="category-label" style="color:#1565c0; font-weight:bold; font-size:14px;">👉 지금 돈통에 있어야 할 돈</span>
+                            <div id="drawerTotalDisplay" style="font-size:28px; font-weight:bold; color:#1565c0; margin-top:5px;">100,000원</div>
+                        </div>
+                    </div>
+    
+                    <h4 style="color:#1976D2; margin-bottom:10px;">💳 매출 상세 입력</h4>
+                        <div class="input-grid" id="salesInputGrid">
+                            <div>
+                                <span class="category-label">💳 카드 매출</span>
+                                <input type="number" id="inpCard" class="money-input" placeholder="0">
+                            </div>
+                            <div>
+                                <span class="category-label">🎫 상품권/기타</span>
+                                <input type="number" id="inpGift" class="money-input" placeholder="0">
+                            </div>
+                        </div>
+    
+                    <div style="margin-top:15px;">
+                        <span class="category-label">📝 특이사항 (메모)</span>
+                        <input type="text" id="inpNote" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;" placeholder="예: 단체 예약 취소, 비 많이 옴">
+                    </div>
+    
+                    <h4 style="color:#d32f2f; margin-top:25px; margin-bottom:10px; border-top:1px dashed #ddd; padding-top:15px;">📤 일일 지출</h4>
+                    <div class="input-grid">
+                        <div>
+                            <span class="category-label">🥬 삼시세끼(야채)</span>
+                            <input type="number" id="inpFood" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label" id="labelMeat">🥩 한강유통(고기)</span>
+                            <input type="number" id="inpMeat" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label" id="labelEtc">🍦 기타 잡비</span>
+                            <input type="number" id="inpEtc" class="money-input" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+    
+            <div id="acc-history" class="acc-sub-content">
+                <div class="accounting-card">
+                    <h3 class="chart-title">📜 이번 달 입력 내역</h3>
+                    <div style="overflow-x: auto;">
+                        <table class="log-table" style="margin-top:0;">
+                            <thead>
+                                <tr>
+                                    <th style="width:50px;">날짜</th>
+                                    <th>총매출</th>
+                                    <th>총지출</th>
+                                    <th>상세내역</th>
+                                    <th style="width:50px;">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+    
+            <div id="acc-dashboard" class="acc-sub-content">
+                <div class="dashboard-summary">
+                    <div class="summary-card total-sales">
+                        <div class="lbl">총 매출</div>
+                        <div class="val" id="dashTotalSales">0원</div>
+                    </div>
+                    <div class="summary-card total-cost">
+                        <div class="lbl">총 지출</div>
+                        <div class="val" id="dashTotalCost">0원</div>
+                    </div>
+                    <div class="summary-card net-profit">
+                        <div class="lbl">순수익 (마진율)</div>
+                        <div class="val" id="dashNetProfit">0원</div>
+                        <div class="sub-val" id="dashMargin">0%</div>
+                    </div>
+                    <div class="summary-card break-even" style="background:#fff3e0; grid-column: span 3;">
+                            <div class="lbl" style="color:#ef6c00;">💡 손익분기점 분석</div>
+                            <div class="val" id="dashBreakEven" style="font-size:13px; color:#333; font-weight:normal;">계산 중...</div>
+                    </div>
+                </div>
+    
+                <div class="accounting-card">
+                    <h3 class="chart-title">📊 매출 상세 분석 (유형별)</h3>
+                    <div id="salesBreakdownChart"></div>
+                </div>
+    
+                <div class="accounting-card">
+                    <h3 class="chart-title">📉 지출 상세 분석 (큰 지출 순)</h3>
+                    <div id="costBreakdownList" class="cost-list"></div>
+                    <div style="margin-top:15px; padding-top:10px; border-top:1px solid #eee; text-align:right; font-size:12px; color:#666;">
+                        * 직원 인건비(예상) <span id="dashStaffCost">0</span>원 포함됨
+                    </div>
+                </div>
+            </div>
+    
+            <div id="acc-monthly" class="acc-sub-content">
+                <div class="accounting-card">
+                    <h4 style="color:#00796b; margin-bottom:10px;">🗓️ <span id="fixCostTitle">12월</span> 고정 지출 설정</h4>
+                    <p style="font-size:12px; color:#666; margin-bottom:15px;">* 월 1회 청구되거나 매월 고정적으로 나가는 비용</p>
+    
+                    <div class="input-grid">
+                        <div>
+                            <span class="category-label">🏠 임대료</span>
+                            <input type="number" id="fixRent" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">💡 관리비/공과금</span>
+                            <input type="number" id="fixUtility" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">🔥 가스비</span>
+                            <input type="number" id="fixGas" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">🍺 주류 (월말결제)</span>
+                            <input type="number" id="fixLiquor" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">🥤 음료 (월말결제)</span>
+                            <input type="number" id="fixBeverage" class="money-input" placeholder="0">
+                        </div>
+                        
+                        <div id="divDisposable" style="display:none;"> <span class="category-label">🥡 일회용기(포장)</span>
+                            <input type="number" id="fixDisposable" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">💳 사업자카드 대금</span>
+                            <input type="number" id="fixBusinessCard" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">🧑‍💼 세무사 기장료</span>
+                            <input type="number" id="fixTaxAgent" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">💸 부가세/종소세</span>
+                            <input type="number" id="fixTax" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">🗑️ 음식물 쓰레기</span>
+                            <input type="number" id="fixFoodWaste" class="money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <span class="category-label">📟 테이블오더/인터넷</span>
+                            <input type="number" id="fixTableOrder" class="money-input" placeholder="0">
+                        </div>
+    
+                        <div>
+                            <span class="category-label">🔧 기타 고정비</span>
+                            <input type="number" id="fixEtc" class="money-input" placeholder="0">
+                        </div>
+                    </div>
+                    
+                    <button onclick="saveFixedCost()" style="width:100%; background:#00796b; color:white; padding:12px; border:none; border-radius:5px; font-weight:bold; margin-top:20px;">
+                        💾 <span id="fixBtnMonth">12월</span> 데이터 저장
+                    </button>
                 </div>
             </div>
         </div>

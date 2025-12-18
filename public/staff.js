@@ -47,35 +47,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // [신규 함수] 매장별 UI 세팅
 function initStoreSettings() {
-    // 1. 양은이네인 경우 지출 라벨 변경 (한강유통 -> SPC유통)
+    // 1. 양은이네 설정
     if (currentStore === 'yangeun') {
+        // [지출 라벨 변경]
         const meatLabel = document.getElementById('labelMeat');
         if (meatLabel) meatLabel.textContent = '🍞 SPC 유통';
         
-        // 2. 매출 입력칸 변경 (상품권 제거 -> 배달앱 3사 추가)
+        // [NEW] 기타잡비 -> 막걸리/굴 변경
+        const etcLabel = document.getElementById('labelEtc');
+        if (etcLabel) {
+            etcLabel.textContent = '🦪 막걸리/굴';
+            etcLabel.style.color = '#795548';
+            etcLabel.style.fontWeight = 'bold';
+        }
+
+        // [NEW] 일회용기 입력칸 보이기
+        const dispDiv = document.getElementById('divDisposable');
+        if(dispDiv) dispDiv.style.display = 'block';
+        
+        // [매출 입력칸 변경] (기존 코드 유지)
         const salesGrid = document.getElementById('salesInputGrid');
         if (salesGrid) {
             salesGrid.innerHTML = `
-                <div>
-                    <span class="category-label">💳 카드 매출</span>
-                    <input type="number" id="inpCard" class="money-input" placeholder="0">
-                </div>
-                <div>
-                    <span class="category-label">🛵 배달의민족</span>
-                    <input type="number" id="inpBaemin" class="money-input" placeholder="0">
-                </div>
-                <div>
-                    <span class="category-label">🛵 요기요</span>
-                    <input type="number" id="inpYogiyo" class="money-input" placeholder="0">
-                </div>
-                <div>
-                    <span class="category-label">🛵 쿠팡이츠</span>
-                    <input type="number" id="inpCoupang" class="money-input" placeholder="0">
-                </div>
+                <div><span class="category-label">💳 카드 매출</span><input type="number" id="inpCard" class="money-input" placeholder="0"></div>
+                <div><span class="category-label">🛵 배달의민족</span><input type="number" id="inpBaemin" class="money-input" placeholder="0"></div>
+                <div><span class="category-label">🛵 요기요</span><input type="number" id="inpYogiyo" class="money-input" placeholder="0"></div>
+                <div><span class="category-label">🛵 쿠팡이츠</span><input type="number" id="inpCoupang" class="money-input" placeholder="0"></div>
             `;
-            // 배달앱이 많아졌으므로 그리드 스타일 조정 (2열 -> 모바일에서도 보기 좋게)
             salesGrid.style.gridTemplateColumns = "1fr 1fr"; 
         }
+    } else {
+        // 2. 초가짚 설정
+        // 일회용기 숨기기 (기본값 none이지만 확실하게)
+        const dispDiv = document.getElementById('divDisposable');
+        if(dispDiv) dispDiv.style.display = 'none';
     }
 }
 
@@ -502,33 +507,36 @@ function loadHistoryTable() {
         });
     }
 
-    // 2. [NEW] 고정비 데이터 (Fixed Cost) 처리 -> 해당 월 말일자로 표시
+    // 2. Fixed Cost Data 처리 (신규 필드 포함)
     if (accountingData.monthly && accountingData.monthly[monthStr]) {
         const m = accountingData.monthly[monthStr];
-        // 고정비 총합 계산
-        const fixedTotal = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + (m.beverage||0) + (m.etc_fixed||0);
+        const fixedTotal = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + (m.beverage||0) + (m.etc_fixed||0)
+                         + (m.disposable||0) + (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0);
         
         if (fixedTotal > 0) {
             let fDetails = [];
             if(m.rent) fDetails.push(`🏠월세:${m.rent.toLocaleString()}`);
-            if(m.utility) fDetails.push(`💡관리비:${m.utility.toLocaleString()}`);
+            if(m.utility) fDetails.push(`💡관리:${m.utility.toLocaleString()}`);
             if(m.gas) fDetails.push(`🔥가스:${m.gas.toLocaleString()}`);
-            if(m.liquor) fDetails.push(`🍺주류:${m.liquor.toLocaleString()}`);
-            if(m.beverage) fDetails.push(`🥤음료:${m.beverage.toLocaleString()}`);
+            // [NEW]
+            if(m.disposable) fDetails.push(`🥡용기:${m.disposable.toLocaleString()}`);
+            if(m.businessCard) fDetails.push(`💳카드:${m.businessCard.toLocaleString()}`);
+            if(m.taxAgent) fDetails.push(`🧑‍💼세무:${m.taxAgent.toLocaleString()}`);
+            if(m.tax) fDetails.push(`💸세금:${m.tax.toLocaleString()}`);
+            if(m.foodWaste) fDetails.push(`🗑️음쓰:${m.foodWaste.toLocaleString()}`);
+            if(m.tableOrder) fDetails.push(`📟오더:${m.tableOrder.toLocaleString()}`);
+            
             if(m.etc_fixed) fDetails.push(`🔧기타:${m.etc_fixed.toLocaleString()}`);
 
-            // 해당 월의 마지막 날짜 구하기 (예: 12월 -> 31일)
             const [year, month] = monthStr.split('-').map(Number);
             const lastDay = new Date(year, month, 0).getDate(); 
-            const fullDate = `${monthStr}-${String(lastDay).padStart(2,'0')}`;
-
+            
             rows.push({
-                date: fullDate, // 정렬용 날짜 (말일)
+                date: `${monthStr}-${lastDay}`,
                 dayStr: `${lastDay}일 (고정비)`,
-                sales: 0,
-                cost: fixedTotal,
-                desc: `<span style="color:#00796b; font-weight:bold;">[월 고정지출]</span> ` + fDetails.join(' / '),
-                type: 'fixed' // 고정비 데이터
+                sales: 0, cost: fixedTotal,
+                desc: `<span style="color:#00796b; font-weight:bold;">[월 고정]</span> ` + fDetails.join('/'),
+                type: 'fixed'
             });
         }
     }
@@ -597,14 +605,24 @@ function renderDashboardStats() {
     const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
     
     let sales = { card:0, cash:0, transfer:0, gift:0, baemin:0, yogiyo:0, coupang:0, total:0 };
+    // [NEW] costs 객체에 신규 항목 추가
     let costs = { 
         meat:0, food:0, dailyEtc:0,
-        rent: (mData.rent||0), utility: (mData.utility||0), gas: (mData.gas||0),
-        liquor: (mData.liquor||0), beverage: (mData.beverage||0), fixedEtc: (mData.etc_fixed||0),
+        rent: (mData.rent||0), 
+        utility: (mData.utility||0), 
+        gas: (mData.gas||0),
+        liquor: (mData.liquor||0), 
+        beverage: (mData.beverage||0), 
+        fixedEtc: (mData.etc_fixed||0),
+        // 신규
+        disposable: (mData.disposable||0),
+        businessCard: (mData.businessCard||0),
+        taxAgent: (mData.taxAgent||0),
+        tax: (mData.tax||0),
+        foodWaste: (mData.foodWaste||0),
+        tableOrder: (mData.tableOrder||0),
         staff: 0 
     };
-
-    // 인건비 계산
     costs.staff = getEstimatedStaffCost(monthStr);
 
     if (accountingData.daily) {
@@ -631,12 +649,15 @@ function renderDashboardStats() {
         });
     }
 
-    // 총매출 계산
+    // 총계 계산 (신규 비용 포함)
     sales.total = sales.card + sales.cash + sales.transfer + sales.gift + sales.baemin + sales.yogiyo + sales.coupang;
     
-    const totalFixed = costs.rent + costs.utility + costs.gas + costs.liquor + costs.beverage + costs.fixedEtc + costs.staff;
+    const totalFixed = costs.rent + costs.utility + costs.gas + costs.liquor + costs.beverage + costs.fixedEtc + costs.staff
+                     + costs.disposable + costs.businessCard + costs.taxAgent + costs.tax + costs.foodWaste + costs.tableOrder;
+                     
     const totalVariable = costs.meat + costs.food + costs.dailyEtc;
     const totalCost = totalFixed + totalVariable;
+
     const netProfit = sales.total - totalCost;
     const margin = sales.total > 0 ? ((netProfit / sales.total) * 100).toFixed(1) : 0;
 
@@ -713,29 +734,48 @@ function renderDashboardStats() {
         }
     }
 
-    // [지출 차트]
+    // [지출 차트 렌더링 부분]
     const costListEl = document.getElementById('costBreakdownList');
     if(costListEl) {
         if(totalCost === 0) {
-            costListEl.innerHTML = '<div style="text-align:center; color:#999; padding:10px;">지출 내역 없음</div>';
+            costListEl.innerHTML = '...';
         } else {
             const meatLabel = (currentStore === 'yangeun') ? '🍞 SPC유통' : '🥩 한강유통';
+            const etcLabel = (currentStore === 'yangeun') ? '🦪 막걸리/굴' : '🍦 기타 잡비';
 
+            // [NEW] 그래프 항목에 추가
             const costItems = [
                 { label: meatLabel, val: costs.meat, color: '#ef5350' },
                 { label: '🏠 임대료', val: costs.rent, color: '#5c6bc0' },
                 { label: '👥 인건비', val: costs.staff, color: '#26a69a' },
                 { label: '🍺 주류/음료', val: costs.liquor + costs.beverage, color: '#ff7043' },
                 { label: '🥬 삼시세끼', val: costs.food, color: '#8d6e63' },
-                { label: '💡 공과금', val: costs.utility + costs.gas, color: '#fdd835' },
-                { label: '🍦 기타지출', val: costs.dailyEtc + costs.fixedEtc, color: '#bdbdbd' },
+                { label: '💡 공과금/가스', val: costs.utility + costs.gas, color: '#fdd835' },
+                
+                // 신규 항목들
+                { label: '💳 카드대금', val: costs.businessCard, color: '#7e57c2' },
+                { label: '💸 세금/기장', val: costs.tax + costs.taxAgent, color: '#ab47bc' },
+                { label: '🗑️ 음쓰/용기', val: costs.foodWaste + costs.disposable, color: '#8d6e63' },
+                { label: '📟 오더/기타', val: costs.tableOrder + costs.fixedEtc, color: '#bdbdbd' },
+                
+                { label: etcLabel, val: costs.dailyEtc, color: '#78909c' },
             ].sort((a,b) => b.val - a.val);
 
+            // ... (렌더링 루프 유지) ...
             let costHtml = '';
             costItems.forEach(item => {
-                // 지출 차트는 '바 길이'는 totalCost(지출총액) 기준, '텍스트 비율'은 sales.total(총매출) 기준
                 if (item.val > 0) {
-                    costHtml += renderBar(item.label, item.val, item.color, totalCost, sales.total);
+                     // renderBar 함수는 내부 스코프에 있다고 가정 (기존 코드 참고)
+                     const widthPct = totalCost > 0 ? Math.max((item.val / totalCost) * 100, 1) : 0;
+                     const textPct = sales.total > 0 ? ((item.val / sales.total) * 100).toFixed(1) : '0.0';
+                     costHtml += `
+                        <div class="bar-row">
+                            <div class="bar-label">${item.label}</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:${widthPct}%; background:${item.color};"></div>
+                            </div>
+                            <div class="bar-value">${item.val.toLocaleString()} <span style="font-size:11px; color:#999;">(${textPct}%)</span></div>
+                        </div>`;
                 }
             });
             costListEl.innerHTML = costHtml;
@@ -747,23 +787,28 @@ function renderDashboardStats() {
 
 // [서브탭 3] 월간 고정비 데이터 로드 (누락된 함수 복구)
 function loadMonthlyForm() {
-    const monthStr = getMonthStr(currentDashboardDate); // 예: "2024-12"
-    
-    // 데이터 가져오기 (없으면 빈 객체)
+    const monthStr = getMonthStr(currentDashboardDate);
     const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
 
-    // 화면(input)에 값 채워넣기
+    // 기존 필드
     if(document.getElementById('fixRent')) document.getElementById('fixRent').value = mData.rent || '';
     if(document.getElementById('fixUtility')) document.getElementById('fixUtility').value = mData.utility || '';
     if(document.getElementById('fixGas')) document.getElementById('fixGas').value = mData.gas || '';
     if(document.getElementById('fixLiquor')) document.getElementById('fixLiquor').value = mData.liquor || '';
     if(document.getElementById('fixBeverage')) document.getElementById('fixBeverage').value = mData.beverage || '';
     if(document.getElementById('fixEtc')) document.getElementById('fixEtc').value = mData.etc_fixed || '';
+    
+    // [NEW] 추가 필드 로드
+    if(document.getElementById('fixDisposable')) document.getElementById('fixDisposable').value = mData.disposable || '';
+    if(document.getElementById('fixBusinessCard')) document.getElementById('fixBusinessCard').value = mData.businessCard || '';
+    if(document.getElementById('fixTaxAgent')) document.getElementById('fixTaxAgent').value = mData.taxAgent || '';
+    if(document.getElementById('fixTax')) document.getElementById('fixTax').value = mData.tax || '';
+    if(document.getElementById('fixFoodWaste')) document.getElementById('fixFoodWaste').value = mData.foodWaste || '';
+    if(document.getElementById('fixTableOrder')) document.getElementById('fixTableOrder').value = mData.tableOrder || '';
 }
 
 // [staff.js 수정]
 async function saveFixedCost() {
-    // ... (앞부분 권한 체크 등은 동일) ...
     if (!currentUser) { openLoginModal(); return; }
     if (!['admin', 'manager'].includes(currentUser.role)) {
         alert("관리자 권한이 필요합니다.");
@@ -771,6 +816,8 @@ async function saveFixedCost() {
     }
 
     const monthStr = getMonthStr(currentDashboardDate);
+    
+    // 기존 데이터
     const rent = parseInt(document.getElementById('fixRent').value) || 0;
     const utility = parseInt(document.getElementById('fixUtility').value) || 0;
     const gas = parseInt(document.getElementById('fixGas').value) || 0;
@@ -778,9 +825,21 @@ async function saveFixedCost() {
     const beverage = parseInt(document.getElementById('fixBeverage').value) || 0;
     const etc_fixed = parseInt(document.getElementById('fixEtc').value) || 0;
 
+    // [NEW] 추가 데이터
+    // 양은이네가 아니면 일회용기는 0으로 처리
+    const disposable = (currentStore === 'yangeun') ? (parseInt(document.getElementById('fixDisposable').value) || 0) : 0;
+    const businessCard = parseInt(document.getElementById('fixBusinessCard').value) || 0;
+    const taxAgent = parseInt(document.getElementById('fixTaxAgent').value) || 0;
+    const tax = parseInt(document.getElementById('fixTax').value) || 0;
+    const foodWaste = parseInt(document.getElementById('fixFoodWaste').value) || 0;
+    const tableOrder = parseInt(document.getElementById('fixTableOrder').value) || 0;
+
     if(!confirm(`${monthStr} 고정 지출을 저장하시겠습니까?`)) return;
 
-    const data = { rent, utility, gas, liquor, beverage, etc_fixed };
+    const data = { 
+        rent, utility, gas, liquor, beverage, etc_fixed,
+        disposable, businessCard, taxAgent, tax, foodWaste, tableOrder 
+    };
 
     try {
         const res = await fetch('/api/accounting/monthly', {
@@ -794,22 +853,15 @@ async function saveFixedCost() {
             })
         });
 
-        // [중요] 서버 응답 성공 여부 확인
         if (res.ok) {
-            // 로컬 데이터 갱신
             if(!accountingData.monthly) accountingData.monthly = {};
             accountingData.monthly[monthStr] = data;
-            
             alert('저장되었습니다.');
             updateDashboardUI();
         } else {
-            alert('저장 실패: 서버 오류가 발생했습니다.');
+            alert('저장 실패: 서버 오류');
         }
-        
-    } catch(e) {
-        console.error(e);
-        alert('저장 실패: 네트워크 오류');
-    }
+    } catch(e) { console.error(e); alert('저장 실패'); }
 }
 
 // [여기까지 복사하세요] ==============================================
