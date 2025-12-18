@@ -519,7 +519,7 @@ function loadHistoryTable() {
     if (accountingData.monthly && accountingData.monthly[monthStr]) {
         const m = accountingData.monthly[monthStr];
         const fixedTotal = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + (m.beverage||0) + (m.etc_fixed||0)
-                         + (m.disposable||0) + (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0);
+                         + (m.disposable||0) + (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0) + (m.liquorLoan||0);
         
         if (fixedTotal > 0) {
             let fDetails = [];
@@ -533,6 +533,8 @@ function loadHistoryTable() {
             if(m.tax) fDetails.push(`💸세금:${m.tax.toLocaleString()}`);
             if(m.foodWaste) fDetails.push(`🗑️음쓰:${m.foodWaste.toLocaleString()}`);
             if(m.tableOrder) fDetails.push(`📟오더:${m.tableOrder.toLocaleString()}`);
+            // [추가] 내역 텍스트 표시
+            if(m.liquorLoan) fDetails.push(`🍶대출:${m.liquorLoan.toLocaleString()}`);
             
             if(m.etc_fixed) fDetails.push(`🔧기타:${m.etc_fixed.toLocaleString()}`);
 
@@ -629,6 +631,7 @@ function renderDashboardStats() {
         tax: (mData.tax||0),
         foodWaste: (mData.foodWaste||0),
         tableOrder: (mData.tableOrder||0),
+        liquorLoan: (mData.liquorLoan||0), 
         staff: 0 
     };
     costs.staff = getEstimatedStaffCost(monthStr);
@@ -661,7 +664,7 @@ function renderDashboardStats() {
     sales.total = sales.card + sales.cash + sales.transfer + sales.gift + sales.baemin + sales.yogiyo + sales.coupang;
     
     const totalFixed = costs.rent + costs.utility + costs.gas + costs.liquor + costs.beverage + costs.fixedEtc + costs.staff
-                     + costs.disposable + costs.businessCard + costs.taxAgent + costs.tax + costs.foodWaste + costs.tableOrder;
+                     + costs.disposable + costs.businessCard + costs.taxAgent + costs.tax + costs.foodWaste + costs.tableOrder + costs.liquorLoan;
                      
     const totalVariable = costs.meat + costs.food + costs.dailyEtc;
     const totalCost = totalFixed + totalVariable;
@@ -756,6 +759,7 @@ function renderDashboardStats() {
                 { label: meatLabel, val: costs.meat, color: '#ef5350' },
                 { label: '🏠 임대료', val: costs.rent, color: '#5c6bc0' },
                 { label: '👥 인건비', val: costs.staff, color: '#26a69a' },
+                { label: '🍶 대출상환', val: costs.liquorLoan, color: '#f57c00' }, // <-- 추가 (주황색 계열)
                 { label: '🍺 주류/음료', val: costs.liquor + costs.beverage, color: '#ff7043' },
                 { label: '🥬 삼시세끼', val: costs.food, color: '#8d6e63' },
                 { label: '💡 공과금/가스', val: costs.utility + costs.gas, color: '#fdd835' },
@@ -813,6 +817,9 @@ function loadMonthlyForm() {
     if(document.getElementById('fixTax')) document.getElementById('fixTax').value = mData.tax || '';
     if(document.getElementById('fixFoodWaste')) document.getElementById('fixFoodWaste').value = mData.foodWaste || '';
     if(document.getElementById('fixTableOrder')) document.getElementById('fixTableOrder').value = mData.tableOrder || '';
+
+    // [추가] 주류대출상환 데이터 로드
+    if(document.getElementById('fixLiquorLoan')) document.getElementById('fixLiquorLoan').value = mData.liquorLoan || '';
 }
 
 // [staff.js 수정]
@@ -846,7 +853,7 @@ async function saveFixedCost() {
 
     const data = { 
         rent, utility, gas, liquor, beverage, etc_fixed,
-        disposable, businessCard, taxAgent, tax, foodWaste, tableOrder 
+        disposable, businessCard, taxAgent, tax, foodWaste, tableOrder, liquorLoan
     };
 
     try {
