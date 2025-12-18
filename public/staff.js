@@ -73,6 +73,7 @@ function initStoreSettings() {
                 <div><span class="category-label">🛵 배달의민족</span><input type="number" id="inpBaemin" class="money-input" placeholder="0"></div>
                 <div><span class="category-label">🛵 요기요</span><input type="number" id="inpYogiyo" class="money-input" placeholder="0"></div>
                 <div><span class="category-label">🛵 쿠팡이츠</span><input type="number" id="inpCoupang" class="money-input" placeholder="0"></div>
+                <div><span class="category-label" style="color:#673ab7;">📒 선결제(장부)</span><input type="number" id="inpPrepay" class="money-input" placeholder="0" style="color:#673ab7; background:#f3e5f5;"></div>
             `;
             salesGrid.style.gridTemplateColumns = "1fr 1fr"; 
         }
@@ -286,6 +287,8 @@ function loadDailyAccounting() {
     // [수정] 공통 필드
     if(document.getElementById('inpCard')) document.getElementById('inpCard').value = dayData.card || '';
     if(document.getElementById('inpTransfer')) document.getElementById('inpTransfer').value = dayData.transfer || '';
+    // 선결제 추가
+    if(document.getElementById('inpPrepay')) document.getElementById('inpPrepay').value = dayData.prepay || ''; 
     
     // [수정] 매장별 필드 분기 처리
     if (currentStore === 'yangeun') {
@@ -355,6 +358,8 @@ async function saveDailyAccounting() {
     }
 
     const dateStr = document.getElementById('accDate').value;
+    const prepay = parseInt(document.getElementById('inpPrepay').value) || 0;
+
     if (!dateStr) { alert('날짜를 선택해주세요.'); return; }
 
     // 공통 데이터
@@ -407,13 +412,13 @@ async function saveDailyAccounting() {
     // [수정된 부분 끝]
     // ============================================================
 
-    const data = {
+const data = {
         startCash, cash, bankDeposit,
         card, transfer, 
-        // 기존 필드 유지하되 안쓰면 0
         gift: (currentStore === 'yangeun' ? 0 : gift),
-        // 신규 필드 추가
         baemin, yogiyo, coupang,
+        // [NEW] 데이터 객체에 선결제 추가
+        prepay: prepay, 
         sales: totalSales,
         food, meat, etc,
         cost: totalCost,
@@ -486,6 +491,9 @@ function loadHistoryTable() {
             } else {
                 if(d.gift) details.push(`🎫기타:${d.gift.toLocaleString()}`);
             }
+
+            // [NEW] 선결제 내역 표시 (보라색으로 강조)
+            if(d.prepay) details.push(`<span style="color:#673ab7; font-weight:bold;">📒선결제:${d.prepay.toLocaleString()}</span>`);
             
             // (2) 지출 상세 (고기 명칭 변경)
             const meatName = (currentStore === 'yangeun') ? 'SPC' : '고기';
