@@ -839,6 +839,8 @@ async function saveFixedCost() {
     const liquor = parseInt(document.getElementById('fixLiquor').value) || 0;
     const beverage = parseInt(document.getElementById('fixBeverage').value) || 0;
     const etc_fixed = parseInt(document.getElementById('fixEtc').value) || 0;
+    // [추가] 값 읽어오기
+    const liquorLoan = parseInt(document.getElementById('fixLiquorLoan').value) || 0;
 
     // [NEW] 추가 데이터
     // 양은이네가 아니면 일회용기는 0으로 처리
