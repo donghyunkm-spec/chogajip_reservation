@@ -361,16 +361,20 @@ app.get('/api/accounting', (req, res) => {
     res.json({ success: true, data: readJson(getAccountingFile(targetStore)) });
 });
 
-// 2. 일일 데이터 저장 (매출/변동비)
-app.post('/api/accounting/daily', (req, res) => {
-    const { date, data, store } = req.body; // data = { sales, food, meat... }
+// [server.js 수정] 3. 월 고정비 저장
+app.post('/api/accounting/monthly', (req, res) => {
+    const { month, data, store } = req.body; 
     const targetStore = store || 'chogazip';
     const file = getAccountingFile(targetStore);
     
     let accData = readJson(file);
-    if (!accData.daily) accData.daily = {};
+
+    // [중요 수정] accData가 배열([])로 오거나 구조가 없으면 객체로 초기화
+    if (Array.isArray(accData) || !accData.monthly) {
+        accData = { monthly: {}, daily: accData.daily || {} };
+    }
     
-    accData.daily[date] = data; // 날짜별 덮어쓰기
+    accData.monthly[month] = data;
     
     if (writeJson(file, accData)) {
         res.json({ success: true });
@@ -379,14 +383,40 @@ app.post('/api/accounting/daily', (req, res) => {
     }
 });
 
-// 3. 월 고정비 저장
-app.post('/api/accounting/fixed', (req, res) => {
-    const { month, data, store } = req.body; // month = "2024-12", data = { rent, gas... }
+// [server.js 수정] 2. 일일 데이터 저장 (함께 수정 권장)
+app.post('/api/accounting/daily', (req, res) => {
+    const { date, data, store } = req.body;
     const targetStore = store || 'chogazip';
     const file = getAccountingFile(targetStore);
     
     let accData = readJson(file);
-    if (!accData.monthly) accData.monthly = {};
+    
+    // [중요 수정] 안전장치 추가
+    if (Array.isArray(accData) || !accData.daily) {
+        accData = { monthly: accData.monthly || {}, daily: {} };
+    }
+    
+    accData.daily[date] = data;
+    
+    if (writeJson(file, accData)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// [server.js 수정] 3. 월 고정비 저장
+app.post('/api/accounting/monthly', (req, res) => {
+    const { month, data, store } = req.body; 
+    const targetStore = store || 'chogazip';
+    const file = getAccountingFile(targetStore);
+    
+    let accData = readJson(file);
+
+    // [중요 수정] accData가 배열([])로 오거나 구조가 없으면 객체로 초기화
+    if (Array.isArray(accData) || !accData.monthly) {
+        accData = { monthly: {}, daily: accData.daily || {} };
+    }
     
     accData.monthly[month] = data;
     

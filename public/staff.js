@@ -761,18 +761,16 @@ function loadMonthlyForm() {
     if(document.getElementById('fixEtc')) document.getElementById('fixEtc').value = mData.etc_fixed || '';
 }
 
-// [서브탭 3] 월간 고정비 저장 (누락된 함수 복구)
+// [staff.js 수정]
 async function saveFixedCost() {
-    // 1. 권한 체크
+    // ... (앞부분 권한 체크 등은 동일) ...
     if (!currentUser) { openLoginModal(); return; }
     if (!['admin', 'manager'].includes(currentUser.role)) {
         alert("관리자 권한이 필요합니다.");
         return;
     }
 
-    const monthStr = getMonthStr(currentDashboardDate); // 예: "2024-12"
-
-    // 2. 데이터 가져오기
+    const monthStr = getMonthStr(currentDashboardDate);
     const rent = parseInt(document.getElementById('fixRent').value) || 0;
     const utility = parseInt(document.getElementById('fixUtility').value) || 0;
     const gas = parseInt(document.getElementById('fixGas').value) || 0;
@@ -785,8 +783,7 @@ async function saveFixedCost() {
     const data = { rent, utility, gas, liquor, beverage, etc_fixed };
 
     try {
-        // 3. 서버 전송
-        await fetch('/api/accounting/monthly', {
+        const res = await fetch('/api/accounting/monthly', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -797,18 +794,21 @@ async function saveFixedCost() {
             })
         });
 
-        // 4. 로컬 데이터 갱신 및 UI 업데이트
-        if(!accountingData.monthly) accountingData.monthly = {};
-        accountingData.monthly[monthStr] = data;
-
-        alert('저장되었습니다.');
-        
-        // 저장 후 차트 갱신을 위해 대시보드로 이동하거나 현재 화면 유지
-        updateDashboardUI();
+        // [중요] 서버 응답 성공 여부 확인
+        if (res.ok) {
+            // 로컬 데이터 갱신
+            if(!accountingData.monthly) accountingData.monthly = {};
+            accountingData.monthly[monthStr] = data;
+            
+            alert('저장되었습니다.');
+            updateDashboardUI();
+        } else {
+            alert('저장 실패: 서버 오류가 발생했습니다.');
+        }
         
     } catch(e) {
         console.error(e);
-        alert('저장 실패: 서버 오류');
+        alert('저장 실패: 네트워크 오류');
     }
 }
 
