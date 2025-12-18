@@ -268,6 +268,10 @@ function updateDashboardUI() {
         // [NEW] 내역 탭: 테이블 데이터 로드
         loadHistoryTable();
     }
+    // [NEW] 예상 순익 탭 추가
+    else if (activeSubTab.id === 'acc-prediction') {
+        renderPredictionStats();
+    }
     else if (activeSubTab.id === 'acc-dashboard') {
         renderDashboardStats();
     } 
@@ -1603,4 +1607,149 @@ async function loadLogs() {
         console.error("로그 로드 실패", e); 
     }
 }
-// ⚠️ 중요: 여기에 있던 '}' 기호를 지웠습니다. 이 아래에는 아무것도 없어야 합니다.
+
+// [staff.js] 파일 하단에 추가
+
+function renderPredictionStats() {
+    const today = new Date();
+    const currentYear = currentDashboardDate.getFullYear();
+    const currentMonth = currentDashboardDate.getMonth() + 1; // 1~12
+    const monthStr = getMonthStr(currentDashboardDate);
+
+    // 1. 이번 달의 총 일수 구하기 (28, 30, 31일)
+    const lastDayOfThisMonth = new Date(currentYear, currentMonth, 0).getDate();
+    
+    // 2. 적용할 일수(비율) 계산
+    let appliedDay = lastDayOfThisMonth; // 기본값: 과거 데이터면 전체 반영
+    let ratio = 1.0;
+
+    // 만약 "현재 진행 중인 달(오늘이 포함된 달)"을 보고 있다면?
+    if (today.getFullYear() === currentYear && (today.getMonth() + 1) === currentMonth) {
+        appliedDay = today.getDate(); // 오늘 날짜 (예: 5일)
+        ratio = appliedDay / lastDayOfThisMonth; // 예: 5 / 31 = 약 0.16
+    } else if (new Date(currentYear, currentMonth - 1, 1) > today) {
+        // 미래의 달을 보고 있다면?
+        appliedDay = 0;
+        ratio = 0;
+    }
+
+    // UI에 비율 정보 표시
+    const ratioText = `${appliedDay}/${lastDayOfThisMonth}`;
+    if(document.getElementById('predDateRatio')) document.getElementById('predDateRatio').textContent = ratioText;
+    if(document.getElementById('predCostText')) document.getElementById('predCostText').textContent = `${ratioText}일치`;
+
+    // -----------------------------------------------------------
+    // 3. 데이터 집계 (기존 Dashboard 로직과 유사하지만 고정비에 ratio 적용)
+    // -----------------------------------------------------------
+    const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
+    
+    let salesTotal = 0;
+    let variableCostTotal = 0; // 변동비 (식자재 등) - 이건 100% 반영
+    
+    // 일일 매출/지출 합산 (현재까지 쌓인 실적)
+    if (accountingData.daily) {
+        Object.keys(accountingData.daily).forEach(date => {
+            if (date.startsWith(monthStr)) {
+                const d = accountingData.daily[date];
+                
+                // 매출 합산 (매장별 로직 통합)
+                const daySales = (d.card||0) + (d.cash||0) + (d.transfer||0) + (d.gift||0) 
+                               + (d.baemin||0) + (d.yogiyo||0) + (d.coupang||0);
+                salesTotal += daySales;
+
+                // 변동 지출 합산 (고기, 야채, 잡비 등은 쓴 만큼 바로 반영)
+                const dayCost = (d.meat||0) + (d.food||0) + (d.etc||0);
+                variableCostTotal += dayCost;
+            }
+        });
+    }
+
+    // 고정비 합산 (월세, 인건비 등) -> 여기에 ratio(비율)을 곱함!
+    const estimatedStaffCost = getEstimatedStaffCost(monthStr); // 인건비
+    const fixedRaw = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) 
+                   + (mData.liquor||0) + (mData.beverage||0) + (mData.etc_fixed||0)
+                   + (mData.disposable||0) + (mData.businessCard||0) + (mData.taxAgent||0) 
+                   + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0) + (mData.liquorLoan||0);
+    
+    const totalFixedFull = fixedRaw + estimatedStaffCost;
+    const appliedFixedCost = Math.floor(totalFixedFull * ratio); // 🔮 핵심: 비율 적용된 고정비
+
+    // 최종 계산
+    const totalCurrentCost = variableCostTotal + appliedFixedCost;
+    const netProfit = salesTotal - totalCurrentCost;
+    const margin = salesTotal > 0 ? ((netProfit / salesTotal) * 100).toFixed(1) : 0;
+
+    // -----------------------------------------------------------
+    // 4. UI 렌더링
+    // -----------------------------------------------------------
+    document.getElementById('predTotalSales').textContent = salesTotal.toLocaleString() + '원';
+    document.getElementById('predTotalCost').textContent = totalCurrentCost.toLocaleString() + '원';
+    
+    const profitEl = document.getElementById('predNetProfit');
+    profitEl.textContent = netProfit.toLocaleString() + '원';
+    profitEl.style.color = netProfit >= 0 ? '#fff' : '#ffab91'; // 플러스면 흰색, 마이너스면 연한 붉은색
+    
+    document.getElementById('predMargin').textContent = `보정 마진율: ${margin}%`;
+
+    // 상세 리스트 그리기 (바 차트)
+    const costListEl = document.getElementById('predCostList');
+    if(costListEl) {
+        if(totalCurrentCost === 0) {
+            costListEl.innerHTML = '<div style="text-align:center; padding:10px; color:#999;">데이터 없음</div>';
+        } else {
+            // 항목별 데이터 구성 (변동비는 그대로, 고정비는 ratio 적용)
+            const meatLabel = (currentStore === 'yangeun') ? '🍞 SPC유통' : '🥩 한강유통';
+            const etcLabel = (currentStore === 'yangeun') ? '🦪 막걸리/굴' : '🍦 일일잡비';
+
+            // 고정비 항목들 (비율 적용)
+            const fRent = Math.floor((mData.rent||0) * ratio);
+            const fStaff = Math.floor(estimatedStaffCost * ratio);
+            const fLiquor = Math.floor(((mData.liquor||0) + (mData.beverage||0)) * ratio);
+            const fUtility = Math.floor(((mData.utility||0) + (mData.gas||0)) * ratio);
+            const fLoan = Math.floor((mData.liquorLoan||0) * ratio);
+            const fOthers = Math.floor(((mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + (mData.tableOrder||0) + (mData.etc_fixed||0)) * ratio);
+
+            // 변동비 항목들 (일일 데이터에서 합산된 값 그대로)
+            // note: variableCostTotal 변수에 이미 합산되어 있으나, 개별 항목 표시를 위해 다시 계산하거나 위에서 저장해뒀어야 함.
+            // 여기서는 accountingData.daily 루프를 다시 돌지 않고 위에서 합산 변수를 따로 만들지 않았으므로 간단히 다시 계산 (성능 이슈 없음)
+            let cMeat = 0, cFood = 0, cEtc = 0;
+            if (accountingData.daily) {
+                Object.keys(accountingData.daily).forEach(date => {
+                    if (date.startsWith(monthStr)) {
+                        cMeat += (accountingData.daily[date].meat||0);
+                        cFood += (accountingData.daily[date].food||0);
+                        cEtc += (accountingData.daily[date].etc||0);
+                    }
+                });
+            }
+
+            const costItems = [
+                { label: meatLabel, val: cMeat, color: '#ef5350' }, // 변동
+                { label: '🥬 삼시세끼', val: cFood, color: '#8d6e63' }, // 변동
+                { label: etcLabel, val: cEtc, color: '#78909c' }, // 변동
+                { label: '🏠 임대료(1/N)', val: fRent, color: '#ab47bc' }, // 고정
+                { label: '👥 인건비(1/N)', val: fStaff, color: '#ba68c8' }, // 고정
+                { label: '🍶 대출/주류(1/N)', val: fLoan + fLiquor, color: '#ce93d8' }, // 고정
+                { label: '💡 기타고정(1/N)', val: fUtility + fOthers, color: '#e1bee7' }  // 고정
+            ].sort((a,b) => b.val - a.val); // 큰 금액 순 정렬
+
+            // 그래프 그리기 함수 (내부 정의)
+            let html = '';
+            costItems.forEach(item => {
+                if (item.val > 0) {
+                     const widthPct = Math.max((item.val / totalCurrentCost) * 100, 1);
+                     const textPct = salesTotal > 0 ? ((item.val / salesTotal) * 100).toFixed(1) : '0.0';
+                     html += `
+                        <div class="bar-row">
+                            <div class="bar-label">${item.label}</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:${widthPct}%; background:${item.color};"></div>
+                            </div>
+                            <div class="bar-value">${item.val.toLocaleString()} <span style="font-size:11px; color:#999;">(${textPct}%)</span></div>
+                        </div>`;
+                }
+            });
+            costListEl.innerHTML = html;
+        }
+    }
+}

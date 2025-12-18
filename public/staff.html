@@ -435,9 +435,9 @@
                 <button onclick="changeAccMonth(1)" class="nav-btn">익월 ▶</button>
             </div>
     
-            <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 15px;">
-                <button class="tab active" onclick="switchAccSubTab('acc-daily', this)">✏️ 일일 입력</button>
+            <div class="tabs" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 15px;"> <button class="tab active" onclick="switchAccSubTab('acc-daily', this)">✏️ 일일 입력</button>
                 <button class="tab" onclick="switchAccSubTab('acc-history', this)">📜 입력 내역</button>
+                <button class="tab" onclick="switchAccSubTab('acc-prediction', this)" style="background:#f3e5f5; color:#4a148c;">🔮 예상 순익</button>
                 <button class="tab" onclick="switchAccSubTab('acc-dashboard', this)">📊 월간 분석</button>
                 <button class="tab" onclick="switchAccSubTab('acc-monthly', this)">🏢 고정비</button>
             </div>
@@ -542,6 +542,39 @@
                             <tbody id="historyTableBody">
                                 </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="acc-prediction" class="acc-sub-content">
+                <div class="accounting-card" style="border-top: 4px solid #ab47bc;">
+                    <h3 class="chart-title" style="color:#4a148c;">🔮 이번 달 흐름 예측 (일할 계산)</h3>
+                    <p style="font-size:12px; color:#666; margin-bottom:15px; background:#f3e5f5; padding:10px; border-radius:5px;">
+                        💡 <strong>사장님 전용 멘탈 케어 모드:</strong><br>
+                        월 고정비(임대료, 인건비 등)를 통째로 빼지 않고, 
+                        <strong>오늘 날짜(<span id="predDateRatio">0/31</span>)</strong>만큼만 나누어 계산합니다.<br>
+                        "오늘까지 장사한 것만 따졌을 때"의 실질적인 순수익입니다.
+                    </p>
+
+                    <div class="dashboard-summary">
+                        <div class="summary-card total-sales">
+                            <div class="lbl">현재 총 매출</div>
+                            <div class="val" id="predTotalSales">0원</div>
+                        </div>
+                        <div class="summary-card total-cost">
+                            <div class="lbl">현재 지출 (고정비 1/N)</div>
+                            <div class="val" id="predTotalCost" style="color:#ab47bc;">0원</div>
+                        </div>
+                        <div class="summary-card net-profit" style="background: linear-gradient(135deg, #6a1b9a, #8e24aa);">
+                            <div class="lbl">보정 순수익</div>
+                            <div class="val" id="predNetProfit">0원</div>
+                            <div class="sub-val" id="predMargin">0%</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px;">
+                        <h4 style="font-size:13px; color:#333; margin-bottom:10px;">📉 비용 상세 (고정비는 <span id="predCostText">일할</span> 적용됨)</h4>
+                        <div id="predCostList" class="cost-list"></div>
                     </div>
                 </div>
             </div>
