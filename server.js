@@ -536,6 +536,39 @@ app.post('/api/prepayments', (req, res) => {
     }
 });
 
+// [server.js] 선결제 삭제(취소) API 추가
+
+app.delete('/api/prepayments/:id', (req, res) => {
+    const logId = parseInt(req.params.id);
+    const { actor, store } = req.body;
+    let data = readJson(PREPAYMENT_FILE);
+
+    // 1. 삭제할 로그 찾기
+    const logIndex = data.logs.findIndex(l => l.id === logId);
+    if (logIndex === -1) return res.status(404).json({ success: false });
+
+    const targetLog = data.logs[logIndex];
+    
+    // 2. 잔액 원상복구
+    if (data.customers[targetLog.customerName]) {
+        if (targetLog.type === 'charge') {
+            data.customers[targetLog.customerName].balance -= targetLog.amount;
+        } else {
+            data.customers[targetLog.customerName].balance += targetLog.amount;
+        }
+    }
+
+    // 3. 로그 제거
+    data.logs.splice(logIndex, 1);
+
+    if (writeJson(PREPAYMENT_FILE, data)) {
+        addLog(store, actor, '선결제취소', targetLog.customerName, `${targetLog.amount}원 기록 삭제`);
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
 // 404 및 실행
 app.use('*', (req, res) => res.status(404).json({ success: false, error: 'Not Found' }));
 

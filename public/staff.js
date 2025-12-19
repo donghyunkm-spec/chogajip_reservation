@@ -121,26 +121,40 @@ async function loadPrepaymentData() {
     } catch(e) { console.error(e); }
 }
 
+// [staff.js] renderPrepaymentUI 함수 수정 및 추가 기능
+
 function renderPrepaymentUI() {
-    // 1. 고객 리스트 (자동완성)
+    // 1. 고객 리스트 (자동완성용 datalist)
     const datalist = document.getElementById('customerList');
     datalist.innerHTML = Object.keys(prepayData.customers).map(name => `<option value="${name}">`).join('');
 
-    // 2. 잔액 테이블
+    // 2. 잔액 테이블 (클릭 시 이름 자동 입력 기능 추가)
     const balanceTbody = document.getElementById('preBalanceTable');
     balanceTbody.innerHTML = '';
-    Object.entries(prepayData.customers).forEach(([name, info]) => {
-        balanceTbody.innerHTML += `
-            <tr>
-                <td style="text-align:left;"><strong>${name}</strong></td>
-                <td style="font-weight:bold; color:${info.balance < 0 ? 'red' : '#1976D2'};">${info.balance.toLocaleString()}원</td>
-                <td style="color:#666; font-size:11px;">${info.lastUpdate}</td>
-            </tr>`;
+    
+    // 잔액이 많은 순으로 정렬하여 표시
+    const sortedCustomers = Object.entries(prepayData.customers).sort((a, b) => b[1].balance - a[1].balance);
+    
+    sortedCustomers.forEach(([name, info]) => {
+        const row = document.createElement('tr');
+        row.style.cursor = 'pointer';
+        row.title = "클릭하면 이름을 입력창에 채웁니다.";
+        row.onclick = () => {
+            document.getElementById('preCustName').value = name;
+            document.getElementById('preAmount').focus();
+        };
+        
+        row.innerHTML = `
+            <td style="text-align:left;"><strong>👤 ${name}</strong></td>
+            <td style="font-weight:bold; color:${info.balance < 0 ? 'red' : '#1976D2'};">${info.balance.toLocaleString()}원</td>
+            <td style="color:#666; font-size:11px;">${info.lastUpdate}</td>
+        `;
+        balanceTbody.appendChild(row);
     });
 
-    // 3. 로그 테이블
+    // 3. 로그 테이블 (삭제 버튼 추가하여 수정 기능 대체)
     const logTbody = document.getElementById('preLogTable');
-    logTbody.innerHTML = prepayData.logs.map(log => `
+    logTbody.innerHTML = prepayData.logs.map((log, index) => `
         <tr>
             <td>${log.date.substring(5)}</td>
             <td><strong>${log.customerName}</strong></td>
@@ -148,8 +162,36 @@ function renderPrepaymentUI() {
             <td>${log.amount.toLocaleString()}</td>
             <td style="font-size:11px; color:#999;">${log.currentBalance.toLocaleString()}</td>
             <td style="font-size:11px; text-align:left;">${log.note || '-'}</td>
+            <td>
+                ${(currentUser && currentUser.role === 'admin') ? 
+                `<button onclick="deletePrepayLog(${log.id})" style="padding:2px 5px; background:#ffc107; border:none; border-radius:3px; font-size:10px; cursor:pointer;">취소</button>` 
+                : ''}
+            </td>
         </tr>
     `).join('');
+}
+
+// [신규] 선결제 내역 취소(삭제) 함수
+async function deletePrepayLog(logId) {
+    if(!confirm('이 기록을 취소하시겠습니까? (잔액이 다시 복구됩니다)')) return;
+    
+    try {
+        const res = await fetch(`/api/prepayments/${logId}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                actor: currentUser.name,
+                store: currentStore 
+            })
+        });
+        
+        if(res.ok) {
+            alert('취소되었습니다.');
+            loadPrepaymentData();
+        }
+    } catch(e) {
+        alert('삭제 실패');
+    }
 }
 
 async function savePrepayment() {
