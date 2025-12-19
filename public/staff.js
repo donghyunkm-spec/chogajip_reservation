@@ -13,6 +13,7 @@ let currentWeekStartDate = new Date();
 let accountingData = { daily: {}, monthly: {} };
 let currentAccDate = new Date().toISOString().split('T')[0];
 let currentDashboardDate = new Date(); // 가계부 조회 기준 월
+let prepayData = { customers: {}, logs: [] }; 
 
 // 현재 매장 정보 파싱
 const urlParams = new URLSearchParams(window.location.search);
@@ -104,6 +105,78 @@ function switchTab(tabName) {
     if(tabName === 'weekly') renderWeeklyView();
     if(tabName === 'monthly') renderMonthlyView();
     if(tabName === 'accounting') loadAccountingData();
+    if(tabName === 'prepayment') loadPrepaymentData();
+}
+
+// [선결제 관련 함수들]
+async function loadPrepaymentData() {
+    if (!currentUser) { openLoginModal(); return; }
+    document.getElementById('preDate').value = new Date().toISOString().split('T')[0];
+    
+    try {
+        const res = await fetch('/api/prepayments');
+        const json = await res.json();
+        prepayData = json.data;
+        renderPrepaymentUI();
+    } catch(e) { console.error(e); }
+}
+
+function renderPrepaymentUI() {
+    // 1. 고객 리스트 (자동완성)
+    const datalist = document.getElementById('customerList');
+    datalist.innerHTML = Object.keys(prepayData.customers).map(name => `<option value="${name}">`).join('');
+
+    // 2. 잔액 테이블
+    const balanceTbody = document.getElementById('preBalanceTable');
+    balanceTbody.innerHTML = '';
+    Object.entries(prepayData.customers).forEach(([name, info]) => {
+        balanceTbody.innerHTML += `
+            <tr>
+                <td style="text-align:left;"><strong>${name}</strong></td>
+                <td style="font-weight:bold; color:${info.balance < 0 ? 'red' : '#1976D2'};">${info.balance.toLocaleString()}원</td>
+                <td style="color:#666; font-size:11px;">${info.lastUpdate}</td>
+            </tr>`;
+    });
+
+    // 3. 로그 테이블
+    const logTbody = document.getElementById('preLogTable');
+    logTbody.innerHTML = prepayData.logs.map(log => `
+        <tr>
+            <td>${log.date.substring(5)}</td>
+            <td><strong>${log.customerName}</strong></td>
+            <td style="color:${log.type === 'charge' ? '#2e7d32' : '#d32f2f'};">${log.type === 'charge' ? '충전' : '사용'}</td>
+            <td>${log.amount.toLocaleString()}</td>
+            <td style="font-size:11px; color:#999;">${log.currentBalance.toLocaleString()}</td>
+            <td style="font-size:11px; text-align:left;">${log.note || '-'}</td>
+        </tr>
+    `).join('');
+}
+
+async function savePrepayment() {
+    const customerName = document.getElementById('preCustName').value.trim();
+    const amount = document.getElementById('preAmount').value;
+    const type = document.getElementById('preType').value;
+    const date = document.getElementById('preDate').value;
+    const note = document.getElementById('preNote').value;
+
+    if (!customerName || !amount || !date) { alert('필수 항목을 입력하세요.'); return; }
+
+    if (!confirm(`${customerName}님께 ${parseInt(amount).toLocaleString()}원을 ${type === 'charge' ? '충전' : '차감'}하시겠습니까?`)) return;
+
+    try {
+        const res = await fetch('/api/prepayments', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ customerName, amount, type, date, note, actor: currentUser.name, store: currentStore })
+        });
+        if (res.ok) {
+            alert('등록되었습니다.');
+            loadPrepaymentData();
+            // 입력창 초기화 (고객명은 유지하면 연속입력 편함)
+            document.getElementById('preAmount').value = '';
+            document.getElementById('preNote').value = '';
+        }
+    } catch(e) { alert('저장 실패'); }
 }
 
 // [가계부 내부 서브탭 전환 함수 - 수정됨]

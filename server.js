@@ -488,6 +488,54 @@ app.post('/api/accounting/bulk', (req, res) => {
     }
 });
 
+// [server.js의 파일 경로 설정 부분에 추가]
+const PREPAYMENT_FILE = path.join(actualDataPath, 'prepayments.json');
+if (!fs.existsSync(PREPAYMENT_FILE)) fs.writeFileSync(PREPAYMENT_FILE, JSON.stringify({ customers: {}, logs: [] }, null, 2));
+
+// [API 라우트 추가]
+// 1. 선결제 내역 조회
+app.get('/api/prepayments', (req, res) => {
+    res.json({ success: true, data: readJson(PREPAYMENT_FILE) });
+});
+
+// 2. 선결제 충전/사용 등록
+app.post('/api/prepayments', (req, res) => {
+    const { customerName, amount, type, date, note, actor, store } = req.body;
+    const targetStore = store || 'chogazip';
+    let data = readJson(PREPAYMENT_FILE);
+
+    if (!data.customers[customerName]) {
+        data.customers[customerName] = { balance: 0, lastUpdate: "" };
+    }
+
+    if (type === 'charge') {
+        data.customers[customerName].balance += parseInt(amount);
+    } else { // use (사용)
+        data.customers[customerName].balance -= parseInt(amount);
+    }
+    
+    data.customers[customerName].lastUpdate = date;
+
+    const newLog = {
+        id: Date.now(),
+        date,
+        customerName,
+        type, // 'charge' or 'use'
+        amount: parseInt(amount),
+        currentBalance: data.customers[customerName].balance,
+        note,
+        actor
+    };
+
+    data.logs.unshift(newLog);
+    if (writeJson(PREPAYMENT_FILE, data)) {
+        addLog(targetStore, actor, type === 'charge' ? '선결제충전' : '선결제사용', customerName, `${amount}원 처리`);
+        res.json({ success: true, balance: data.customers[customerName].balance });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
 // 404 및 실행
 app.use('*', (req, res) => res.status(404).json({ success: false, error: 'Not Found' }));
 
