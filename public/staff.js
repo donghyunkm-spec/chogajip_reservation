@@ -170,6 +170,8 @@ function renderPrepaymentUI() {
                 </td>
             </tr>
         `).join('');
+    }
+
 }
 
 // [신규] 선결제 내역 취소(삭제) 함수
