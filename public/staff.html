@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>초가짚 직원 관리</title>
+    <title>매장 관리 시스템</title>
     <link rel="stylesheet" href="style.css">
     <style>
         /* [공통] 뱃지 스타일 */
@@ -572,6 +572,7 @@
                     <div style="margin-top:20px;">
                         <h4 style="font-size:13px; color:#333; margin-bottom:10px;">📉 비용 상세 (고정비는 <span id="predCostText">일할</span> 적용됨)</h4>
                         <div id="predCostList" class="cost-list"></div>
+                        <div id="predDetailAnalysis" style="margin-top:20px; border-top:1px solid #eee; padding-top:15px;"></div>
                     </div>
                 </div>
             </div>
@@ -608,6 +609,7 @@
                     <div style="margin-top:15px; padding-top:10px; border-top:1px solid #eee; text-align:right; font-size:12px; color:#666;">
                         * 직원 인건비(예상) <span id="dashStaffCost">0</span>원 포함됨
                     </div>
+                    <div id="dashDetailAnalysis" style="margin-top:20px; border-top:1px solid #eee; padding-top:15px;"></div>
                 </div>
             </div>
     
@@ -674,6 +676,24 @@
                         <div>
                             <span class="category-label">🔧 기타 고정비</span>
                             <input type="number" id="fixEtc" class="money-input" placeholder="0">
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px; padding-top:15px; border-top:2px dashed #ddd;">
+                        <h4 style="color:#d81b60; margin-bottom:10px;">📊 매출 상세 분석 설정 (원가율 계산용)</h4>
+                        <p style="font-size:12px; color:#666; margin-bottom:10px;">
+                            * 포스기에서 확인한 <strong>이번 달 전체 주류/음료 매출</strong>을 입력해주세요.<br>
+                            * 입력하지 않으면 '식자재 원가율' 계산 시 주류/음료 매출이 포함되어 정확도가 떨어질 수 있습니다.
+                        </p>
+                        <div class="input-grid">
+                            <div>
+                                <span class="category-label">🍺 월간 주류 총매출</span>
+                                <input type="number" id="fixAlcoholSales" class="money-input" placeholder="0">
+                            </div>
+                            <div>
+                                <span class="category-label">🥤 월간 음료 총매출</span>
+                                <input type="number" id="fixBeverageSales" class="money-input" placeholder="0">
+                            </div>
                         </div>
                     </div>
                     
