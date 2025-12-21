@@ -1854,6 +1854,7 @@ function renderPredictionStats() {
             const fUtility = Math.floor(((mData.utility||0) + (mData.gas||0)) * ratio);
             const fLoan = Math.floor((mData.liquorLoan||0) * ratio);
             const fOthers = Math.floor(((mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + (mData.tableOrder||0) + (mData.etc_fixed||0)) * ratio);
+            const fDelivery = Math.floor((mData.deliveryFee||0) * ratio);
 
             // 변동비 항목들 (일일 데이터에서 합산된 값 그대로)
             // note: variableCostTotal 변수에 이미 합산되어 있으나, 개별 항목 표시를 위해 다시 계산하거나 위에서 저장해뒀어야 함.
