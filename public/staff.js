@@ -122,56 +122,72 @@ async function loadPrepaymentData() {
 
 // [staff.js] renderPrepaymentUI 함수 수정 및 추가 기능
 
+// [staff.js] renderPrepaymentUI 함수 (통합본)
 function renderPrepaymentUI() {
-    // 1. 고객 리스트 (자동완성용 datalist)
-    const datalist = document.getElementById('customerList');
-    datalist.innerHTML = Object.keys(prepayData.customers).map(name => `<option value="${name}">`).join('');
-
-    // 2. 잔액 테이블 (클릭 시 이름 자동 입력 기능 추가)
-    const balanceTbody = document.getElementById('preBalanceTable');
-    balanceTbody.innerHTML = '';
-    
-    // 잔액이 많은 순으로 정렬하여 표시
-    const sortedCustomers = Object.entries(prepayData.customers).sort((a, b) => b[1].balance - a[1].balance);
-    
-    sortedCustomers.forEach(([name, info]) => {
-        const row = document.createElement('tr');
-        row.style.cursor = 'pointer';
-        row.title = "클릭하면 이름을 입력창에 채웁니다.";
-        row.onclick = () => {
-            document.getElementById('preCustName').value = name;
-            document.getElementById('preAmount').focus();
-        };
-        
-        row.innerHTML = `
-            <td style="text-align:left;"><strong>👤 ${name}</strong></td>
-            <td style="font-weight:bold; color:${info.balance < 0 ? 'red' : '#1976D2'};">${info.balance.toLocaleString()}원</td>
-            <td style="color:#666; font-size:11px;">${info.lastUpdate}</td>
-        `;
-        balanceTbody.appendChild(row);
-    });
-
-    // 3. 로그 테이블 (삭제 버튼 추가하여 수정 기능 대체)
-    // 3. 로그 테이블 [수정됨: 작업자 컬럼 추가]
-    const logTbody = document.getElementById('preLogTable');
-    if(logTbody) {
-        logTbody.innerHTML = prepayData.logs.map((log) => `
-            <tr>
-                <td>${log.date.substring(5)}</td>
-                <td style="font-weight:bold; color:#555;">${log.actor || '-'}</td> <td><strong>${log.customerName}</strong></td>
-                <td style="color:${log.type === 'charge' ? '#2e7d32' : '#d32f2f'};">${log.type === 'charge' ? '충전' : '사용'}</td>
-                <td>${log.amount.toLocaleString()}</td>
-                <td style="font-size:11px; color:#999;">${log.currentBalance.toLocaleString()}</td>
-                <td style="font-size:11px; text-align:left;">${log.note || '-'}</td>
-                <td>
-                    ${(currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ? 
-                    `<button onclick="deletePrepayLog(${log.id})" style="padding:2px 5px; background:#ffc107; border:none; border-radius:3px; font-size:10px; cursor:pointer;">취소</button>` 
-                    : ''}
-                </td>
-            </tr>
-        `).join('');
+    // 1. 데이터 안전성 체크
+    if (!prepayData || !prepayData.customers || !prepayData.logs) {
+        console.warn('선결제 데이터가 올바르지 않습니다.');
+        prepayData = { customers: {}, logs: [] }; // 빈 객체로 초기화하여 에러 방지
     }
 
+    // 2. 고객 리스트 (자동완성용 datalist)
+    const datalist = document.getElementById('customerList');
+    if (datalist) {
+        datalist.innerHTML = Object.keys(prepayData.customers).map(name => `<option value="${name}">`).join('');
+    }
+
+    // 3. 잔액 테이블
+    const balanceTbody = document.getElementById('preBalanceTable');
+    if (balanceTbody) {
+        balanceTbody.innerHTML = '';
+        const sortedCustomers = Object.entries(prepayData.customers).sort((a, b) => b[1].balance - a[1].balance);
+        
+        if (sortedCustomers.length === 0) {
+            balanceTbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">데이터가 없습니다.</td></tr>';
+        } else {
+            sortedCustomers.forEach(([name, info]) => {
+                const row = document.createElement('tr');
+                row.style.cursor = 'pointer';
+                row.title = "클릭하면 이름을 입력창에 채웁니다.";
+                row.onclick = () => {
+                    document.getElementById('preCustName').value = name;
+                    document.getElementById('preAmount').focus();
+                };
+                
+                row.innerHTML = `
+                    <td style="text-align:left;"><strong>👤 ${name}</strong></td>
+                    <td style="font-weight:bold; color:${info.balance < 0 ? 'red' : '#1976D2'};">${info.balance.toLocaleString()}원</td>
+                    <td style="color:#666; font-size:11px;">${info.lastUpdate}</td>
+                `;
+                balanceTbody.appendChild(row);
+            });
+        }
+    }
+
+    // 4. 로그 테이블
+    const logTbody = document.getElementById('preLogTable');
+    if(logTbody) {
+        if (!prepayData.logs || prepayData.logs.length === 0) {
+            logTbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">기록이 없습니다.</td></tr>';
+        } else {
+            logTbody.innerHTML = prepayData.logs.map((log) => `
+                <tr>
+                    <td>${log.date.substring(5)}</td>
+                    <td style="font-weight:bold; color:#555;">${log.actor || '-'}</td> 
+                    <td><strong>${log.customerName}</strong></td>
+                    <td style="color:${log.type === 'charge' ? '#2e7d32' : '#d32f2f'};">${log.type === 'charge' ? '충전' : '사용'}</td>
+                    <td style="text-align:right;">${log.amount.toLocaleString()}</td>
+                    <td style="font-size:11px; color:#999; text-align:right;">${log.currentBalance.toLocaleString()}</td>
+                    <td style="font-size:11px; text-align:left;">${log.note || '-'}</td>
+                    <td style="text-align:center;">
+                        ${(currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ? 
+                        `<button onclick="deletePrepayLog(${log.id})" style="padding:2px 5px; background:#ffc107; border:none; border-radius:3px; font-size:10px; cursor:pointer;">취소</button>` 
+                        : ''}
+                    </td>
+                </tr>
+            `).join('');
+        }
+    }
 }
 
 // [신규] 선결제 내역 취소(삭제) 함수
