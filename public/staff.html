@@ -790,7 +790,14 @@
 
         <div id="logs-content" class="tab-content">
             <div class="status-container">
-                <h2>📜 근무표 변경 이력</h2>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h2>📜 근무표 및 데이터 변경 이력</h2>
+                    
+                    <button id="adminBackupBtn" onclick="downloadAllData()" style="display:none; background:#2e7d32; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
+                        💾 전체 데이터 다운로드 (백업)
+                    </button>
+                </div>
+
                 <div style="overflow-x: auto;">
                     <table class="log-table">
                         <thead>

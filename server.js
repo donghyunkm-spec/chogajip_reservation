@@ -327,6 +327,49 @@ app.get('/api/logs', (req, res) => {
     res.json({ success: true, data: readJson(file, []) });
 });
 
+// =======================
+// [API] 전체 데이터 백업 (사장님 전용)
+// =======================
+app.get('/api/backup', (req, res) => {
+    const store = req.query.store || 'chogazip';
+    
+    try {
+        // 1. 각 데이터 파일 읽기
+        // 예약은 공유 파일이므로 공통으로 읽음
+        const reservations = readJson(FINAL_DATA_FILE, []);
+        
+        // 나머지는 매장별 파일 읽기
+        const staff = readJson(getStaffFile(store), []);
+        const accounting = readJson(getAccountingFile(store), { monthly: {}, daily: {} });
+        const prepayments = readJson(getPrepaymentFile(store), { customers: {}, logs: [] });
+        const logs = readJson(getLogFile(store), []);
+
+        // 2. 하나의 객체로 묶기
+        const backupData = {
+            metadata: {
+                store: store,
+                backupDate: new Date().toISOString(),
+                version: "1.0"
+            },
+            reservations: reservations,
+            staff: staff,
+            accounting: accounting,
+            prepayments: prepayments,
+            logs: logs
+        };
+
+        // 3. 전송
+        res.json({ success: true, data: backupData });
+        
+        // (선택사항) 백업을 수행했다는 로그 남기기
+        // addLog(store, 'System', '백업', '전체데이터', '백업 파일 다운로드 실행'); 
+        
+    } catch (e) {
+        console.error('백업 생성 실패:', e);
+        res.status(500).json({ success: false, error: '백업 생성 중 오류 발생' });
+    }
+});
+
 // 서버 시작
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);

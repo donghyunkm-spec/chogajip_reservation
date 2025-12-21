@@ -318,6 +318,12 @@ async function tryLogin() {
                 document.getElementById('salarySection').style.display = 'block';
                 loadLogs();
             }
+
+            // [NEW] 사장님(admin)일 경우에만 백업 버튼 표시
+            if (currentUser.role === 'admin') {
+                const backupBtn = document.getElementById('adminBackupBtn');
+                if(backupBtn) backupBtn.style.display = 'block';
+            }
             
             // 현재 화면 갱신
             const activeTab = document.querySelector('.tab-content.active');
@@ -1875,5 +1881,53 @@ function renderPredictionStats() {
             });
             costListEl.innerHTML = html;
         }
+    }
+}
+
+// [staff.js] 맨 아래에 추가
+
+async function downloadAllData() {
+    if (!currentUser || currentUser.role !== 'admin') {
+        alert("사장님만 가능한 기능입니다.");
+        return;
+    }
+
+    if (!confirm(`현재 매장(${currentStore})의 모든 데이터를 다운로드하시겠습니까?\n(예약, 직원, 매출, 선결제, 로그 포함)`)) return;
+
+    try {
+        const res = await fetch(`/api/backup?store=${currentStore}`);
+        const json = await res.json();
+
+        if (json.success) {
+            // 1. 데이터 문자열로 변환
+            const dataStr = JSON.stringify(json.data, null, 2);
+            
+            // 2. 파일명 생성 (예: chogazip_backup_20240520.json)
+            const date = new Date();
+            const dateStr = date.getFullYear() + 
+                            String(date.getMonth() + 1).padStart(2, '0') + 
+                            String(date.getDate()).padStart(2, '0');
+            const fileName = `${currentStore}_backup_${dateStr}.json`;
+
+            // 3. 가상 링크 생성하여 다운로드 트리거
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            
+            // 4. 정리
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert("다운로드가 완료되었습니다.\nPC의 '다운로드' 폴더를 확인하세요.");
+        } else {
+            alert("백업 데이터 생성 실패");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("서버 통신 오류");
     }
 }
