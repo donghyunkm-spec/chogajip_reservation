@@ -74,8 +74,7 @@ function initStoreSettings() {
                 <div><span class="category-label">🛵 배달의민족</span><input type="number" id="inpBaemin" class="money-input" placeholder="0"></div>
                 <div><span class="category-label">🛵 요기요</span><input type="number" id="inpYogiyo" class="money-input" placeholder="0"></div>
                 <div><span class="category-label">🛵 쿠팡이츠</span><input type="number" id="inpCoupang" class="money-input" placeholder="0"></div>
-                <div><span class="category-label" style="color:#673ab7;">📒 선결제(장부)</span><input type="number" id="inpPrepay" class="money-input" placeholder="0" style="color:#673ab7; background:#f3e5f5;"></div>
-            `;
+                `;
             salesGrid.style.gridTemplateColumns = "1fr 1fr"; 
         }
     } else {
@@ -153,22 +152,24 @@ function renderPrepaymentUI() {
     });
 
     // 3. 로그 테이블 (삭제 버튼 추가하여 수정 기능 대체)
+    // 3. 로그 테이블 [수정됨: 작업자 컬럼 추가]
     const logTbody = document.getElementById('preLogTable');
-    logTbody.innerHTML = prepayData.logs.map((log, index) => `
-        <tr>
-            <td>${log.date.substring(5)}</td>
-            <td><strong>${log.customerName}</strong></td>
-            <td style="color:${log.type === 'charge' ? '#2e7d32' : '#d32f2f'};">${log.type === 'charge' ? '충전' : '사용'}</td>
-            <td>${log.amount.toLocaleString()}</td>
-            <td style="font-size:11px; color:#999;">${log.currentBalance.toLocaleString()}</td>
-            <td style="font-size:11px; text-align:left;">${log.note || '-'}</td>
-            <td>
-                ${(currentUser && currentUser.role === 'admin') ? 
-                `<button onclick="deletePrepayLog(${log.id})" style="padding:2px 5px; background:#ffc107; border:none; border-radius:3px; font-size:10px; cursor:pointer;">취소</button>` 
-                : ''}
-            </td>
-        </tr>
-    `).join('');
+    if(logTbody) {
+        logTbody.innerHTML = prepayData.logs.map((log) => `
+            <tr>
+                <td>${log.date.substring(5)}</td>
+                <td style="font-weight:bold; color:#555;">${log.actor || '-'}</td> <td><strong>${log.customerName}</strong></td>
+                <td style="color:${log.type === 'charge' ? '#2e7d32' : '#d32f2f'};">${log.type === 'charge' ? '충전' : '사용'}</td>
+                <td>${log.amount.toLocaleString()}</td>
+                <td style="font-size:11px; color:#999;">${log.currentBalance.toLocaleString()}</td>
+                <td style="font-size:11px; text-align:left;">${log.note || '-'}</td>
+                <td>
+                    ${(currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ? 
+                    `<button onclick="deletePrepayLog(${log.id})" style="padding:2px 5px; background:#ffc107; border:none; border-radius:3px; font-size:10px; cursor:pointer;">취소</button>` 
+                    : ''}
+                </td>
+            </tr>
+        `).join('');
 }
 
 // [신규] 선결제 내역 취소(삭제) 함수
@@ -406,8 +407,6 @@ function loadDailyAccounting() {
     // [수정] 공통 필드
     if(document.getElementById('inpCard')) document.getElementById('inpCard').value = dayData.card || '';
     if(document.getElementById('inpTransfer')) document.getElementById('inpTransfer').value = dayData.transfer || '';
-    // 선결제 추가
-    if(document.getElementById('inpPrepay')) document.getElementById('inpPrepay').value = dayData.prepay || ''; 
     
     // [수정] 매장별 필드 분기 처리
     if (currentStore === 'yangeun') {
@@ -477,7 +476,6 @@ async function saveDailyAccounting() {
     }
 
     const dateStr = document.getElementById('accDate').value;
-    const prepay = parseInt(document.getElementById('inpPrepay').value) || 0;
 
     if (!dateStr) { alert('날짜를 선택해주세요.'); return; }
 
@@ -512,10 +510,7 @@ async function saveDailyAccounting() {
 
     const totalCost = food + meat + etc;
 
-    // ============================================================
-    // [수정된 부분 시작] confirm 제거 및 안전장치 로직
-    // ============================================================
-    
+
     // 1. 모든 금액이 0원인 경우에만 확인창을 띄움 (실수로 빈 값 저장 방지)
     //    브라우저 팝업 차단이 되어도, 실제 데이터가 있을  때는 이 if문에 걸리지 않으므로 바로 저장됨
     if (totalSales === 0 && totalCost === 0) {
@@ -526,10 +521,6 @@ async function saveDailyAccounting() {
 
     // 2. 데이터가 있다면 묻지 않고 즉시 저장 (팝업 차단 이슈 해결)
     // 기존의 confirmMsg 생성 및 confirm 호출 로직 삭제됨
-    
-    // ============================================================
-    // [수정된 부분 끝]
-    // ============================================================
 
 const data = {
         startCash, cash, bankDeposit,

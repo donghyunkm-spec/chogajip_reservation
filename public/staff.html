@@ -497,10 +497,7 @@
                                 <span class="category-label">🎫 상품권/기타</span>
                                 <input type="number" id="inpGift" class="money-input" placeholder="0">
                             </div>
-                            <div>
-                                <span class="category-label" style="color:#673ab7;">📒 선결제(장부)</span>
-                                <input type="number" id="inpPrepay" class="money-input" placeholder="0" style="color:#673ab7; background:#f3e5f5;">
-                            </div>
+                            
                         </div>
     
                     <div style="margin-top:15px;">
@@ -716,40 +713,6 @@
             <div class="status-container">
                 <div class="accounting-card">
                     <h2 style="margin-bottom:15px;">📒 선결제(장부) 관리</h2>
-                    <div style="background:#fff3e0; padding:10px; border-radius:5px; margin-bottom:15px; font-size:13px; color:#e65100;">
-                        💡 <b>안내:</b> 법인카드 등 고객별로 미리 결제한 금액을 충전하고, 식사 시 차감하는 장부입니다.
-                    </div>
-                    
-                    <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #ddd; margin-bottom:20px;">
-                        <div class="input-grid" style="grid-template-columns: 1fr 1fr; gap:10px;">
-                            <div>
-                                <span class="category-label">고객명(회사명)</span>
-                                <input type="text" id="preCustName" placeholder="예: 삼성전자" list="customerList" style="width:100%; padding:10px;">
-                                <datalist id="customerList"></datalist>
-                            </div>
-                            <div>
-                                <span class="category-label">날짜</span>
-                                <input type="date" id="preDate" style="width:100%; padding:10px;">
-                            </div>
-                            <div>
-                                <span class="category-label">구분</span>
-                                <select id="preType" style="width:100%; padding:10px;">
-                                    <option value="charge">💰 충전 (결제함)</option>
-                                    <option value="use">🍽️ 사용 (금액차감)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <span class="category-label">금액</span>
-                                <input type="number" id="preAmount" class="money-input" placeholder="0" style="width:100%; padding:10px;">
-                            </div>
-                        </div>
-                        <div style="margin-top:10px;">
-                            <span class="category-label">메모(특이사항)</span>
-                            <input type="text" id="preNote" placeholder="예: 법인카드 결제 완료 / 점심 회식" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                        </div>
-                        <button onclick="savePrepayment()" class="btn" style="margin-top:15px; background:#e91e63;">등록하기</button>
-                    </div>
-
                     <h3 class="chart-title" style="margin-top:30px;">👥 고객별 잔액 현황</h3>
                     <div style="overflow-x:auto;">
                         <table class="acc-table" style="width:100%;">
@@ -770,11 +733,12 @@
                             <thead>
                                 <tr style="background:#eee;">
                                     <th>날짜</th>
-                                    <th>고객명</th>
+                                    <th>작업자</th> <th>고객명</th>
                                     <th>구분</th>
                                     <th style="text-align:right;">금액</th>
                                     <th style="text-align:right;">잔액</th>
                                     <th>메모</th>
+                                    <th>관리</th>
                                 </tr>
                             </thead>
                             <tbody id="preLogTable"></tbody>
