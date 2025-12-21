@@ -62,9 +62,11 @@ function initStoreSettings() {
             etcLabel.style.fontWeight = 'bold';
         }
 
-        // [NEW] 일회용기 입력칸 보이기
+        // [NEW] 일회용기 & 배달수수료 입력칸 보이기
         const dispDiv = document.getElementById('divDisposable');
         if(dispDiv) dispDiv.style.display = 'block';
+        const delivDiv = document.getElementById('divDeliveryFee'); // [추가]
+        if(delivDiv) delivDiv.style.display = 'block';          // [추가]
         
         // [매출 입력칸 변경] (기존 코드 유지)
         const salesGrid = document.getElementById('salesInputGrid');
@@ -82,6 +84,8 @@ function initStoreSettings() {
         // 일회용기 숨기기 (기본값 none이지만 확실하게)
         const dispDiv = document.getElementById('divDisposable');
         if(dispDiv) dispDiv.style.display = 'none';
+        const delivDiv = document.getElementById('divDeliveryFee'); // [추가]
+        if(delivDiv) delivDiv.style.display = 'none';           // [추가]
     }
 }
 
@@ -653,7 +657,8 @@ function loadHistoryTable() {
     if (accountingData.monthly && accountingData.monthly[monthStr]) {
         const m = accountingData.monthly[monthStr];
         const fixedTotal = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + (m.beverage||0) + (m.etc_fixed||0)
-                         + (m.disposable||0) + (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0) + (m.liquorLoan||0);
+                         + (m.disposable||0) + (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0) + (m.liquorLoan||0)
+                         + (m.deliveryFee||0);
         
         if (fixedTotal > 0) {
             let fDetails = [];
@@ -669,6 +674,7 @@ function loadHistoryTable() {
             if(m.tableOrder) fDetails.push(`📟오더:${m.tableOrder.toLocaleString()}`);
             // [추가] 내역 텍스트 표시
             if(m.liquorLoan) fDetails.push(`🍶대출:${m.liquorLoan.toLocaleString()}`);
+            if(m.deliveryFee) fDetails.push(`🛵배달비:${m.deliveryFee.toLocaleString()}`);
             
             if(m.etc_fixed) fDetails.push(`🔧기타:${m.etc_fixed.toLocaleString()}`);
 
@@ -766,6 +772,7 @@ function renderDashboardStats() {
         foodWaste: (mData.foodWaste||0),
         tableOrder: (mData.tableOrder||0),
         liquorLoan: (mData.liquorLoan||0), 
+        deliveryFee: (mData.deliveryFee||0), // [추가]
         staff: 0 
     };
     costs.staff = getEstimatedStaffCost(monthStr);
@@ -798,7 +805,8 @@ function renderDashboardStats() {
     sales.total = sales.card + sales.cash + sales.transfer + sales.gift + sales.baemin + sales.yogiyo + sales.coupang;
     
     const totalFixed = costs.rent + costs.utility + costs.gas + costs.liquor + costs.beverage + costs.fixedEtc + costs.staff
-                     + costs.disposable + costs.businessCard + costs.taxAgent + costs.tax + costs.foodWaste + costs.tableOrder + costs.liquorLoan;
+                     + costs.disposable + costs.businessCard + costs.taxAgent + costs.tax + costs.foodWaste + costs.tableOrder + costs.liquorLoan
+                     + costs.deliveryFee;
                      
     const totalVariable = costs.meat + costs.food + costs.dailyEtc;
     const totalCost = totalFixed + totalVariable;
@@ -893,6 +901,7 @@ function renderDashboardStats() {
                 { label: meatLabel, val: costs.meat, color: '#ef5350' },
                 { label: '🏠 임대료', val: costs.rent, color: '#5c6bc0' },
                 { label: '👥 인건비', val: costs.staff, color: '#26a69a' },
+                { label: '🛵 배달수수료', val: costs.deliveryFee, color: '#00bcd4' }, // [추가] 그래프 항목
                 { label: '🍶 대출상환', val: costs.liquorLoan, color: '#f57c00' }, // <-- 추가 (주황색 계열)
                 { label: '🍺 주류/음료', val: costs.liquor + costs.beverage, color: '#ff7043' },
                 { label: '🥬 삼시세끼', val: costs.food, color: '#8d6e63' },
@@ -943,6 +952,11 @@ function loadMonthlyForm() {
     if(document.getElementById('fixLiquor')) document.getElementById('fixLiquor').value = mData.liquor || '';
     if(document.getElementById('fixBeverage')) document.getElementById('fixBeverage').value = mData.beverage || '';
     if(document.getElementById('fixEtc')) document.getElementById('fixEtc').value = mData.etc_fixed || '';
+
+    // [NEW] 배달 수수료 로드
+    if(document.getElementById('fixDeliveryFee')) {
+        document.getElementById('fixDeliveryFee').value = mData.deliveryFee || '';
+    }
     
     // [NEW] 추가 필드 로드
     if(document.getElementById('fixDisposable')) document.getElementById('fixDisposable').value = mData.disposable || '';
@@ -984,12 +998,13 @@ async function saveFixedCost() {
     const tax = parseInt(document.getElementById('fixTax').value) || 0;
     const foodWaste = parseInt(document.getElementById('fixFoodWaste').value) || 0;
     const tableOrder = parseInt(document.getElementById('fixTableOrder').value) || 0;
+    const deliveryFee = (currentStore === 'yangeun') ? (parseInt(document.getElementById('fixDeliveryFee').value) || 0) : 0;
 
     if(!confirm(`${monthStr} 고정 지출을 저장하시겠습니까?`)) return;
 
     const data = { 
         rent, utility, gas, liquor, beverage, etc_fixed,
-        disposable, businessCard, taxAgent, tax, foodWaste, tableOrder, liquorLoan
+        disposable, businessCard, taxAgent, tax, foodWaste, tableOrder, liquorLoan, deliveryFee
     };
 
     try {
@@ -1799,7 +1814,8 @@ function renderPredictionStats() {
     const fixedRaw = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) 
                    + (mData.liquor||0) + (mData.beverage||0) + (mData.etc_fixed||0)
                    + (mData.disposable||0) + (mData.businessCard||0) + (mData.taxAgent||0) 
-                   + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0) + (mData.liquorLoan||0);
+                   + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0) + (mData.liquorLoan||0)
+                   + (mData.deliveryFee||0); // <-- 추가;
     
     const totalFixedFull = fixedRaw + estimatedStaffCost;
     const appliedFixedCost = Math.floor(totalFixedFull * ratio); // 🔮 핵심: 비율 적용된 고정비
@@ -1859,6 +1875,7 @@ function renderPredictionStats() {
                 { label: etcLabel, val: cEtc, color: '#78909c' }, // 변동
                 { label: '🏠 임대료(1/N)', val: fRent, color: '#ab47bc' }, // 고정
                 { label: '👥 인건비(1/N)', val: fStaff, color: '#ba68c8' }, // 고정
+                { label: '🛵 배달수수료(1/N)', val: fDelivery, color: '#00bcd4' }, // [추가]
                 { label: '🍶 대출/주류(1/N)', val: fLoan + fLiquor, color: '#ce93d8' }, // 고정
                 { label: '💡 기타고정(1/N)', val: fUtility + fOthers, color: '#e1bee7' }  // 고정
             ].sort((a,b) => b.val - a.val); // 큰 금액 순 정렬
