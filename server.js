@@ -231,19 +231,41 @@ app.post('/api/accounting/monthly', (req, res) => {
 // =======================
 // [API] 선결제 장부 (문제의 부분 수정됨)
 // =======================
+// [헬퍼 함수] 매장별 선결제 파일 경로 가져오기
+function getPrepaymentFile(store) {
+    const storeName = store === 'yangeun' ? 'prepayments_yangeun.json' : 'prepayments_chogazip.json';
+    const filePath = path.join(actualDataPath, storeName);
+    
+    // 파일이 없으면 기본 구조 생성
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, JSON.stringify({ customers: {}, logs: [] }, null, 2));
+    }
+    return filePath;
+}
+
+// 1. 조회
 app.get('/api/prepayments', (req, res) => {
+    const store = req.query.store || 'chogazip';
+    const file = getPrepaymentFile(store);
+    
     // 안전하게 객체 기본값 제공
-    let data = readJson(PREPAYMENT_FILE, { customers: {}, logs: [] });
+    let data = readJson(file, { customers: {}, logs: [] });
     // 만약 파일이 깨져서 배열로 되어있다면 강제 복구
     if (Array.isArray(data)) data = { customers: {}, logs: [] };
+    
     res.json({ success: true, data });
 });
 
+// 2. 등록 (충전/차감)
 app.post('/api/prepayments', (req, res) => {
     const { customerName, amount, type, date, note, actor, store } = req.body;
-    let data = readJson(PREPAYMENT_FILE, { customers: {}, logs: [] });
+    const targetStore = store || 'chogazip';
+    const file = getPrepaymentFile(targetStore);
+    
+    let data = readJson(file, { customers: {}, logs: [] });
     if (Array.isArray(data)) data = { customers: {}, logs: [] };
 
+    // 고객 잔액 계산
     if (!data.customers[customerName]) {
         data.customers[customerName] = { balance: 0, lastUpdate: "" };
     }
@@ -254,35 +276,36 @@ app.post('/api/prepayments', (req, res) => {
 
     data.customers[customerName].lastUpdate = date;
     
+    // 로그 추가
     data.logs.unshift({
-        id: Date.now() + Math.random(), // 중복 방지용 랜덤 추가
+        id: Date.now() + Math.random(), // 중복 방지
         date, customerName, type, amount: val,
         currentBalance: data.customers[customerName].balance,
         note, actor
     });
 
-    if (writeJson(PREPAYMENT_FILE, data)) {
-        addLog(store, actor, type === 'charge'?'선결충전':'선결사용', customerName, `${amount}원`);
+    if (writeJson(file, data)) {
+        addLog(targetStore, actor, type === 'charge'?'선결충전':'선결사용', customerName, `${amount}원`);
         res.json({ success: true });
     } else res.status(500).json({ success: false });
 });
 
+// 3. 삭제 (취소)
 app.delete('/api/prepayments/:id', (req, res) => {
-    const logId = parseFloat(req.params.id); // ID가 소수점일 수 있음
+    const logId = parseFloat(req.params.id);
     const { actor, store } = req.body;
+    const targetStore = store || 'chogazip';
+    const file = getPrepaymentFile(targetStore);
 
-    let data = readJson(PREPAYMENT_FILE, { customers: {}, logs: [] });
-    if (Array.isArray(data)) {
-        // 데이터가 깨진 상태라면 복구 시도 불가하므로 에러 리턴 혹은 초기화
-        return res.status(500).json({ success: false, error: 'Data corrupted' });
-    }
+    let data = readJson(file, { customers: {}, logs: [] });
+    if (Array.isArray(data)) return res.status(500).json({ success: false, error: 'Data corrupted' });
 
     const idx = data.logs.findIndex(l => l.id === logId);
     if (idx === -1) return res.status(404).json({ success: false, error: 'Not found' });
 
     const target = data.logs[idx];
 
-    // 잔액 원복 (고객이 여전히 존재할 때만)
+    // 잔액 원상복구 (삭제하려는 내역의 반대로 계산)
     if (data.customers[target.customerName]) {
         if (target.type === 'charge') data.customers[target.customerName].balance -= target.amount;
         else data.customers[target.customerName].balance += target.amount;
@@ -291,11 +314,12 @@ app.delete('/api/prepayments/:id', (req, res) => {
     // 로그 삭제
     data.logs.splice(idx, 1);
 
-    if (writeJson(PREPAYMENT_FILE, data)) {
-        addLog(store, actor, '선결취소', target.customerName, '기록삭제 및 잔액원복');
+    if (writeJson(file, data)) {
+        addLog(targetStore, actor, '선결취소', target.customerName, '기록삭제 및 잔액원복');
         res.json({ success: true });
     } else res.status(500).json({ success: false });
 });
+
 
 // 로그 조회
 app.get('/api/logs', (req, res) => {
