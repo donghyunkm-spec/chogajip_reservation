@@ -188,6 +188,37 @@ app.post('/api/staff/exception', (req, res) => {
     } else res.status(404).json({ success: false });
 });
 
+// [API] 일일 대타/추가 근무자 등록 (신규 추가)
+app.post('/api/staff/temp', (req, res) => {
+    const { name, date, time, salary, actor, store } = req.body;
+    const file = getStaffFile(store || 'chogazip');
+    let staff = readJson(file, []);
+    
+    // 1. 대타를 새로운 직원으로 등록하되, 정규 근무요일(workDays)은 비워둡니다.
+    const newWorker = {
+        id: Date.now(),
+        name: name,
+        position: '알바(대타)',
+        workDays: [], // 정기 근무 없음
+        salaryType: 'hourly',
+        salary: parseInt(salary) || 0, // 시급 정보 저장 (인건비 계산용)
+        time: '', // 기본 시간 없음
+        // 2. 해당 날짜에만 근무하도록 예외(exception) 처리
+        exceptions: {
+            [date]: { type: 'work', time: time }
+        }
+    };
+
+    staff.push(newWorker);
+    
+    if (writeJson(file, staff)) {
+        addLog(store, actor, '대타등록', name, `${date} ${time}`);
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
 // =======================
 // [API] 가계부 (매출/지출)
 // =======================

@@ -1463,15 +1463,70 @@ async function setDailyException(id, dateStr, action) {
     }
 }
 
-async function addTempWorker() {
+// [기존 addTempWorker 함수는 삭제하거나 주석 처리하시고 아래 코드를 사용하세요]
+
+// 1. 시간 선택 옵션 생성 (00~30시 등 넉넉하게 생성)
+function initTimeOptions() {
+    const hours = [];
+    // 0시부터 30시(다음날 새벽 6시)까지 생성 (야간 영업 고려)
+    for(let i=0; i<=30; i++) {
+        const val = i < 24 ? i : i - 24; 
+        const txt = i < 24 ? `${i}` : `(익일)${i-24}`;
+        const valStr = String(val).padStart(2, '0');
+        hours.push(`<option value="${valStr}">${txt}</option>`);
+    }
+    const html = hours.join('');
+    
+    const startEl = document.getElementById('tempStartHour');
+    const endEl = document.getElementById('tempEndHour');
+    
+    if(startEl) {
+        startEl.innerHTML = html;
+        startEl.value = "18"; // 기본값 18시
+    }
+    if(endEl) {
+        endEl.innerHTML = html;
+        endEl.value = "23"; // 기본값 23시
+    }
+}
+
+// 페이지 로드 시 시간 옵션 초기화 실행
+document.addEventListener('DOMContentLoaded', () => {
+    initTimeOptions();
+});
+
+// 2. 모달 열기
+function addTempWorker() { // 함수명은 버튼 onclick과 동일하게 유지
     if (!currentUser) { openLoginModal(); return; }
     
-    const name = prompt('추가할 근무자(대타) 이름을 입력하세요:');
-    if (!name) return;
-    
-    const time = prompt('근무 시간 (예: 18:00~23:00):', '18:00~23:00');
-    if (!time) return;
+    document.getElementById('tempName').value = '';
+    // 시급은 이전에 입력한게 있으면 편하겠지만 일단 기본값
+    document.getElementById('tempSalary').value = '10000'; 
+    document.getElementById('tempWorkerModal').style.display = 'flex';
+}
 
+// 3. 모달 닫기
+function closeTempModal() {
+    document.getElementById('tempWorkerModal').style.display = 'none';
+}
+
+// 4. 저장하기 (서버 통신)
+async function saveTempWorker() {
+    const name = document.getElementById('tempName').value.trim();
+    const salary = document.getElementById('tempSalary').value;
+    
+    const sh = document.getElementById('tempStartHour').value;
+    const sm = document.getElementById('tempStartMin').value;
+    const eh = document.getElementById('tempEndHour').value;
+    const em = document.getElementById('tempEndMin').value;
+
+    if (!name) { alert('이름을 입력해주세요.'); return; }
+    if (!salary) { alert('시급을 입력해주세요.'); return; }
+
+    // 시간 문자열 조합 (예: 18:00~23:10)
+    const timeStr = `${sh}:${sm}~${eh}:${em}`;
+
+    // 현재 선택된 날짜 가져오기
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const day = String(currentDate.getDate()).padStart(2, '0');
@@ -1481,13 +1536,30 @@ async function addTempWorker() {
         const res = await fetch('/api/staff/temp', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name, date: dateStr, time, actor: currentUser.name, store: currentStore })
+            body: JSON.stringify({ 
+                name: name, 
+                date: dateStr, 
+                time: timeStr, 
+                salary: salary, // 시급 추가 전송
+                actor: currentUser.name, 
+                store: currentStore 
+            })
         });
         const json = await res.json();
-        if (json.success) { alert('등록되었습니다.'); loadStaffData(); } 
-        else alert('등록 실패');
-    } catch(e) { alert('서버 오류'); }
+        
+        if (json.success) { 
+            alert(`${dateStr}에 ${name}님이 등록되었습니다.`);
+            closeTempModal();
+            loadStaffData(); // 목록 새로고침
+        } else {
+            alert('등록 실패: 서버 오류');
+        }
+    } catch(e) { 
+        console.error(e);
+        alert('서버 통신 오류'); 
+    }
 }
+
 
 async function callExceptionApi(payload) {
     try {

@@ -241,6 +241,44 @@
     </style>
 </head>
 <body>
+    <div id="tempWorkerModal" class="modal-overlay">
+        <div class="modal-box">
+            <h2>⚡ 일일 대타/추가 근무 등록</h2>
+            <div class="modal-field">
+                <label>이름</label>
+                <input type="text" id="tempName" placeholder="근무자 이름">
+            </div>
+            <div class="modal-field">
+                <label>시급 (원)</label>
+                <input type="number" id="tempSalary" placeholder="예: 10000" value="10000">
+                <p style="font-size:11px; color:#666; margin-top:3px;">* 입력해야 '예상 순익' 인건비에 포함됩니다.</p>
+            </div>
+            <div class="modal-field">
+                <label>근무 시간 설정</label>
+                <div style="display:flex; align-items:center; gap:5px; margin-bottom:5px;">
+                    <select id="tempStartHour" style="padding:5px; flex:1;"></select> 시
+                    <select id="tempStartMin" style="padding:5px; flex:1;">
+                        <option value="00">00</option><option value="10">10</option>
+                        <option value="20">20</option><option value="30">30</option>
+                        <option value="40">40</option><option value="50">50</option>
+                    </select> 분
+                </div>
+                <div style="text-align:center; font-weight:bold; color:#666;">~</div>
+                <div style="display:flex; align-items:center; gap:5px; margin-top:5px;">
+                    <select id="tempEndHour" style="padding:5px; flex:1;"></select> 시
+                    <select id="tempEndMin" style="padding:5px; flex:1;">
+                        <option value="00">00</option><option value="10">10</option>
+                        <option value="20">20</option><option value="30">30</option>
+                        <option value="40">40</option><option value="50">50</option>
+                    </select> 분
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="saveTempWorker()" style="flex:1; background:#28a745;">등록하기</button>
+                <button class="btn" onclick="closeTempModal()" style="flex:1; background:#666;">취소</button>
+            </div>
+        </div>
+    </div>
     <div id="loginOverlay" class="modal-overlay">
         <div class="modal-box">
             <h2>🔒 관리자/점장 로그인</h2>
