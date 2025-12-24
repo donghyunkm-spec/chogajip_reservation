@@ -496,6 +496,25 @@ async function sendToKakao(text) {
     }
 }
 
+// [API] 수동 브리핑 발송 (버튼 클릭 시 동작)
+app.post('/api/kakao/send-briefing', async (req, res) => {
+    const { actor } = req.body;
+    try {
+        console.log(`🔔 [수동 발송] ${actor}님이 브리핑을 요청했습니다.`);
+        
+        // 기존 브리핑 생성 함수 실행
+        await generateAndSendBriefing(); 
+        
+        // 로그 기록
+        addLog('chogazip', actor, '카톡발송', '통합브리핑', '수동발송 완료');
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error('수동 발송 실패:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 cron.schedule('0 11 * * *', () => {
     console.log('🔔 [알림] 오전 11시 일일 브리핑 생성 중...');
     sendDailyBriefing();

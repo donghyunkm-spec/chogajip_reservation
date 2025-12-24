@@ -617,6 +617,35 @@ function calcDrawerTotal() {
     }
 }
 
+// [카카오톡] 수동 브리핑 발송
+async function sendKakaoBriefingManual() {
+    if (!currentUser || currentUser.role !== 'admin') {
+        alert("사장님만 보낼 수 있습니다.");
+        return;
+    }
+
+    if (!confirm('📢 현재 시점의 매출/순익 브리핑을\n카카오톡(나에게)으로 보내시겠습니까?')) return;
+
+    try {
+        const res = await fetch('/api/kakao/send-briefing', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ actor: currentUser.name })
+        });
+        
+        const json = await res.json();
+        
+        if (json.success) {
+            alert('🚀 발송되었습니다! 카카오톡을 확인해주세요.');
+        } else {
+            alert('발송 실패: 서버 로그를 확인해주세요.');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('서버 통신 오류');
+    }
+}
+
 async function saveDailyAccounting() {
     if (!currentUser) { alert("로그인이 필요합니다."); openLoginModal(); return; }
     if (!['admin', 'manager'].includes(currentUser.role)) { alert("점장 또는 사장님만 매출을 입력/수정할 수 있습니다."); return; }
