@@ -8,6 +8,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const cron = require('node-cron'); // 스케줄러 모듈
+const axios = require('axios'); // [NEW] HTTP 요청용
+
+// === [설정] 카카오 개발자 센터 정보 입력 ===
+// 실제 운영 시에는 process.env.KAKAO_KEY 등으로 관리하는 것이 보안상 좋습니다.
+const KAKAO_REST_API_KEY = 'b93a072ab458557243baf45e12f2a011'; 
+// Railway 배포 주소 + /oauth/kakao 경로 (예: https://내앱.up.railway.app/oauth/kakao)
+const KAKAO_REDIRECT_URI = 'https://chogajipreservation-production.up.railway.app/oauth/kakao';
 
 // === 데이터 경로 설정 ===
 const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
@@ -20,6 +27,7 @@ console.log(`📁 데이터 저장 경로: ${actualDataPath}`);
 // === 파일 경로 정의 ===
 const FINAL_DATA_FILE = path.join(actualDataPath, 'reservations.json');
 const PREPAYMENT_FILE = path.join(actualDataPath, 'prepayments.json');
+const KAKAO_TOKEN_FILE = path.join(actualDataPath, 'kakao_token.json'); // [NEW] 토큰 저장 파일
 
 // 파일 초기화 확인
 if (!fs.existsSync(FINAL_DATA_FILE)) fs.writeFileSync(FINAL_DATA_FILE, JSON.stringify([], null, 2));
@@ -402,6 +410,91 @@ app.get('/api/backup', (req, res) => {
         res.status(500).json({ success: false, error: '백업 생성 중 오류 발생' });
     }
 });
+
+// 1. 카카오 인증 코드 받기 및 토큰 발급 (Redirect URI)
+app.get('/oauth/kakao', async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.send('인증 코드가 없습니다.');
+
+    try {
+        // 토큰 발급 요청
+        const response = await axios.post('https://kauth.kakao.com/oauth/token', null, {
+            params: {
+                grant_type: 'authorization_code',
+                client_id: KAKAO_REST_API_KEY,
+                redirect_uri: KAKAO_REDIRECT_URI,
+                code: code
+            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+
+        const tokens = response.data;
+        // 토큰 파일 저장
+        writeJson(KAKAO_TOKEN_FILE, tokens);
+        
+        console.log('✅ 카카오 토큰 발급 및 저장 완료');
+        res.send('<h1>✅ 카카오 로그인 성공!</h1><p>토큰이 서버에 저장되었습니다. 창을 닫으셔도 됩니다.</p>');
+
+    } catch (error) {
+        console.error('토큰 발급 실패:', error.response ? error.response.data : error.message);
+        res.send('토큰 발급 실패. 로그를 확인하세요.');
+    }
+});
+
+// 2. 메시지 전송 함수 (나에게 보내기)
+async function sendToKakao(text) {
+    try {
+        let tokens = readJson(KAKAO_TOKEN_FILE, null);
+        if (!tokens) {
+            console.log('❌ 저장된 카카오 토큰이 없습니다. /kakao-auth.html 에서 로그인해주세요.');
+            return;
+        }
+
+        // 액세스 토큰 갱신 시도 (만료 대비 무조건 갱신 시도 혹은 유효성 체크 후 갱신)
+        // 간단하게 리프레시 토큰으로 갱신 먼저 시도
+        try {
+            const refreshRes = await axios.post('https://kauth.kakao.com/oauth/token', null, {
+                params: {
+                    grant_type: 'refresh_token',
+                    client_id: KAKAO_REST_API_KEY,
+                    refresh_token: tokens.refresh_token
+                },
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
+            
+            // 갱신된 토큰 정보 합치기 (새로운 access_token 등)
+            if (refreshRes.data.access_token) {
+                tokens = { ...tokens, ...refreshRes.data };
+                writeJson(KAKAO_TOKEN_FILE, tokens); // 갱신된 토큰 저장
+            }
+        } catch (refreshErr) {
+            console.log('🔄 토큰 갱신 건너뜀 (아직 유효하거나 리프레시 만료):', refreshErr.message);
+            // 리프레시 토큰도 만료되면 다시 로그인해야 함
+        }
+
+        // 메시지 전송 (나에게 보내기 - 텍스트 템플릿)
+        await axios.post('https://kapi.kakao.com/v2/api/talk/memo/default/send', {
+            template_object: JSON.stringify({
+                object_type: 'text',
+                text: text,
+                link: {
+                    web_url: 'https://yyyn-reservation-production.up.railway.app', // 클릭 시 이동할 주소
+                    mobile_web_url: 'https://yyyn-reservation-production.up.railway.app'
+                }
+            })
+        }, {
+            headers: {
+                'Authorization': `Bearer ${tokens.access_token}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+
+        console.log('🚀 카카오톡 알림 전송 성공');
+
+    } catch (error) {
+        console.error('❌ 카카오 전송 실패:', error.response ? error.response.data : error.message);
+    }
+}
 
 cron.schedule('0 11 * * *', () => {
     console.log('🔔 [알림] 오전 11시 일일 브리핑 생성 중...');
