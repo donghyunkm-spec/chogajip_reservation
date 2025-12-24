@@ -7,6 +7,8 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const cron = require('node-cron'); // 스케줄러 모듈
+
 // === 데이터 경로 설정 ===
 const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
 const fallbackPath = path.join(__dirname, 'data');
@@ -400,6 +402,89 @@ app.get('/api/backup', (req, res) => {
         res.status(500).json({ success: false, error: '백업 생성 중 오류 발생' });
     }
 });
+
+cron.schedule('0 11 * * *', () => {
+    console.log('🔔 [알림] 오전 11시 일일 브리핑 생성 중...');
+    sendDailyBriefing();
+});
+
+function sendDailyBriefing() {
+    try {
+        const today = new Date();
+        const monthStr = today.toISOString().slice(0, 7); // YYYY-MM
+        
+        // 1. 데이터 읽기
+        const accChoga = readJson(getAccountingFile('chogazip'), { monthly: {}, daily: {} });
+        const accYang = readJson(getAccountingFile('yangeun'), { monthly: {}, daily: {} });
+
+        // 2. 이번 달 데이터 집계 (예상 순익 계산 로직 간소화)
+        const statsChoga = calculateMonthStats(accChoga, monthStr, today.getDate());
+        const statsYang = calculateMonthStats(accYang, monthStr, today.getDate());
+        
+        // 3. 메시지 작성
+        const message = `
+[📅 ${today.getMonth()+1}월 ${today.getDate()}일 경영 브리핑]
+
+🏠 초가짚
+- 현재매출: ${statsChoga.sales.toLocaleString()}원
+- 예상순익: ${statsChoga.profit.toLocaleString()}원 (${statsChoga.margin}%)
+
+🥘 양은이네
+- 현재매출: ${statsYang.sales.toLocaleString()}원
+- 예상순익: ${statsYang.profit.toLocaleString()}원 (${statsYang.margin}%)
+
+💰 통합 예상 순익
+- 합산매출: ${(statsChoga.sales + statsYang.sales).toLocaleString()}원
+- 합산순익: ${(statsChoga.profit + statsYang.profit).toLocaleString()}원
+        `.trim();
+
+        console.log("--------------------------------");
+        console.log(message);
+        console.log("--------------------------------");
+        
+        // [카카오톡/슬랙 전송 로직 위치]
+        // 예: sendToKakao(message); 
+        // 실제 카카오 API 연동은 복잡하므로, 우선 서버 로그로 확인하시거나 
+        // Slack Webhook 등을 이용하시면 훨씬 간편하게 받아보실 수 있습니다.
+
+    } catch (e) {
+        console.error('브리핑 생성 실패:', e);
+    }
+}
+
+// 간단 통계 계산 헬퍼
+function calculateMonthStats(data, monthStr, currentDay) {
+    let sales = 0;
+    let cost = 0;
+    
+    // 일별 합계
+    if(data.daily) {
+        Object.keys(data.daily).forEach(date => {
+            if(date.startsWith(monthStr)) {
+                sales += (data.daily[date].sales || 0);
+                cost += (data.daily[date].cost || 0);
+            }
+        });
+    }
+
+    // 고정비 일할 계산
+    const mData = (data.monthly && data.monthly[monthStr]) ? data.monthly[monthStr] : {};
+    const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const ratio = currentDay / lastDay;
+    
+    const fixedTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.liquor||0) + 
+                       (mData.beverage||0) + (mData.etc_fixed||0) + (mData.liquorLoan||0) + 
+                       (mData.deliveryFee||0) + (mData.disposable||0) + (mData.businessCard||0) + 
+                       (mData.taxAgent||0) + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0);
+    
+    // *인건비는 서버에서 정확히 계산하기 어려우므로(staff 파일 필요) 제외하거나 고정비에 포함된 것으로 가정
+    const appliedFixed = Math.floor(fixedTotal * ratio);
+    
+    const totalProfit = sales - (cost + appliedFixed);
+    const margin = sales > 0 ? ((totalProfit / sales) * 100).toFixed(1) : 0;
+
+    return { sales, profit: totalProfit, margin };
+}
 
 // 서버 시작
 app.listen(PORT, '0.0.0.0', () => {

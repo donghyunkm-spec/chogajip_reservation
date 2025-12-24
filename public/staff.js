@@ -103,6 +103,214 @@ function switchTab(tabName) {
     if(tabName === 'monthly') renderMonthlyView();
     if(tabName === 'accounting') loadAccountingData();
     if(tabName === 'prepayment') loadPrepaymentData();
+    if(tabName === 'unified') loadUnifiedData(); // 추가
+}
+
+// 2. 통합 데이터 로드 함수
+let uniDataChoga = null;
+let uniDataYang = null;
+
+async function loadUnifiedData() {
+    if (!currentUser || currentUser.role !== 'admin') { 
+        alert("사장님 전용 메뉴입니다."); 
+        return; 
+    }
+
+    try {
+        // 두 매장 데이터 병렬 호출
+        const [resChoga, resYang] = await Promise.all([
+            fetch('/api/accounting?store=chogazip').then(r => r.json()),
+            fetch('/api/accounting?store=yangeun').then(r => r.json())
+        ]);
+        
+        // 데이터 구조 안전하게 초기화
+        uniDataChoga = resChoga.data || { monthly: {}, daily: {} };
+        uniDataYang = resYang.data || { monthly: {}, daily: {} };
+        
+        // 화면 갱신
+        updateUnifiedView();
+    } catch(e) {
+        console.error("통합 데이터 로드 실패", e);
+        alert("데이터를 불러오는데 실패했습니다.");
+    }
+}
+
+// 3. 서브탭 전환 (통합용)
+function switchUnifiedSubTab(subId, btn) {
+    document.querySelectorAll('.uni-sub-content').forEach(el => el.style.display = 'none');
+    document.getElementById(subId).style.display = 'block';
+    
+    // 버튼 스타일 초기화 후 활성화
+    const container = btn.parentElement;
+    container.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+// 4. 화면 갱신 (선택된 모드에 따라 데이터 합산)
+function updateUnifiedView() {
+    const mode = document.getElementById('unifiedStoreSelect').value;
+    const today = new Date(); // 통합뷰는 현재 달 기준
+    const monthStr = getMonthStr(today); 
+    
+    // 데이터 합산 로직
+    const combined = { sales: 0, cost: 0, profit: 0, dailyCosts: {}, mData: {} };
+    
+    // 사용할 데이터셋 결정
+    const datasets = [];
+    if (mode === 'combined' || mode === 'chogazip') datasets.push({ data: uniDataChoga, type: 'choga' });
+    if (mode === 'combined' || mode === 'yangeun') datasets.push({ data: uniDataYang, type: 'yang' });
+
+    // 집계 변수
+    let totalSales = 0;
+    let totalVarCost = 0;
+    let totalFixedCost = 0;
+    
+    // 상세 내역 집계용
+    let costBreakdown = {
+        meat: 0, food: 0, etc: 0, // 변동비
+        rent: 0, staff: 0, utility: 0, liquor: 0, delivery: 0, others: 0 // 고정비
+    };
+
+    // 매출 유형 집계
+    let salesTypes = { card:0, cash:0, transfer:0, app:0, etc:0 };
+
+    // [계산]
+    const currentDay = today.getDate();
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const ratio = currentDay / lastDay; // 일할 계산 비율
+
+    datasets.forEach(ds => {
+        const d = ds.data;
+        
+        // 1. 일별 변동비 및 매출 합산
+        if (d.daily) {
+            Object.keys(d.daily).forEach(date => {
+                if(date.startsWith(monthStr)) {
+                    const day = d.daily[date];
+                    totalSales += (day.sales || 0);
+                    totalVarCost += (day.cost || 0);
+                    
+                    costBreakdown.meat += (day.meat || 0);
+                    costBreakdown.food += (day.food || 0);
+                    costBreakdown.etc += (day.etc || 0);
+
+                    salesTypes.card += (day.card || 0);
+                    salesTypes.cash += (day.cash || 0);
+                    salesTypes.transfer += (day.transfer || 0);
+                    
+                    if(ds.type === 'yang') {
+                        salesTypes.app += ((day.baemin||0) + (day.yogiyo||0) + (day.coupang||0));
+                    } else {
+                        salesTypes.etc += (day.gift || 0);
+                    }
+                }
+            });
+        }
+
+        // 2. 월 고정비 합산 (일할 적용 전 원본 합계)
+        if (d.monthly && d.monthly[monthStr]) {
+            const m = d.monthly[monthStr];
+            const fixed = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + 
+                          (m.beverage||0) + (m.etc_fixed||0) + (m.liquorLoan||0) + 
+                          (m.deliveryFee||0) + (m.disposable||0) + (m.businessCard||0) + 
+                          (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0);
+            
+            // 인건비 추정 (여기서는 간단히 0으로 처리하거나, 필요시 staff 데이터 로드 필요)
+            // *정확한 인건비 합산을 위해선 loadStaffData()에서 두 매장 staff를 모두 가져와야 함.
+            // 여기서는 고정비 항목별 분류만 진행
+            
+            costBreakdown.rent += (m.rent||0);
+            costBreakdown.utility += ((m.utility||0) + (m.gas||0) + (m.tableOrder||0) + (m.foodWaste||0));
+            costBreakdown.liquor += ((m.liquor||0) + (m.beverage||0) + (m.liquorLoan||0));
+            costBreakdown.delivery += (m.deliveryFee||0);
+            costBreakdown.others += ((m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0));
+
+            totalFixedCost += fixed;
+        }
+    });
+
+    // 예상 순익용 (일할 적용)
+    const appliedFixed = Math.floor(totalFixedCost * ratio);
+    const predTotalCost = totalVarCost + appliedFixed;
+    const predProfit = totalSales - predTotalCost;
+    const predMargin = totalSales > 0 ? ((predProfit / totalSales) * 100).toFixed(1) : 0;
+
+    // 대시보드용 (전체 비용)
+    const dashTotalCost = totalVarCost + totalFixedCost;
+    const dashProfit = totalSales - dashTotalCost;
+    const dashMargin = totalSales > 0 ? ((dashProfit / totalSales) * 100).toFixed(1) : 0;
+
+    // [렌더링 1] 예상 순익 탭
+    document.getElementById('uniPredSales').textContent = totalSales.toLocaleString() + '원';
+    document.getElementById('uniPredCost').textContent = predTotalCost.toLocaleString() + '원';
+    const uniPredProfitEl = document.getElementById('uniPredProfit');
+    uniPredProfitEl.textContent = predProfit.toLocaleString() + '원';
+    uniPredProfitEl.style.color = predProfit >= 0 ? '#fff' : '#ffab91';
+    document.getElementById('uniPredMargin').textContent = `마진율: ${predMargin}%`;
+
+    // 비용 리스트 렌더링 (일할 적용)
+    renderUnifiedCostList('uniPredCostList', costBreakdown, ratio, totalSales, predTotalCost);
+
+    // [렌더링 2] 월간 분석 탭
+    document.getElementById('uniDashSales').textContent = totalSales.toLocaleString() + '원';
+    document.getElementById('uniDashCost').textContent = dashTotalCost.toLocaleString() + '원';
+    const uniDashProfitEl = document.getElementById('uniDashProfit');
+    uniDashProfitEl.textContent = dashProfit.toLocaleString() + '원';
+    uniDashProfitEl.style.color = dashProfit >= 0 ? '#333' : 'red'; // 여기는 흰배경 아님
+    document.getElementById('uniDashMargin').textContent = `순이익률: ${dashMargin}%`;
+
+    // 매출 차트 렌더링
+    renderUnifiedSalesChart(salesTypes, totalSales);
+}
+
+// 통합 비용 차트 렌더링
+function renderUnifiedCostList(containerId, costs, ratio, salesTotal, totalCost) {
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    
+    // 일할 적용
+    const items = [
+        { label: '🥩 고기/재료', val: costs.meat, color: '#ef5350' },
+        { label: '🥬 식자재/유통', val: costs.food, color: '#8d6e63' },
+        { label: '🏠 임대료', val: Math.floor(costs.rent * ratio), color: '#ab47bc' },
+        { label: '🍶 주류/음료', val: Math.floor(costs.liquor * ratio), color: '#ce93d8' },
+        { label: '🛵 배달대행', val: Math.floor(costs.delivery * ratio), color: '#00bcd4' },
+        { label: '💡 관리/공과', val: Math.floor(costs.utility * ratio), color: '#e1bee7' },
+        { label: '🔧 기타잡비', val: costs.etc + Math.floor(costs.others * ratio), color: '#78909c' }
+    ].sort((a,b) => b.val - a.val);
+
+    let html = '';
+    items.forEach(item => {
+        if (item.val > 0) {
+            const widthPct = Math.max((item.val / totalCost) * 100, 1);
+            const textPct = salesTotal > 0 ? ((item.val / salesTotal) * 100).toFixed(1) : '0.0';
+            html += `
+            <div class="bar-row">
+                <div class="bar-label">${item.label}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${widthPct}%; background:${item.color};"></div></div>
+                <div class="bar-value">${item.val.toLocaleString()} <span style="font-size:11px; color:#999;">(${textPct}%)</span></div>
+            </div>`;
+        }
+    });
+    el.innerHTML = html;
+}
+
+// 통합 매출 차트 렌더링
+function renderUnifiedSalesChart(types, total) {
+    const el = document.getElementById('uniSalesChart');
+    if(!el) return;
+    
+    if(total === 0) { el.innerHTML = '<div style="text-align:center; color:#999;">데이터 없음</div>'; return; }
+
+    const renderBar = (l, v, c) => v > 0 ? `<div class="bar-row"><div class="bar-label">${l}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max((v/total)*100,1)}%; background:${c};"></div></div><div class="bar-value">${v.toLocaleString()}</div></div>` : '';
+
+    el.innerHTML = `
+        ${renderBar('💳 카드', types.card, '#42a5f5')}
+        ${renderBar('📱 배달앱', types.app, '#2ac1bc')}
+        ${renderBar('💵 현금', types.cash, '#66bb6a')}
+        ${renderBar('🏦 계좌', types.transfer, '#ab47bc')}
+        ${renderBar('🎫 기타', types.etc, '#ffa726')}
+    `;
 }
 
 // [선결제 관련 함수들]
@@ -287,6 +495,8 @@ async function tryLogin() {
                 loadLogs();
                 const backupBtn = document.getElementById('adminBackupBtn');
                 if(backupBtn) backupBtn.style.display = 'block';
+                const unifiedBtn = document.getElementById('unifiedTabBtn');
+                if(unifiedBtn) unifiedBtn.style.display = 'inline-block'; // 이 부분 추가 필요
             }
             
             const activeTab = document.querySelector('.tab-content.active');

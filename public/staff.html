@@ -384,9 +384,70 @@
             <button class="tab" onclick="switchTab('weekly')">주간 근무표</button>
             <button class="tab" onclick="switchTab('monthly')">월별 캘린더</button>
             <button class="tab" onclick="switchTab('accounting')" style="background:#e3f2fd; color:#0d47a1;">💰 매출/지출</button>
+            <button class="tab" id="unifiedTabBtn" onclick="switchTab('unified')" style="display:none; background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9;">📊 통합 확인</button>
             <button class="tab" onclick="switchTab('prepayment')" style="background:#fce4ec; color:#880e4f;">📒 선결제 장부</button>
             <button class="tab" id="manageTabBtn" onclick="switchTab('manage')" style="display:none; background:#fff3cd;">⚙️ 인원 관리</button>
             <button class="tab" id="logTabBtn" onclick="switchTab('logs')" style="display:none;">📝 변경 이력</button>
+        </div>
+
+        <div id="unified-content" class="tab-content">
+            <div class="accounting-card" style="border-top: 4px solid #2e7d32;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2 style="color:#1b5e20; margin:0;">📊 매장 통합 현황판</h2>
+                    <select id="unifiedStoreSelect" onchange="updateUnifiedView()" style="width:auto; padding:8px; font-weight:bold; border:2px solid #2e7d32; border-radius:5px;">
+                        <option value="combined">🏢 통합(합산)</option>
+                        <option value="chogazip">🏠 초가짚</option>
+                        <option value="yangeun">🥘 양은이네</option>
+                    </select>
+                </div>
+
+                <div class="tabs" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 15px;">
+                    <button class="tab active" onclick="switchUnifiedSubTab('uni-prediction', this)">🔮 통합 예상 순익</button>
+                    <button class="tab" onclick="switchUnifiedSubTab('uni-dashboard', this)">📊 월간 분석</button>
+                </div>
+
+                <div id="uni-prediction" class="uni-sub-content active" style="animation: fadeIn 0.3s;">
+                    <div class="dashboard-summary">
+                        <div class="summary-card total-sales">
+                            <div class="lbl">통합 매출</div>
+                            <div class="val" id="uniPredSales">0원</div>
+                        </div>
+                        <div class="summary-card total-cost">
+                            <div class="lbl">통합 지출 (일할)</div>
+                            <div class="val" id="uniPredCost" style="color:#ab47bc;">0원</div>
+                        </div>
+                        <div class="summary-card net-profit" style="background: linear-gradient(135deg, #2e7d32, #43a047);">
+                            <div class="lbl">통합 순수익</div>
+                            <div class="val" id="uniPredProfit">0원</div>
+                            <div class="sub-val" id="uniPredMargin">0%</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:20px;">
+                        <h4 style="font-size:13px; color:#333; margin-bottom:10px;">📉 통합 비용 상세</h4>
+                        <div id="uniPredCostList" class="cost-list"></div>
+                    </div>
+                </div>
+
+                <div id="uni-dashboard" class="uni-sub-content" style="display:none; animation: fadeIn 0.3s;">
+                    <div class="dashboard-summary">
+                        <div class="summary-card total-sales">
+                            <div class="lbl">총 매출</div>
+                            <div class="val" id="uniDashSales">0원</div>
+                        </div>
+                        <div class="summary-card total-cost">
+                            <div class="lbl">총 지출</div>
+                            <div class="val" id="uniDashCost">0원</div>
+                        </div>
+                        <div class="summary-card net-profit">
+                            <div class="lbl">순수익</div>
+                            <div class="val" id="uniDashProfit">0원</div>
+                            <div class="sub-val" id="uniDashMargin">0%</div>
+                        </div>
+                    </div>
+                    <h3 class="chart-title" style="margin-top:20px;">📊 매출 유형 분석</h3>
+                    <div id="uniSalesChart"></div>
+                </div>
+            </div>
         </div>
 
         <div id="daily-content" class="tab-content active">
