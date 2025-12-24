@@ -441,6 +441,73 @@ app.get('/oauth/kakao', async (req, res) => {
     }
 });
 
+// 1. (NEW) 서버 사이드 인건비 계산 함수
+function calculateServerStaffCost(staffList, monthStr) {
+    if (!staffList || !Array.isArray(staffList)) return 0;
+    
+    const [y, m] = monthStr.split('-');
+    const year = parseInt(y);
+    const month = parseInt(m);
+    const lastDayObj = new Date(year, month, 0);
+    const totalDaysInMonth = lastDayObj.getDate();
+    const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    let totalPay = 0;
+
+    staffList.forEach(s => {
+        // 입/퇴사일 체크 로직 (간소화)
+        const sDate = s.startDate ? new Date(s.startDate) : null;
+        const eDate = s.endDate ? new Date(s.endDate) : null;
+        
+        const isEmployedAt = (dVal) => {
+            const t = new Date(year, month - 1, dVal); t.setHours(0,0,0,0);
+            if (sDate) { const start = new Date(sDate); start.setHours(0,0,0,0); if (t < start) return false; }
+            if (eDate) { const end = new Date(eDate); end.setHours(0,0,0,0); if (t > end) return false; }
+            return true;
+        };
+
+        if (s.salaryType === 'monthly') {
+            let employedDays = 0;
+            for (let d = 1; d <= totalDaysInMonth; d++) {
+                if (isEmployedAt(d)) employedDays++;
+            }
+            if (employedDays === totalDaysInMonth) totalPay += (s.salary || 0);
+            else totalPay += Math.floor((s.salary || 0) / totalDaysInMonth * employedDays);
+        } else {
+            // 시급제 계산
+            let hours = 0;
+            for (let d = 1; d <= totalDaysInMonth; d++) {
+                if (!isEmployedAt(d)) continue;
+                
+                const dateKey = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const dateObj = new Date(year, month - 1, d);
+                const dayName = dayMap[dateObj.getDay()];
+
+                let isWorking = false;
+                let timeStr = s.time;
+
+                // 예외 처리 확인
+                if (s.exceptions && s.exceptions[dateKey]) {
+                    if (s.exceptions[dateKey].type === 'work') { isWorking = true; timeStr = s.exceptions[dateKey].time; }
+                } else {
+                    if (s.workDays.includes(dayName)) isWorking = true;
+                }
+
+                if (isWorking && timeStr && timeStr.includes('~')) {
+                    const [start, end] = timeStr.split('~');
+                    const [sh, sm] = start.trim().split(':').map(Number);
+                    const [eh, em] = end.trim().split(':').map(Number);
+                    let h = (eh * 60 + em) - (sh * 60 + sm);
+                    if (h < 0) h += 24 * 60; // 자정 넘어가는 경우
+                    hours += (h / 60);
+                }
+            }
+            totalPay += Math.floor(hours * (s.salary || 0));
+        }
+    });
+    return totalPay;
+}
+
 // 2. 메시지 전송 함수 (나에게 보내기)
 async function sendToKakao(text) {
     try {
@@ -515,38 +582,55 @@ app.post('/api/kakao/send-briefing', async (req, res) => {
     }
 });
 
-// 브리핑 내용 생성 및 전송 로직
-function generateAndSendBriefing() {
+// 3. (UPDATE) 브리핑 생성 및 전송 함수
+async function generateAndSendBriefing() {
     try {
         const today = new Date();
         const monthStr = today.toISOString().slice(0, 7); // YYYY-MM
         
-        // 데이터 읽기
+        // 데이터 파일 읽기 (staff 파일 추가 로드)
         const accChoga = readJson(getAccountingFile('chogazip'), { monthly: {}, daily: {} });
-        const accYang = readJson(getAccountingFile('yangeun'), { monthly: {}, daily: {} });
-
-        // 통계 계산 (기존 로직 활용)
-        const statsChoga = calculateMonthStats(accChoga, monthStr, today.getDate());
-        const statsYang = calculateMonthStats(accYang, monthStr, today.getDate());
+        const staffChoga = readJson(getStaffFile('chogazip'), []);
         
+        const accYang = readJson(getAccountingFile('yangeun'), { monthly: {}, daily: {} });
+        const staffYang = readJson(getStaffFile('yangeun'), []);
+
+        // 통계 계산
+        const stChoga = calculateMonthStats(accChoga, staffChoga, monthStr, today.getDate());
+        const stYang = calculateMonthStats(accYang, staffYang, monthStr, today.getDate());
+        
+        // 통합 데이터
+        const totalSales = stChoga.sales + stYang.sales;
+        const totalProfit = stChoga.profit + stYang.profit;
+        const totalMargin = totalSales > 0 ? ((totalProfit/totalSales)*100).toFixed(1) : 0;
+
+        // 메시지 템플릿 작성
         const message = `
 [📅 ${today.getMonth()+1}월 ${today.getDate()}일 경영 브리핑]
 
-🏠 초가짚
-- 매출: ${statsChoga.sales.toLocaleString()}원
-- 순익: ${statsChoga.profit.toLocaleString()}원 (${statsChoga.margin}%)
+🏠 초가짚 (마진 ${stChoga.margin}%)
+■ 매출: ${stChoga.sales.toLocaleString()}원
+■ 예상순익: ${stChoga.profit.toLocaleString()}원
+ㄴ 고기: ${stChoga.costBreakdown.meat.toLocaleString()}
+ㄴ 식자재: ${stChoga.costBreakdown.food.toLocaleString()}
+ㄴ 인건비(예상): ${Math.floor(stChoga.staffRaw * (today.getDate()/31)).toLocaleString()}
+ㄴ 기타고정비: ${Math.floor(stChoga.fixedRaw * (today.getDate()/31)).toLocaleString()}
 
-🥘 양은이네
-- 매출: ${statsYang.sales.toLocaleString()}원
-- 순익: ${statsYang.profit.toLocaleString()}원 (${statsYang.margin}%)
+🥘 양은이네 (마진 ${stYang.margin}%)
+■ 매출: ${stYang.sales.toLocaleString()}원
+■ 예상순익: ${stYang.profit.toLocaleString()}원
+ㄴ SPC/재료: ${stYang.costBreakdown.meat.toLocaleString()}
+ㄴ 주류/음료: ${Math.floor(((accYang.monthly?.[monthStr]?.liquor||0) + (accYang.monthly?.[monthStr]?.beverage||0)) * (today.getDate()/31)).toLocaleString()}
+ㄴ 인건비(예상): ${Math.floor(stYang.staffRaw * (today.getDate()/31)).toLocaleString()}
 
 💰 통합 실적
-- 합산매출: ${(statsChoga.sales + statsYang.sales).toLocaleString()}원
-- 합산순익: ${(statsChoga.profit + statsYang.profit).toLocaleString()}원
+■ 합산매출: ${totalSales.toLocaleString()}원
+■ 합산순익: ${totalProfit.toLocaleString()}원
+■ 통합마진: ${totalMargin}%
 `.trim();
 
         // 카카오톡 전송
-        sendToKakao(message);
+        await sendToKakao(message);
 
     } catch (e) {
         console.error('브리핑 생성 실패:', e);
@@ -603,37 +687,61 @@ function sendDailyBriefing() {
 }
 
 // 간단 통계 계산 헬퍼
-function calculateMonthStats(data, monthStr, currentDay) {
+// 2. (UPDATE) 통계 계산 함수 고도화 (인건비 및 상세 항목 포함)
+function calculateMonthStats(accountingData, staffData, monthStr, currentDay) {
     let sales = 0;
-    let cost = 0;
-    
-    // 일별 합계
-    if(data.daily) {
-        Object.keys(data.daily).forEach(date => {
+    // 변동비 상세
+    let costBreakdown = { meat: 0, food: 0, etc: 0 }; 
+    let variableCostTotal = 0;
+
+    // 일별 합계 (매출 및 변동비)
+    if(accountingData.daily) {
+        Object.keys(accountingData.daily).forEach(date => {
             if(date.startsWith(monthStr)) {
-                sales += (data.daily[date].sales || 0);
-                cost += (data.daily[date].cost || 0);
+                const d = accountingData.daily[date];
+                sales += (d.sales || 0);
+                
+                costBreakdown.meat += (d.meat || 0);
+                costBreakdown.food += (d.food || 0);
+                costBreakdown.etc += (d.etc || 0);
+                variableCostTotal += (d.cost || 0);
             }
         });
     }
 
-    // 고정비 일할 계산
-    const mData = (data.monthly && data.monthly[monthStr]) ? data.monthly[monthStr] : {};
+    // 고정비 데이터
+    const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
+    
+    // 인건비 계산 (서버 로직 사용)
+    const totalStaffCost = calculateServerStaffCost(staffData, monthStr);
+
+    // 고정비 합계 (인건비 제외한 순수 고정비)
+    const fixedItemsTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + 
+                            (mData.liquor||0) + (mData.beverage||0) + (mData.etc_fixed||0) + 
+                            (mData.liquorLoan||0) + (mData.deliveryFee||0) + (mData.disposable||0) + 
+                            (mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + 
+                            (mData.foodWaste||0) + (mData.tableOrder||0);
+
+    // 일할 계산 비율 (오늘 날짜 기준 예상치)
     const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const ratio = currentDay / lastDay;
-    
-    const fixedTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.liquor||0) + 
-                       (mData.beverage||0) + (mData.etc_fixed||0) + (mData.liquorLoan||0) + 
-                       (mData.deliveryFee||0) + (mData.disposable||0) + (mData.businessCard||0) + 
-                       (mData.taxAgent||0) + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0);
-    
-    // *인건비는 서버에서 정확히 계산하기 어려우므로(staff 파일 필요) 제외하거나 고정비에 포함된 것으로 가정
-    const appliedFixed = Math.floor(fixedTotal * ratio);
-    
-    const totalProfit = sales - (cost + appliedFixed);
-    const margin = sales > 0 ? ((totalProfit / sales) * 100).toFixed(1) : 0;
 
-    return { sales, profit: totalProfit, margin };
+    // 예상 지출 = 변동비(실비) + (고정비+인건비) * 일할비율
+    const appliedFixed = Math.floor((fixedItemsTotal + totalStaffCost) * ratio);
+    const totalCost = variableCostTotal + appliedFixed;
+    
+    const profit = sales - totalCost;
+    const margin = sales > 0 ? ((profit / sales) * 100).toFixed(1) : 0;
+
+    return { 
+        sales, 
+        profit, 
+        margin, 
+        costBreakdown, 
+        fixedRaw: fixedItemsTotal, 
+        staffRaw: totalStaffCost,
+        appliedFixed 
+    };
 }
 
 // 서버 시작

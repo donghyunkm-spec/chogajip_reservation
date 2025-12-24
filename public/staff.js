@@ -110,6 +110,7 @@ function switchTab(tabName) {
 let uniDataChoga = null;
 let uniDataYang = null;
 
+// 1. (UPDATE) loadUnifiedData: 직원 데이터도 함께 로드하도록 변경
 async function loadUnifiedData() {
     if (!currentUser || currentUser.role !== 'admin') { 
         alert("사장님 전용 메뉴입니다."); 
@@ -117,15 +118,21 @@ async function loadUnifiedData() {
     }
 
     try {
-        // 두 매장 데이터 병렬 호출
-        const [resChoga, resYang] = await Promise.all([
+        // 회계 데이터와 직원 데이터를 모두 병렬로 가져옵니다.
+        const [accChoga, accYang, staffChogaRes, staffYangRes] = await Promise.all([
             fetch('/api/accounting?store=chogazip').then(r => r.json()),
-            fetch('/api/accounting?store=yangeun').then(r => r.json())
+            fetch('/api/accounting?store=yangeun').then(r => r.json()),
+            fetch('/api/staff?store=chogazip').then(r => r.json()),
+            fetch('/api/staff?store=yangeun').then(r => r.json())
         ]);
         
-        // 데이터 구조 안전하게 초기화
-        uniDataChoga = resChoga.data || { monthly: {}, daily: {} };
-        uniDataYang = resYang.data || { monthly: {}, daily: {} };
+        // 전역 변수나 통합 뷰용 변수에 저장
+        uniDataChoga = accChoga.data || { monthly: {}, daily: {} };
+        uniDataYang = accYang.data || { monthly: {}, daily: {} };
+        
+        // 직원 데이터도 저장 (계산을 위해)
+        uniStaffChoga = staffChogaRes.data || [];
+        uniStaffYang = staffYangRes.data || [];
         
         // 화면 갱신
         updateUnifiedView();
@@ -146,24 +153,25 @@ function switchUnifiedSubTab(subId, btn) {
     btn.classList.add('active');
 }
 
-// 4. 화면 갱신 (선택된 모드에 따라 데이터 합산)
+// 3. (UPDATE) updateUnifiedView: 인건비 및 고정비 로직 강화
 function updateUnifiedView() {
     const mode = document.getElementById('unifiedStoreSelect').value;
-    const today = new Date(); // 통합뷰는 현재 달 기준
+    const today = new Date(); 
     const monthStr = getMonthStr(today); 
     
-    // 데이터 합산 로직
-    const combined = { sales: 0, cost: 0, profit: 0, dailyCosts: {}, mData: {} };
-    
-    // 사용할 데이터셋 결정
+    // 데이터셋 준비 (회계 + 직원 데이터 짝지어서)
     const datasets = [];
-    if (mode === 'combined' || mode === 'chogazip') datasets.push({ data: uniDataChoga, type: 'choga' });
-    if (mode === 'combined' || mode === 'yangeun') datasets.push({ data: uniDataYang, type: 'yang' });
+    if (mode === 'combined' || mode === 'chogazip') {
+        datasets.push({ acc: uniDataChoga, staff: uniStaffChoga, type: 'choga' });
+    }
+    if (mode === 'combined' || mode === 'yangeun') {
+        datasets.push({ acc: uniDataYang, staff: uniStaffYang, type: 'yang' });
+    }
 
     // 집계 변수
     let totalSales = 0;
-    let totalVarCost = 0;
-    let totalFixedCost = 0;
+    let totalVarCost = 0; // 변동비(고기, 식자재, 잡비)
+    let totalFixedCostRaw = 0; // 고정비 원본 합계 (인건비 포함)
     
     // 상세 내역 집계용
     let costBreakdown = {
@@ -171,24 +179,20 @@ function updateUnifiedView() {
         rent: 0, staff: 0, utility: 0, liquor: 0, delivery: 0, others: 0 // 고정비
     };
 
-    // 매출 유형 집계
     let salesTypes = { card:0, cash:0, transfer:0, app:0, etc:0 };
 
-    // [계산]
-    const currentDay = today.getDate();
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const ratio = currentDay / lastDay; // 일할 계산 비율
-
+    // [계산 로직]
     datasets.forEach(ds => {
-        const d = ds.data;
-        
+        const d = ds.acc; // 회계 데이터
+        const s = ds.staff; // 직원 데이터
+
         // 1. 일별 변동비 및 매출 합산
         if (d.daily) {
             Object.keys(d.daily).forEach(date => {
                 if(date.startsWith(monthStr)) {
                     const day = d.daily[date];
                     totalSales += (day.sales || 0);
-                    totalVarCost += (day.cost || 0);
+                    totalVarCost += (day.cost || 0); // cost = food + meat + etc
                     
                     costBreakdown.meat += (day.meat || 0);
                     costBreakdown.food += (day.food || 0);
@@ -207,59 +211,86 @@ function updateUnifiedView() {
             });
         }
 
-        // 2. 월 고정비 합산 (일할 적용 전 원본 합계)
+        // 2. 월 고정비 합산 + 인건비 계산
+        // 인건비 계산 실행
+        const staffCost = getEstimatedStaffCost(monthStr, s);
+        costBreakdown.staff += staffCost;
+
         if (d.monthly && d.monthly[monthStr]) {
             const m = d.monthly[monthStr];
-            const fixed = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + 
-                          (m.beverage||0) + (m.etc_fixed||0) + (m.liquorLoan||0) + 
-                          (m.deliveryFee||0) + (m.disposable||0) + (m.businessCard||0) + 
-                          (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0);
             
-            // 인건비 추정 (여기서는 간단히 0으로 처리하거나, 필요시 staff 데이터 로드 필요)
-            // *정확한 인건비 합산을 위해선 loadStaffData()에서 두 매장 staff를 모두 가져와야 함.
-            // 여기서는 고정비 항목별 분류만 진행
-            
+            // 항목별 합산
             costBreakdown.rent += (m.rent||0);
             costBreakdown.utility += ((m.utility||0) + (m.gas||0) + (m.tableOrder||0) + (m.foodWaste||0));
             costBreakdown.liquor += ((m.liquor||0) + (m.beverage||0) + (m.liquorLoan||0));
             costBreakdown.delivery += (m.deliveryFee||0);
             costBreakdown.others += ((m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0));
-
-            totalFixedCost += fixed;
         }
     });
 
-    // 예상 순익용 (일할 적용)
-    const appliedFixed = Math.floor(totalFixedCost * ratio);
+    // 고정비 총합 (인건비 포함)
+    totalFixedCostRaw = costBreakdown.rent + costBreakdown.staff + costBreakdown.utility + 
+                        costBreakdown.liquor + costBreakdown.delivery + costBreakdown.others;
+
+    // [일할 계산 비율 적용]
+    const currentDay = today.getDate();
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const ratio = currentDay / lastDay; 
+
+    // 예상 순익용 (고정비 * 일할 비율)
+    const appliedFixed = Math.floor(totalFixedCostRaw * ratio);
     const predTotalCost = totalVarCost + appliedFixed;
     const predProfit = totalSales - predTotalCost;
     const predMargin = totalSales > 0 ? ((predProfit / totalSales) * 100).toFixed(1) : 0;
 
-    // 대시보드용 (전체 비용)
-    const dashTotalCost = totalVarCost + totalFixedCost;
-    const dashProfit = totalSales - dashTotalCost;
-    const dashMargin = totalSales > 0 ? ((dashProfit / totalSales) * 100).toFixed(1) : 0;
+    // 대시보드용 (전체 비용 - 월말 기준 추정치)
+    // * 대시보드 탭은 "현재까지 쓴 돈"이 아니라 "이번 달 전체 예상 구조"를 보는 것이라면 totalFixedCostRaw를 써야 하지만,
+    // * 보통 "현재 시점의 손익"을 보려면 역시 일할 계산을 적용하거나, 혹은 고정비는 100% 반영하고 매출은 현재까지로 보면 마이너스가 큼.
+    // * 여기서는 '월간 분석' 탭도 예상 순익과 동일한 로직(일할 적용)으로 통일하거나, 
+    // * 혹은 고정비 전체를 뺍니다. (기존 로직 유지하되 인건비만 추가)
+    
+    // 여기서는 사용자의 혼동을 줄이기 위해 '월간 분석' 탭도 '예상 비용(일할)' 기준으로 보여주되,
+    // 전체 고정비를 보여주는 항목을 별도로 표기하겠습니다.
+    const dashTotalCost = predTotalCost; 
+    const dashProfit = predProfit;
+    const dashMargin = predMargin;
 
-    // [렌더링 1] 예상 순익 탭
+    // [UI 렌더링 1] 예상 순익 탭
     document.getElementById('uniPredSales').textContent = totalSales.toLocaleString() + '원';
     document.getElementById('uniPredCost').textContent = predTotalCost.toLocaleString() + '원';
+    
     const uniPredProfitEl = document.getElementById('uniPredProfit');
     uniPredProfitEl.textContent = predProfit.toLocaleString() + '원';
     uniPredProfitEl.style.color = predProfit >= 0 ? '#fff' : '#ffab91';
     document.getElementById('uniPredMargin').textContent = `마진율: ${predMargin}%`;
 
-    // 비용 리스트 렌더링 (일할 적용)
-    renderUnifiedCostList('uniPredCostList', costBreakdown, ratio, totalSales, predTotalCost);
+    // 비용 리스트 렌더링 (일할 적용된 값으로 전달)
+    // 각 항목별로 ratio를 곱해서 전달
+    const appliedBreakdown = {
+        meat: costBreakdown.meat, // 변동비는 그대로
+        food: costBreakdown.food,
+        etc: costBreakdown.etc,
+        rent: Math.floor(costBreakdown.rent * ratio),
+        staff: Math.floor(costBreakdown.staff * ratio),
+        utility: Math.floor(costBreakdown.utility * ratio),
+        liquor: Math.floor(costBreakdown.liquor * ratio),
+        delivery: Math.floor(costBreakdown.delivery * ratio),
+        others: Math.floor(costBreakdown.others * ratio)
+    };
 
-    // [렌더링 2] 월간 분석 탭
+    renderUnifiedCostList('uniPredCostList', appliedBreakdown, 1, totalSales, predTotalCost); 
+    // renderUnifiedCostList 내부에서 ratio를 또 곱하지 않도록 3번째 인자를 1로 설정
+
+    // [UI 렌더링 2] 월간 분석 탭
     document.getElementById('uniDashSales').textContent = totalSales.toLocaleString() + '원';
     document.getElementById('uniDashCost').textContent = dashTotalCost.toLocaleString() + '원';
+    
     const uniDashProfitEl = document.getElementById('uniDashProfit');
     uniDashProfitEl.textContent = dashProfit.toLocaleString() + '원';
-    uniDashProfitEl.style.color = dashProfit >= 0 ? '#333' : 'red'; // 여기는 흰배경 아님
+    uniDashProfitEl.style.color = dashProfit >= 0 ? '#333' : 'red';
     document.getElementById('uniDashMargin').textContent = `순이익률: ${dashMargin}%`;
 
-    // 매출 차트 렌더링
+    // 매출 차트
     renderUnifiedSalesChart(salesTypes, totalSales);
 }
 
@@ -1635,7 +1666,12 @@ function calculateMonthlySalary() {
 
 function closeSalaryModal() { document.getElementById('salaryModal').style.display = 'none'; }
 
-function getEstimatedStaffCost(monthStr) {
+// 2. (UPDATE) getEstimatedStaffCost: 특정 직원 리스트를 받아서 계산하도록 수정
+// (기존에는 전역 staffList만 썼지만, 이제는 인자로 데이터를 받습니다)
+function getEstimatedStaffCost(monthStr, targetStaffList = null) {
+    // targetStaffList가 없으면 현재 페이지의 staffList 사용 (하위 호환)
+    const list = targetStaffList || staffList; 
+    
     const [y, m] = monthStr.split('-');
     const year = parseInt(y);
     const month = parseInt(m);
@@ -1646,7 +1682,7 @@ function getEstimatedStaffCost(monthStr) {
     
     let totalPay = 0;
 
-    staffList.forEach(s => {
+    list.forEach(s => {
         const sDate = s.startDate ? new Date(s.startDate) : null;
         const eDate = s.endDate ? new Date(s.endDate) : null;
 
