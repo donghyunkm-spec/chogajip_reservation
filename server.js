@@ -515,6 +515,44 @@ app.post('/api/kakao/send-briefing', async (req, res) => {
     }
 });
 
+// 브리핑 내용 생성 및 전송 로직
+function generateAndSendBriefing() {
+    try {
+        const today = new Date();
+        const monthStr = today.toISOString().slice(0, 7); // YYYY-MM
+        
+        // 데이터 읽기
+        const accChoga = readJson(getAccountingFile('chogazip'), { monthly: {}, daily: {} });
+        const accYang = readJson(getAccountingFile('yangeun'), { monthly: {}, daily: {} });
+
+        // 통계 계산 (기존 로직 활용)
+        const statsChoga = calculateMonthStats(accChoga, monthStr, today.getDate());
+        const statsYang = calculateMonthStats(accYang, monthStr, today.getDate());
+        
+        const message = `
+[📅 ${today.getMonth()+1}월 ${today.getDate()}일 경영 브리핑]
+
+🏠 초가짚
+- 매출: ${statsChoga.sales.toLocaleString()}원
+- 순익: ${statsChoga.profit.toLocaleString()}원 (${statsChoga.margin}%)
+
+🥘 양은이네
+- 매출: ${statsYang.sales.toLocaleString()}원
+- 순익: ${statsYang.profit.toLocaleString()}원 (${statsYang.margin}%)
+
+💰 통합 실적
+- 합산매출: ${(statsChoga.sales + statsYang.sales).toLocaleString()}원
+- 합산순익: ${(statsChoga.profit + statsYang.profit).toLocaleString()}원
+`.trim();
+
+        // 카카오톡 전송
+        sendToKakao(message);
+
+    } catch (e) {
+        console.error('브리핑 생성 실패:', e);
+    }
+}
+
 cron.schedule('0 11 * * *', () => {
     console.log('🔔 [알림] 오전 11시 일일 브리핑 생성 중...');
     sendDailyBriefing();
