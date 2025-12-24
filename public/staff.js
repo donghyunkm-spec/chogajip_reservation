@@ -153,145 +153,142 @@ function switchUnifiedSubTab(subId, btn) {
     btn.classList.add('active');
 }
 
-// 3. (UPDATE) updateUnifiedView: 인건비 및 고정비 로직 강화
+// [staff.js] updateUnifiedView 함수 수정
+
 function updateUnifiedView() {
     const mode = document.getElementById('unifiedStoreSelect').value;
     const today = new Date(); 
     const monthStr = getMonthStr(today); 
     
-    // 데이터셋 준비 (회계 + 직원 데이터 짝지어서)
+    // 데이터셋 준비
     const datasets = [];
-    if (mode === 'combined' || mode === 'chogazip') {
-        datasets.push({ acc: uniDataChoga, staff: uniStaffChoga, type: 'choga' });
-    }
-    if (mode === 'combined' || mode === 'yangeun') {
-        datasets.push({ acc: uniDataYang, staff: uniStaffYang, type: 'yang' });
-    }
+    if (mode === 'combined' || mode === 'chogazip') datasets.push({ acc: uniDataChoga, staff: uniStaffChoga, type: 'choga' });
+    if (mode === 'combined' || mode === 'yangeun') datasets.push({ acc: uniDataYang, staff: uniStaffYang, type: 'yang' });
 
-    // 집계 변수
     let totalSales = 0;
-    let totalVarCost = 0; // 변동비(고기, 식자재, 잡비)
-    let totalFixedCostRaw = 0; // 고정비 원본 합계 (인건비 포함)
     
-    // 상세 내역 집계용
-    let costBreakdown = {
-        meat: 0, food: 0, etc: 0, // 변동비
-        rent: 0, staff: 0, utility: 0, liquor: 0, delivery: 0, others: 0 // 고정비
+    // [항목별 집계 변수 초기화]
+    // 요청하신 주요 항목들을 별도 키로 관리
+    let stats = {
+        meat: 0,      // 한강유통/SPC
+        food: 0,      // 삼시세끼
+        rent: 0,      // 임대료
+        utility: 0,   // 관리비/공과금 (가스 등 포함)
+        liquor: 0,    // 주류+음료
+        loan: 0,      // 주류대출
+        delivery: 0,  // 배달수수료
+        staff: 0,     // 인건비
+        etc: 0        // 나머지 통합 (일일잡비 + 기타고정비)
     };
 
-    let salesTypes = { card:0, cash:0, transfer:0, app:0, etc:0 };
+    // 일할 계산용 비율
+    const currentDay = today.getDate();
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const ratio = currentDay / lastDay; 
 
-    // [계산 로직]
     datasets.forEach(ds => {
-        const d = ds.acc; // 회계 데이터
-        const s = ds.staff; // 직원 데이터
-
-        // 1. 일별 변동비 및 매출 합산
+        const d = ds.acc;
+        
+        // 1. 일별 변동비 (실비 합산)
         if (d.daily) {
             Object.keys(d.daily).forEach(date => {
                 if(date.startsWith(monthStr)) {
                     const day = d.daily[date];
                     totalSales += (day.sales || 0);
-                    totalVarCost += (day.cost || 0); // cost = food + meat + etc
                     
-                    costBreakdown.meat += (day.meat || 0);
-                    costBreakdown.food += (day.food || 0);
-                    costBreakdown.etc += (day.etc || 0);
-
-                    salesTypes.card += (day.card || 0);
-                    salesTypes.cash += (day.cash || 0);
-                    salesTypes.transfer += (day.transfer || 0);
-                    
-                    if(ds.type === 'yang') {
-                        salesTypes.app += ((day.baemin||0) + (day.yogiyo||0) + (day.coupang||0));
-                    } else {
-                        salesTypes.etc += (day.gift || 0);
-                    }
+                    stats.meat += (day.meat || 0);
+                    stats.food += (day.food || 0);
+                    stats.etc += (day.etc || 0); // 일일 잡비는 etc로
                 }
             });
         }
 
-        // 2. 월 고정비 합산 + 인건비 계산
-        // 인건비 계산 실행
-        const staffCost = getEstimatedStaffCost(monthStr, s);
-        costBreakdown.staff += staffCost;
+        // 2. 인건비 (일할 적용)
+        const sCost = getEstimatedStaffCost(monthStr, ds.staff);
+        stats.staff += Math.floor(sCost * ratio);
 
+        // 3. 월 고정비 (일할 적용)
         if (d.monthly && d.monthly[monthStr]) {
             const m = d.monthly[monthStr];
             
-            // 항목별 합산
-            costBreakdown.rent += (m.rent||0);
-            costBreakdown.utility += ((m.utility||0) + (m.gas||0) + (m.tableOrder||0) + (m.foodWaste||0));
-            costBreakdown.liquor += ((m.liquor||0) + (m.beverage||0) + (m.liquorLoan||0));
-            costBreakdown.delivery += (m.deliveryFee||0);
-            costBreakdown.others += ((m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0));
+            stats.rent += Math.floor((m.rent||0) * ratio);
+            
+            // 관리비/공과금 통합
+            const utilSum = (m.utility||0) + (m.gas||0) + (m.tableOrder||0) + (m.foodWaste||0);
+            stats.utility += Math.floor(utilSum * ratio);
+            
+            // 주류 (음료 포함)
+            stats.liquor += Math.floor(((m.liquor||0) + (m.beverage||0)) * ratio);
+            
+            // 주류대출
+            stats.loan += Math.floor((m.liquorLoan||0) * ratio);
+            
+            // 배달수수료
+            stats.delivery += Math.floor((m.deliveryFee||0) * ratio);
+
+            // 나머지 기타 고정비
+            const etcFixed = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
+            stats.etc += Math.floor(etcFixed * ratio);
         }
     });
 
-    // 고정비 총합 (인건비 포함)
-    totalFixedCostRaw = costBreakdown.rent + costBreakdown.staff + costBreakdown.utility + 
-                        costBreakdown.liquor + costBreakdown.delivery + costBreakdown.others;
+    const totalCost = stats.meat + stats.food + stats.rent + stats.utility + stats.liquor + stats.loan + stats.delivery + stats.staff + stats.etc;
+    const profit = totalSales - totalCost;
+    const margin = totalSales > 0 ? ((profit / totalSales) * 100).toFixed(1) : 0;
 
-    // [일할 계산 비율 적용]
-    const currentDay = today.getDate();
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const ratio = currentDay / lastDay; 
-
-    // 예상 순익용 (고정비 * 일할 비율)
-    const appliedFixed = Math.floor(totalFixedCostRaw * ratio);
-    const predTotalCost = totalVarCost + appliedFixed;
-    const predProfit = totalSales - predTotalCost;
-    const predMargin = totalSales > 0 ? ((predProfit / totalSales) * 100).toFixed(1) : 0;
-
-    // 대시보드용 (전체 비용 - 월말 기준 추정치)
-    // * 대시보드 탭은 "현재까지 쓴 돈"이 아니라 "이번 달 전체 예상 구조"를 보는 것이라면 totalFixedCostRaw를 써야 하지만,
-    // * 보통 "현재 시점의 손익"을 보려면 역시 일할 계산을 적용하거나, 혹은 고정비는 100% 반영하고 매출은 현재까지로 보면 마이너스가 큼.
-    // * 여기서는 '월간 분석' 탭도 예상 순익과 동일한 로직(일할 적용)으로 통일하거나, 
-    // * 혹은 고정비 전체를 뺍니다. (기존 로직 유지하되 인건비만 추가)
-    
-    // 여기서는 사용자의 혼동을 줄이기 위해 '월간 분석' 탭도 '예상 비용(일할)' 기준으로 보여주되,
-    // 전체 고정비를 보여주는 항목을 별도로 표기하겠습니다.
-    const dashTotalCost = predTotalCost; 
-    const dashProfit = predProfit;
-    const dashMargin = predMargin;
-
-    // [UI 렌더링 1] 예상 순익 탭
+    // UI 업데이트
     document.getElementById('uniPredSales').textContent = totalSales.toLocaleString() + '원';
-    document.getElementById('uniPredCost').textContent = predTotalCost.toLocaleString() + '원';
+    document.getElementById('uniPredCost').textContent = totalCost.toLocaleString() + '원';
     
-    const uniPredProfitEl = document.getElementById('uniPredProfit');
-    uniPredProfitEl.textContent = predProfit.toLocaleString() + '원';
-    uniPredProfitEl.style.color = predProfit >= 0 ? '#fff' : '#ffab91';
-    document.getElementById('uniPredMargin').textContent = `마진율: ${predMargin}%`;
+    const pEl = document.getElementById('uniPredProfit');
+    pEl.textContent = profit.toLocaleString() + '원';
+    pEl.style.color = profit >= 0 ? '#fff' : '#ffab91';
+    document.getElementById('uniPredMargin').textContent = `마진율: ${margin}%`;
 
-    // 비용 리스트 렌더링 (일할 적용된 값으로 전달)
-    // 각 항목별로 ratio를 곱해서 전달
-    const appliedBreakdown = {
-        meat: costBreakdown.meat, // 변동비는 그대로
-        food: costBreakdown.food,
-        etc: costBreakdown.etc,
-        rent: Math.floor(costBreakdown.rent * ratio),
-        staff: Math.floor(costBreakdown.staff * ratio),
-        utility: Math.floor(costBreakdown.utility * ratio),
-        liquor: Math.floor(costBreakdown.liquor * ratio),
-        delivery: Math.floor(costBreakdown.delivery * ratio),
-        others: Math.floor(costBreakdown.others * ratio)
-    };
-
-    renderUnifiedCostList('uniPredCostList', appliedBreakdown, 1, totalSales, predTotalCost); 
-    // renderUnifiedCostList 내부에서 ratio를 또 곱하지 않도록 3번째 인자를 1로 설정
-
-    // [UI 렌더링 2] 월간 분석 탭
+    // 월간 분석 탭도 동일 값 적용
     document.getElementById('uniDashSales').textContent = totalSales.toLocaleString() + '원';
-    document.getElementById('uniDashCost').textContent = dashTotalCost.toLocaleString() + '원';
-    
-    const uniDashProfitEl = document.getElementById('uniDashProfit');
-    uniDashProfitEl.textContent = dashProfit.toLocaleString() + '원';
-    uniDashProfitEl.style.color = dashProfit >= 0 ? '#333' : 'red';
-    document.getElementById('uniDashMargin').textContent = `순이익률: ${dashMargin}%`;
+    document.getElementById('uniDashCost').textContent = totalCost.toLocaleString() + '원';
+    document.getElementById('uniDashProfit').textContent = profit.toLocaleString() + '원';
+    document.getElementById('uniDashMargin').textContent = `순이익률: ${margin}%`;
 
-    // 매출 차트
-    renderUnifiedSalesChart(salesTypes, totalSales);
+    // 그래프 렌더링 (요청하신 항목별 분리)
+    // * renderUnifiedCostList 내부에서 items 배열을 만들 때 이 stats 객체를 활용하도록 수정합니다.
+    // 기존 함수 대신 아래 내용을 직접 렌더링하거나 함수 호출 방식을 맞춥니다.
+    renderDetailedCostChart('uniPredCostList', stats, totalSales, totalCost);
+}
+
+// (NEW) 상세 항목 차트 렌더링 함수
+function renderDetailedCostChart(containerId, stats, salesTotal, totalCost) {
+    const el = document.getElementById(containerId);
+    if(!el) return;
+
+    // 큰 항목 순서대로 정렬하거나 고정된 순서로 표시
+    const items = [
+        { label: '🥩 고기/SPC', val: stats.meat, color: '#ef5350' },
+        { label: '🥬 삼시세끼', val: stats.food, color: '#8d6e63' },
+        { label: '🏠 임대료', val: stats.rent, color: '#ab47bc' },
+        { label: '👥 인건비', val: stats.staff, color: '#ba68c8' },
+        { label: '💡 관리/공과', val: stats.utility, color: '#5c6bc0' }, // 별도 분리
+        { label: '🍶 주류대출', val: stats.loan, color: '#ff9800' },     // 별도 분리
+        { label: '🍺 주류/음료', val: stats.liquor, color: '#ce93d8' },
+        { label: '🛵 배달수수료', val: stats.delivery, color: '#00bcd4' },
+        { label: '🎸 기타통합', val: stats.etc, color: '#90a4ae' }
+    ].sort((a,b) => b.val - a.val); // 금액 큰 순서로 정렬
+
+    let html = '';
+    items.forEach(item => {
+        if (item.val > 0) {
+            const widthPct = Math.max((item.val / totalCost) * 100, 1);
+            const textPct = salesTotal > 0 ? ((item.val / salesTotal) * 100).toFixed(1) : '0.0';
+            html += `
+            <div class="bar-row">
+                <div class="bar-label" style="width:90px;">${item.label}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${widthPct}%; background:${item.color};"></div></div>
+                <div class="bar-value" style="width:70px;">${item.val.toLocaleString()} <span style="font-size:10px; color:#999;">(${textPct}%)</span></div>
+            </div>`;
+        }
+    });
+    el.innerHTML = html;
 }
 
 // 통합 비용 차트 렌더링

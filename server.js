@@ -582,55 +582,137 @@ app.post('/api/kakao/send-briefing', async (req, res) => {
     }
 });
 
-// 3. (UPDATE) 브리핑 생성 및 전송 함수
+// [server.js] 기존 generateAndSendBriefing 및 관련 로직 대체
+
+// 1. (NEW) 매장별 주요 비용 추출 헬퍼 함수
+function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) {
+    // 1. 변동비 (일별 데이터 합산)
+    let meat = 0; // 초가짚:한유, 양은:SPC
+    let food = 0; // 삼시세끼
+    let etcDaily = 0; // 잡비
+    let sales = 0;
+
+    if (accData.daily) {
+        Object.keys(accData.daily).forEach(date => {
+            if (date.startsWith(monthStr)) {
+                const d = accData.daily[date];
+                sales += (d.sales || 0);
+                meat += (d.meat || 0);
+                food += (d.food || 0);
+                etcDaily += (d.etc || 0);
+            }
+        });
+    }
+
+    // 2. 고정비 (월별 데이터)
+    const m = (accData.monthly && accData.monthly[monthStr]) ? accData.monthly[monthStr] : {};
+    
+    const rent = m.rent || 0; // 임대료
+    // 관리비/공과금 (가스, 음식물, 테이블오더 등 포함)
+    const utility = (m.utility||0) + (m.gas||0) + (m.foodWaste||0) + (m.tableOrder||0);
+    const liquor = (m.liquor||0) + (m.beverage||0); // 주류+음료
+    const liquorLoan = m.liquorLoan || 0; // 주류대출
+    const delivery = m.deliveryFee || 0; // 배달수수료 (양은이네)
+    
+    // 그 외 자잘한 고정비 (세무, 카드, 일회용품 등) -> 기타로 통합
+    const etcFixed = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
+
+    // 3. 인건비 (예상) - 일할 계산용
+    const staffRaw = calculateServerStaffCost(staffData, monthStr);
+
+    // 4. 일할 계산 적용 (현재 시점 예상 비용)
+    // 고정비 성격 항목들은 오늘 날짜까지만 사용한 것으로 간주
+    const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const ratio = currentDay / lastDay;
+
+    const appliedRent = Math.floor(rent * ratio);
+    const appliedUtility = Math.floor(utility * ratio);
+    const appliedLiquor = Math.floor(liquor * ratio); // 주류도 월말결제면 일할
+    const appliedLoan = Math.floor(liquorLoan * ratio);
+    const appliedDelivery = Math.floor(delivery * ratio);
+    const appliedEtc = Math.floor((etcFixed + etcDaily) * ratio); // 잡비도 그냥 전체 비용 흐름 맞추기 위해 비율 적용하거나, 변동비는 실비로 할수도 있음. 여기선 요청대로 주요항목 외 통합.
+    // *수정: 변동비(고기, 식자재, 잡비)는 '이미 쓴 돈'이므로 실비 적용. 고정비만 일할 적용.
+    // 기타 항목: 일별 잡비(실비) + 기타고정비(일할)
+    const totalEtc = etcDaily + Math.floor(etcFixed * ratio);
+    const appliedStaff = Math.floor(staffRaw * ratio);
+
+    const totalCost = meat + food + appliedRent + appliedUtility + appliedLiquor + appliedLoan + appliedDelivery + totalEtc + appliedStaff;
+    const profit = sales - totalCost;
+
+    return {
+        sales, profit,
+        items: {
+            rent: appliedRent,
+            utility: appliedUtility,
+            liquor: appliedLiquor,
+            loan: appliedLoan,
+            meat: meat,   // 실비
+            food: food,   // 실비
+            delivery: appliedDelivery,
+            staff: appliedStaff,
+            etc: totalEtc
+        }
+    };
+}
+
+// 2. (UPDATE) 브리핑 생성 및 전송
 async function generateAndSendBriefing() {
     try {
         const today = new Date();
         const monthStr = today.toISOString().slice(0, 7); // YYYY-MM
-        
-        // 데이터 파일 읽기 (staff 파일 추가 로드)
+        const dayNum = today.getDate();
+
+        // 데이터 로드
         const accChoga = readJson(getAccountingFile('chogazip'), { monthly: {}, daily: {} });
         const staffChoga = readJson(getStaffFile('chogazip'), []);
-        
         const accYang = readJson(getAccountingFile('yangeun'), { monthly: {}, daily: {} });
         const staffYang = readJson(getStaffFile('yangeun'), []);
 
-        // 통계 계산
-        const stChoga = calculateMonthStats(accChoga, staffChoga, monthStr, today.getDate());
-        const stYang = calculateMonthStats(accYang, staffYang, monthStr, today.getDate());
-        
-        // 통합 데이터
-        const totalSales = stChoga.sales + stYang.sales;
-        const totalProfit = stChoga.profit + stYang.profit;
-        const totalMargin = totalSales > 0 ? ((totalProfit/totalSales)*100).toFixed(1) : 0;
+        // 계산
+        const choga = extractStoreCosts(accChoga, staffChoga, monthStr, 'choga', dayNum);
+        const yang = extractStoreCosts(accYang, staffYang, monthStr, 'yang', dayNum);
 
-        // 메시지 템플릿 작성
+        // 통합
+        const totalSales = choga.sales + yang.sales;
+        const totalProfit = choga.profit + yang.profit;
+        const totalMargin = totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(1) : 0;
+
+        // 메시지 포맷팅
         const message = `
 [📅 ${today.getMonth()+1}월 ${today.getDate()}일 경영 브리핑]
 
-🏠 초가짚 (마진 ${stChoga.margin}%)
-■ 매출: ${stChoga.sales.toLocaleString()}원
-■ 예상순익: ${stChoga.profit.toLocaleString()}원
-ㄴ 고기: ${stChoga.costBreakdown.meat.toLocaleString()}
-ㄴ 식자재: ${stChoga.costBreakdown.food.toLocaleString()}
-ㄴ 인건비(예상): ${Math.floor(stChoga.staffRaw * (today.getDate()/31)).toLocaleString()}
-ㄴ 기타고정비: ${Math.floor(stChoga.fixedRaw * (today.getDate()/31)).toLocaleString()}
+🏠 초가짚 (마진 ${(choga.sales>0?(choga.profit/choga.sales*100).toFixed(1):0)}%)
+■ 매출: ${choga.sales.toLocaleString()}원
+■ 순익: ${choga.profit.toLocaleString()}원
+- 한강유통: ${choga.items.meat.toLocaleString()}
+- 삼시세끼: ${choga.items.food.toLocaleString()}
+- 임대료: ${choga.items.rent.toLocaleString()}
+- 관리/공과: ${choga.items.utility.toLocaleString()}
+- 주류: ${choga.items.liquor.toLocaleString()}
+- 주류대출: ${choga.items.loan.toLocaleString()}
+- 인건비: ${choga.items.staff.toLocaleString()}
+- 그외통합: ${choga.items.etc.toLocaleString()}
 
-🥘 양은이네 (마진 ${stYang.margin}%)
-■ 매출: ${stYang.sales.toLocaleString()}원
-■ 예상순익: ${stYang.profit.toLocaleString()}원
-ㄴ SPC/재료: ${stYang.costBreakdown.meat.toLocaleString()}
-ㄴ 주류/음료: ${Math.floor(((accYang.monthly?.[monthStr]?.liquor||0) + (accYang.monthly?.[monthStr]?.beverage||0)) * (today.getDate()/31)).toLocaleString()}
-ㄴ 인건비(예상): ${Math.floor(stYang.staffRaw * (today.getDate()/31)).toLocaleString()}
+🥘 양은이네 (마진 ${(yang.sales>0?(yang.profit/yang.sales*100).toFixed(1):0)}%)
+■ 매출: ${yang.sales.toLocaleString()}원
+■ 순익: ${yang.profit.toLocaleString()}원
+- SPC/재료: ${yang.items.meat.toLocaleString()}
+- 삼시세끼: ${yang.items.food.toLocaleString()}
+- 임대료: ${yang.items.rent.toLocaleString()}
+- 관리/공과: ${yang.items.utility.toLocaleString()}
+- 주류: ${yang.items.liquor.toLocaleString()}
+- 주류대출: ${yang.items.loan.toLocaleString()}
+- 배달수수료: ${yang.items.delivery.toLocaleString()}
+- 인건비: ${yang.items.staff.toLocaleString()}
+- 그외통합: ${yang.items.etc.toLocaleString()}
 
 💰 통합 실적
 ■ 합산매출: ${totalSales.toLocaleString()}원
 ■ 합산순익: ${totalProfit.toLocaleString()}원
-■ 통합마진: ${totalMargin}%
+■ 전체마진: ${totalMargin}%
 `.trim();
 
-        // 카카오톡 전송
-        await sendToKakao(message);
+        await sendToKakao(message); // 기존 sendToKakao 함수 사용
 
     } catch (e) {
         console.error('브리핑 생성 실패:', e);
