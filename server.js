@@ -198,22 +198,19 @@ app.post('/api/staff/exception', (req, res) => {
     } else res.status(404).json({ success: false });
 });
 
-// [API] 일일 대타/추가 근무자 등록 (신규 추가)
-app.post('/api/staff/temp', (req, res) => {
+app.post('/api/staff/temp', async (req, res) => { // async 추가
     const { name, date, time, salary, actor, store } = req.body;
     const file = getStaffFile(store || 'chogazip');
     let staff = readJson(file, []);
     
-    // 1. 대타를 새로운 직원으로 등록하되, 정규 근무요일(workDays)은 비워둡니다.
     const newWorker = {
         id: Date.now(),
         name: name,
         position: '알바(대타)',
-        workDays: [], // 정기 근무 없음
+        workDays: [],
         salaryType: 'hourly',
-        salary: parseInt(salary) || 0, // 시급 정보 저장 (인건비 계산용)
-        time: '', // 기본 시간 없음
-        // 2. 해당 날짜에만 근무하도록 예외(exception) 처리
+        salary: parseInt(salary) || 0,
+        time: '',
         exceptions: {
             [date]: { type: 'work', time: time }
         }
@@ -223,6 +220,15 @@ app.post('/api/staff/temp', (req, res) => {
     
     if (writeJson(file, staff)) {
         addLog(store, actor, '대타등록', name, `${date} ${time}`);
+        
+        // [NEW] 변경된 날짜가 '오늘'이면 즉시 카톡 발송
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (date === todayStr) {
+             console.log('🔔 당일 대타 등록 감지! 알림 발송 중...');
+             const msg = getDailyScheduleMessage(store, new Date());
+             await sendToKakao(`📢 [긴급] 당일 대타/추가 알림\n(${actor}님 등록)\n\n${msg}`);
+        }
+
         res.json({ success: true });
     } else {
         res.status(500).json({ success: false });
@@ -713,6 +719,138 @@ async function generateAndSendBriefing() {
         console.error('브리핑 생성 실패:', e);
     }
 }
+
+// [NEW] 특정 날짜의 근무자 명단 및 일일 인건비 메시지 생성 함수
+function getDailyScheduleMessage(store, dateObj) {
+    const storeName = store === 'yangeun' ? '🥘 양은이네' : '🏠 초가짚';
+    const file = getStaffFile(store);
+    const staffList = readJson(file, []);
+    
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1;
+    const day = dateObj.getDate();
+    const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayKey = dayMap[dateObj.getDay()];
+    const lastDayOfMonth = new Date(year, month, 0).getDate(); // 이번 달이 며칠까지 있는지 (30 or 31)
+
+    let workers = [];
+    let totalDailyCost = 0;
+
+    staffList.forEach(s => {
+        // 1. 퇴사자 제외 로직 (기존 로직 활용)
+        const sDate = s.startDate ? new Date(s.startDate) : null;
+        const eDate = s.endDate ? new Date(s.endDate) : null;
+        const targetDate = new Date(year, month - 1, day); targetDate.setHours(0,0,0,0);
+        
+        if (sDate) { const start = new Date(sDate); start.setHours(0,0,0,0); if (targetDate < start) return; }
+        if (eDate) { const end = new Date(eDate); end.setHours(0,0,0,0); if (targetDate > end) return; }
+
+        // 2. 근무 여부 확인
+        let isWorking = false;
+        let timeStr = s.time;
+
+        // 예외 처리(휴무/시간변경) 확인
+        if (s.exceptions && s.exceptions[dateStr]) {
+            const ex = s.exceptions[dateStr];
+            if (ex.type === 'work') { isWorking = true; timeStr = ex.time; }
+            else if (ex.type === 'off') { isWorking = false; }
+        } else {
+            // 정기 근무 요일 확인
+            if (s.workDays && s.workDays.includes(dayKey)) isWorking = true;
+        }
+
+        if (isWorking) {
+            // 3. 일일 인건비 계산
+            let cost = 0;
+            if (s.salaryType === 'monthly') {
+                // 월급제: 월급 / 해당 월의 일수 (예: 300만 / 30일 = 10만)
+                cost = Math.floor((s.salary || 0) / lastDayOfMonth);
+            } else {
+                // 시급제: 시간 계산 * 시급
+                if (timeStr && timeStr.includes('~')) {
+                    const [start, end] = timeStr.split('~');
+                    const [sh, sm] = start.trim().split(':').map(Number);
+                    const [eh, em] = end.trim().split(':').map(Number);
+                    
+                    let startMin = sh * 60 + (sm || 0);
+                    let endMin = eh * 60 + (em || 0);
+                    if (endMin < startMin) endMin += 24 * 60; // 새벽 넘어가면 24시간 더함
+                    
+                    const hours = (endMin - startMin) / 60;
+                    cost = Math.floor(hours * (s.salary || 0));
+                }
+            }
+            
+            totalDailyCost += cost;
+            workers.push({ name: s.name, time: timeStr });
+        }
+    });
+
+    // 4. 메시지 포맷 작성
+    if (workers.length === 0) {
+        return `${storeName}: 근무 없음 (휴무)`;
+    }
+
+    let msg = `${storeName}: 근무인원 ${workers.length}명\n`;
+    workers.forEach(w => {
+        msg += `- ${w.name}: ${w.time}\n`;
+    });
+    msg += `💰 금일 인건비: ${totalDailyCost.toLocaleString()}원`;
+
+    return msg;
+}
+
+app.post('/api/staff/exception', async (req, res) => { // async 추가
+    const { id, date, type, time, actor, store } = req.body;
+    const file = getStaffFile(store || 'chogazip');
+    let staff = readJson(file, []);
+    const target = staff.find(s => s.id == id);
+    
+    if (target) {
+        if (!target.exceptions) target.exceptions = {};
+        if (type === 'delete') delete target.exceptions[date];
+        else target.exceptions[date] = { type, time };
+        
+        writeJson(file, staff);
+        addLog(store, actor, '근무변경', target.name, `${date} ${type}`);
+        
+        // [NEW] 변경된 날짜가 '오늘'이면 즉시 카톡 발송
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (date === todayStr) {
+            console.log('🔔 당일 근무 변경 감지! 알림 발송 중...');
+            const msg = getDailyScheduleMessage(store, new Date());
+            await sendToKakao(`📢 [긴급] 당일 근무 변경 알림\n(${actor}님 수정)\n\n${msg}`);
+        }
+
+        res.json({ success: true });
+    } else res.status(404).json({ success: false });
+});
+
+cron.schedule('30 11 * * *', async () => {
+    console.log('🔔 [알림] 오전 11:30 근무표 브리핑 시작...');
+    
+    try {
+        const today = new Date();
+        const msgChoga = getDailyScheduleMessage('chogazip', today);
+        const msgYang = getDailyScheduleMessage('yangeun', today);
+
+        const finalMsg = `
+[📅 ${today.getMonth()+1}월 ${today.getDate()}일 근무자 브리핑]
+
+${msgChoga}
+
+----------------
+
+${msgYang}
+`.trim();
+
+        await sendToKakao(finalMsg);
+        console.log('✅ 근무표 전송 완료');
+    } catch (e) {
+        console.error('❌ 근무표 전송 실패:', e);
+    }
+});
 
 cron.schedule('0 11 * * *', () => {
     console.log('🔔 [알림] 오전 11시 일일 브리핑 생성 중...');
