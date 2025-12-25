@@ -88,6 +88,7 @@ function initStoreSettings() {
 // 2. 탭 전환 및 화면 제어
 // ==========================================
 
+// 1. switchTab 수정 (prepayment 제거)
 function switchTab(tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -95,15 +96,52 @@ function switchTab(tabName) {
     const targetBtn = document.querySelector(`button[onclick="switchTab('${tabName}')"]`);
     if(targetBtn) targetBtn.classList.add('active');
     
-    const content = document.getElementById(`${tabName}-content`);
+    const contentId = (tabName === 'attendance') ? 'attendance-content' : `${tabName}-content`;
+    const content = document.getElementById(contentId);
     if(content) content.classList.add('active');
 
-    if(tabName === 'daily') renderDailyView();
-    if(tabName === 'weekly') renderWeeklyView();
-    if(tabName === 'monthly') renderMonthlyView();
-    if(tabName === 'accounting') loadAccountingData();
-    if(tabName === 'prepayment') loadPrepaymentData();
-    if(tabName === 'unified') loadUnifiedData(); // 추가
+    if(tabName === 'attendance') {
+        const activeSub = document.querySelector('.att-sub-content.active');
+        if(!activeSub || activeSub.id === 'att-daily') renderDailyView();
+        else if(activeSub.id === 'att-weekly') renderWeeklyView();
+        else if(activeSub.id === 'att-monthly') renderMonthlyView();
+    }
+    if(tabName === 'accounting') {
+        loadAccountingData();
+        // [중요] 매입/매출 탭 진입 시, 현재 활성화된 서브탭이 '선결제'라면 데이터 로드
+        const activeAccSub = document.querySelector('.acc-sub-content.active');
+        if (activeAccSub && activeAccSub.id === 'acc-prepayment') {
+             loadPrepaymentData();
+        }
+    }
+    // if(tabName === 'prepayment') loadPrepaymentData(); // <--- 이거 삭제됨 (이제 서브탭에서 처리)
+    if(tabName === 'unified') loadUnifiedData();
+}
+
+// [NEW] 근무관리 내부 서브탭 전환 함수
+function switchAttSubTab(subId, btn) {
+    // 1. 모든 서브 콘텐츠 숨김
+    document.querySelectorAll('.att-sub-content').forEach(el => {
+        el.style.display = 'none';
+        el.classList.remove('active');
+    });
+
+    // 2. 버튼 활성화 상태 변경 (this로 넘어온 버튼의 부모인 .tabs 안에서 처리)
+    const parentTabs = btn.parentElement;
+    parentTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+
+    // 3. 선택한 콘텐츠 표시
+    const targetDiv = document.getElementById(subId);
+    if(targetDiv) {
+        targetDiv.style.display = 'block';
+        targetDiv.classList.add('active');
+    }
+
+    // 4. 데이터 렌더링
+    if(subId === 'att-daily') renderDailyView();
+    if(subId === 'att-weekly') renderWeeklyView();
+    if(subId === 'att-monthly') renderMonthlyView();
 }
 
 // 2. 통합 데이터 로드 함수
@@ -484,29 +522,48 @@ async function savePrepayment() {
 }
 
 // [가계부 내부 서브탭 전환]
+// 2. switchAccSubTab 수정 (여기에 선결제 로딩 로직 추가)
 function switchAccSubTab(subTabId, btnElement) {
+    // 1. 모든 서브 콘텐츠 숨김
     document.querySelectorAll('.acc-sub-content').forEach(el => {
         el.style.display = 'none';
         el.classList.remove('active');
     });
     
+    // 2. 버튼 활성화 처리
     const subTabContainer = document.querySelector('.tabs[style*="grid-template-columns"]'); 
-    if(subTabContainer) {
-        subTabContainer.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
-    }
-
+    // .tabs 부모 찾기가 애매할 수 있으므로, btnElement가 있으면 그걸 쓰고, 없으면 id로 찾습니다.
     if(btnElement) {
+        // 형제 버튼들의 active 제거
+        const siblings = btnElement.parentElement.querySelectorAll('.tab');
+        siblings.forEach(btn => btn.classList.remove('active'));
         btnElement.classList.add('active');
     } else {
-        const matchingBtn = document.querySelector(`button[onclick*="${subTabId}"]`);
-        if(matchingBtn) matchingBtn.classList.add('active');
+        // 직접 ID로 호출된 경우 (예: 초기화 시)
+        // 매입/매출 내부의 탭들만 선택해서 초기화해야 함
+        const accContent = document.getElementById('accounting-content');
+        if(accContent) {
+            accContent.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+            const targetBtn = accContent.querySelector(`button[onclick*="${subTabId}"]`);
+            if(targetBtn) targetBtn.classList.add('active');
+        }
     }
 
+    // 3. 타겟 콘텐츠 표시
     const targetDiv = document.getElementById(subTabId);
     if(targetDiv) {
         targetDiv.style.display = 'block';
         targetDiv.classList.add('active');
-        setTimeout(() => { updateDashboardUI(); }, 0);
+        
+        // [핵심 수정] 서브 탭 별 데이터 로드/UI 업데이트 트리거
+        if (subTabId === 'acc-history') loadHistoryTable();
+        else if (subTabId === 'acc-prediction') renderPredictionStats();
+        else if (subTabId === 'acc-dashboard') renderDashboardStats();
+        else if (subTabId === 'acc-monthly') loadMonthlyForm();
+        else if (subTabId === 'acc-prepayment') {
+            // [Fix] 탭을 누르는 순간 데이터를 가져오도록 함 (리프레시 문제 해결)
+            loadPrepaymentData(); 
+        }
     }
 }
 
@@ -1223,10 +1280,13 @@ async function loadStaffData() {
         const res = await fetch(`/api/staff?store=${currentStore}`);
         const json = await res.json();
         staffList = json.data;
+        
+        // 데이터 로드 후 각 뷰 렌더링 (화면에는 현재 활성화된 탭만 보임)
         renderDailyView();
         renderWeeklyView();
         renderMonthlyView();
         renderManageList();
+        
     } catch(e) { console.error("데이터 로드 실패"); }
 }
 
@@ -1595,7 +1655,18 @@ function renderMonthlyView() {
 }
 function changeMonth(d) { calendarDate.setMonth(calendarDate.getMonth() + d); renderMonthlyView(); }
 function resetToThisMonth() { calendarDate = new Date(); renderMonthlyView(); }
-function goToDailyDetail(year, month, day) { currentDate = new Date(year, month, day); switchTab('daily'); }
+
+// 캘린더에서 날짜 클릭 시 이동하는 함수도 수정 필요 (daily로 탭 전환 시 서브탭 처리)
+function goToDailyDetail(year, month, day) { 
+    currentDate = new Date(year, month, day); 
+    
+    // 1. 메인 탭은 'attendance'로
+    switchTab('attendance');
+    
+    // 2. 서브 탭 버튼 찾아서 클릭 트리거 (일별 탭 활성화)
+    const dailyBtn = document.querySelector('button[onclick*="att-daily"]');
+    if(dailyBtn) switchAttSubTab('att-daily', dailyBtn);
+}
 
 // ==========================================
 // 7. 기타 기능 (급여/로그/예외처리)
