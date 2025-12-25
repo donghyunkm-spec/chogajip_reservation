@@ -59,6 +59,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 초기 데이터 로드
     loadStaffData();
+
+    // 1. 매장 전환 버튼 텍스트 설정
+    initSwitchStoreButton();
+
+    // 2. [핵심] 로그인 유지 확인 (세션 스토리지 체크)
+    const savedUser = sessionStorage.getItem('staffUser');
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        // 로그인 성공 처리 함수 재사용 (UI 갱신)
+        onLoginSuccess(currentUser); 
+    }
 });
 
 // 매장별 UI 세팅
@@ -97,6 +108,28 @@ function initStoreSettings() {
         const delivDiv = document.getElementById('divDeliveryFee');
         if(delivDiv) delivDiv.style.display = 'none';
     }
+}
+
+// 1. 매장 전환 버튼 초기화
+function initSwitchStoreButton() {
+    const btn = document.getElementById('switchStoreBtn');
+    if (!btn) return;
+
+    if (currentStore === 'yangeun') {
+        btn.innerHTML = '🏠 초가짚 관리';
+        btn.style.color = '#333'; // 초가짚 느낌
+    } else {
+        btn.innerHTML = '🥘 양은이네 관리';
+        btn.style.color = '#d32f2f'; // 양은이네 느낌 (붉은색)
+    }
+}
+
+// 2. 매장 이동 함수 (클릭 시 실행)
+function moveToOtherStore() {
+    const targetStore = currentStore === 'yangeun' ? 'chogazip' : 'yangeun';
+    
+    // 페이지 이동 (세션 스토리지에 로그인 정보가 있으므로 이동 후 자동 로그인됨)
+    location.href = `staff.html?store=${targetStore}`;
 }
 
 // ==========================================
@@ -599,6 +632,8 @@ function closeLoginModal() {
     document.getElementById('loginOverlay').style.display = 'none';
     document.getElementById('loginError').style.display = 'none';
 }
+// staff.js - tryLogin 함수 수정
+
 async function tryLogin() {
     const pwd = document.getElementById('loginPassword').value;
     try {
@@ -610,62 +645,13 @@ async function tryLogin() {
         const data = await res.json();
         
         if (data.success) {
-            currentUser = data;
+            // [추가] 로그인 성공 시 세션에 저장 (브라우저 닫기 전까지 유지)
+            sessionStorage.setItem('staffUser', JSON.stringify(data));
+            
+            // 로그인 성공 UI 처리 호출
+            onLoginSuccess(data);
+            
             closeLoginModal();
-            const loginBtn = document.getElementById('loginBtn');
-            if(loginBtn) loginBtn.style.display = 'none';
-            
-            const userInfoDiv = document.getElementById('userInfo');
-            if(userInfoDiv) {
-                userInfoDiv.style.display = 'block';
-                userInfoDiv.innerHTML = `${data.name} (${data.role === 'admin' ? '사장' : data.role === 'manager' ? '점장' : '직원'})`;
-            }
-            
-            // [수정] 관리자/점장 권한 - manageTabBtn은 존재하지 않으므로 제거
-            // (att-manage 서브탭은 항상 표시되므로 별도 처리 불필요)
-            
-            // [수정] 관리자 전용 기능
-            if (data.role === 'admin') {
-                const bulkSection = document.getElementById('bulkSection');
-                if(bulkSection) bulkSection.style.display = 'block';
-                
-                const salarySection = document.getElementById('salarySection');
-                if(salarySection) salarySection.style.display = 'block';
-                
-                // [수정] logTabBtn은 존재하지 않으므로 제거
-                // (att-logs 서브탭은 항상 표시되므로 별도 처리 불필요)
-                
-                const backupBtn = document.getElementById('adminBackupBtn');
-                if(backupBtn) backupBtn.style.display = 'block';
-                
-                const unifiedBtn = document.getElementById('unifiedTabBtn');
-                if(unifiedBtn) unifiedBtn.style.display = 'inline-block';
-                
-                // [수정] 비동기 함수는 try-catch로 감싸서 에러 방지
-                try {
-                    await loadLogs();
-                } catch(e) {
-                    console.error('로그 로드 실패:', e);
-                }
-            }
-            
-            // [수정] 현재 활성 탭이 회계면 데이터 로드
-            const activeTab = document.querySelector('.tab-content.active');
-            if(activeTab && activeTab.id === 'accounting-content') {
-                try {
-                    await loadAccountingData();
-                } catch(e) {
-                    console.error('회계 데이터 로드 실패:', e);
-                }
-            }
-            
-            // [수정] renderManageList도 에러 방지
-            try {
-                renderManageList();
-            } catch(e) {
-                console.error('관리 리스트 렌더링 실패:', e);
-            }
-            
         } else {
             const err = document.getElementById('loginError');
             if(err) {
@@ -677,6 +663,51 @@ async function tryLogin() {
         console.error('로그인 에러:', e);
         alert('로그인 처리 중 오류가 발생했습니다.'); 
     }
+}
+
+// [신규] 로그인 성공 시 UI 업데이트 함수 (분리)
+// tryLogin 내부와 DOMContentLoaded 에서 공통으로 사용
+async function onLoginSuccess(user) {
+    currentUser = user;
+    
+    const loginBtn = document.getElementById('loginBtn');
+    if(loginBtn) loginBtn.style.display = 'none';
+    
+    const userInfoDiv = document.getElementById('userInfo');
+    if(userInfoDiv) {
+        userInfoDiv.style.display = 'block';
+        userInfoDiv.innerHTML = `${user.name} (${user.role === 'admin' ? '사장' : user.role === 'manager' ? '점장' : '직원'})`;
+    }
+
+    // 관리자/점장 공통 권한 (매장 전환 버튼 보이기)
+    if (user.role === 'admin' || user.role === 'manager') {
+        const switchBtn = document.getElementById('switchStoreBtn');
+        if(switchBtn) switchBtn.style.display = 'inline-block';
+    }
+
+    // 관리자(사장님) 전용 권한
+    if (user.role === 'admin') {
+        const bulkSection = document.getElementById('bulkSection');
+        if(bulkSection) bulkSection.style.display = 'block';
+        
+        const salarySection = document.getElementById('salarySection');
+        if(salarySection) salarySection.style.display = 'block';
+        
+        const backupBtn = document.getElementById('adminBackupBtn');
+        if(backupBtn) backupBtn.style.display = 'block';
+        
+        const unifiedBtn = document.getElementById('unifiedTabBtn');
+        if(unifiedBtn) unifiedBtn.style.display = 'inline-block';
+        
+        try { await loadLogs(); } catch(e) {}
+    }
+    
+    // 현재 탭 데이터 로드
+    const activeTab = document.querySelector('.tab-content.active');
+    if(activeTab && activeTab.id === 'accounting-content') {
+        try { await loadAccountingData(); } catch(e) {}
+    }
+    try { renderManageList(); } catch(e) {}
 }
 
 // ==========================================
