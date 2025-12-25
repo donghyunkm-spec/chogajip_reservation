@@ -259,7 +259,7 @@ app.post('/api/accounting/daily', (req, res) => {
     
     accData.daily[date] = data;
     if (writeJson(file, accData)) {
-        addLog(store, actor, '매출등록', date, '일일매출저장');
+        addLog(store, actor, '매출입력', date, '일일매출저장');
         res.json({ success: true });
     } else res.status(500).json({ success: false });
 });
@@ -272,6 +272,7 @@ app.post('/api/accounting/monthly', (req, res) => {
     
     accData.monthly[month] = data;
     writeJson(file, accData);
+    addLog(store, actor, '월간지출', month, '고정비용 저장');  // ✅ 이 줄 추가
     res.json({ success: true });
 });
 
@@ -332,7 +333,7 @@ app.post('/api/prepayments', (req, res) => {
     });
 
     if (writeJson(file, data)) {
-        addLog(targetStore, actor, type === 'charge'?'선결충전':'선결사용', customerName, `${amount}원`);
+        addLog(targetStore, actor, type === 'charge'?'선결제충전':'선결제사용', customerName, `${amount}원`);
         res.json({ success: true });
     } else res.status(500).json({ success: false });
 });
@@ -362,7 +363,7 @@ app.delete('/api/prepayments/:id', (req, res) => {
     data.logs.splice(idx, 1);
 
     if (writeJson(file, data)) {
-        addLog(targetStore, actor, '선결취소', target.customerName, '기록삭제 및 잔액원복');
+        addLog(targetStore, actor, '선결제취소', target.customerName, '기록삭제 및 잔액원복');
         res.json({ success: true });
     } else res.status(500).json({ success: false });
 });

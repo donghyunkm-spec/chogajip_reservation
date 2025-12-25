@@ -88,37 +88,39 @@ function initStoreSettings() {
 // 2. 탭 전환 및 화면 제어
 // ==========================================
 
-// 1. switchTab 수정 (prepayment 제거)
+// [수정] 메인 탭 전환
 function switchTab(tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     
-    const targetBtn = document.querySelector(`button[onclick="switchTab('${tabName}')"]`);
+    // 버튼 활성화 (상단 메인 탭)
+    const targetBtn = document.querySelector(`.tabs > button[onclick="switchTab('${tabName}')"]`);
     if(targetBtn) targetBtn.classList.add('active');
     
+    // 컨텐츠 활성화
     const contentId = (tabName === 'attendance') ? 'attendance-content' : `${tabName}-content`;
     const content = document.getElementById(contentId);
     if(content) content.classList.add('active');
 
     if(tabName === 'attendance') {
+        // 근무관리 탭에 진입하면, 현재 활성화된 서브탭의 로직 실행
         const activeSub = document.querySelector('.att-sub-content.active');
         if(!activeSub || activeSub.id === 'att-daily') renderDailyView();
         else if(activeSub.id === 'att-weekly') renderWeeklyView();
         else if(activeSub.id === 'att-monthly') renderMonthlyView();
+        else if(activeSub.id === 'att-manage') renderManageList();
+        else if(activeSub.id === 'att-logs') loadLogs();
     }
+    
     if(tabName === 'accounting') {
         loadAccountingData();
-        // [중요] 매입/매출 탭 진입 시, 현재 활성화된 서브탭이 '선결제'라면 데이터 로드
         const activeAccSub = document.querySelector('.acc-sub-content.active');
-        if (activeAccSub && activeAccSub.id === 'acc-prepayment') {
-             loadPrepaymentData();
-        }
+        if (activeAccSub && activeAccSub.id === 'acc-prepayment') loadPrepaymentData();
     }
-    // if(tabName === 'prepayment') loadPrepaymentData(); // <--- 이거 삭제됨 (이제 서브탭에서 처리)
     if(tabName === 'unified') loadUnifiedData();
 }
 
-// [NEW] 근무관리 내부 서브탭 전환 함수
+/// [수정] 근무관리 내부 서브탭 전환
 function switchAttSubTab(subId, btn) {
     // 1. 모든 서브 콘텐츠 숨김
     document.querySelectorAll('.att-sub-content').forEach(el => {
@@ -126,7 +128,7 @@ function switchAttSubTab(subId, btn) {
         el.classList.remove('active');
     });
 
-    // 2. 버튼 활성화 상태 변경 (this로 넘어온 버튼의 부모인 .tabs 안에서 처리)
+    // 2. 버튼 활성화
     const parentTabs = btn.parentElement;
     parentTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
@@ -140,8 +142,10 @@ function switchAttSubTab(subId, btn) {
 
     // 4. 데이터 렌더링
     if(subId === 'att-daily') renderDailyView();
-    if(subId === 'att-weekly') renderWeeklyView();
-    if(subId === 'att-monthly') renderMonthlyView();
+    else if(subId === 'att-weekly') renderWeeklyView();
+    else if(subId === 'att-monthly') renderMonthlyView();
+    else if(subId === 'att-manage') renderManageList();
+    else if(subId === 'att-logs') loadLogs();
 }
 
 // 2. 통합 데이터 로드 함수
@@ -564,6 +568,7 @@ function switchAccSubTab(subTabId, btnElement) {
             // [Fix] 탭을 누르는 순간 데이터를 가져오도록 함 (리프레시 문제 해결)
             loadPrepaymentData(); 
         }
+        else if (subTabId === 'acc-logs') loadAccountingLogs();  // ✅ 신규 추가
     }
 }
 
@@ -596,33 +601,67 @@ async function tryLogin() {
             if(loginBtn) loginBtn.style.display = 'none';
             
             const userInfoDiv = document.getElementById('userInfo');
-            userInfoDiv.style.display = 'block';
-            userInfoDiv.innerHTML = `${data.name} (${data.role === 'admin' ? '사장' : data.role === 'manager' ? '점장' : '직원'})`;
-            
-            if (['admin', 'manager'].includes(data.role)) {
-                const manageBtn = document.getElementById('manageTabBtn');
-                if(manageBtn) manageBtn.style.display = 'inline-block';
+            if(userInfoDiv) {
+                userInfoDiv.style.display = 'block';
+                userInfoDiv.innerHTML = `${data.name} (${data.role === 'admin' ? '사장' : data.role === 'manager' ? '점장' : '직원'})`;
             }
+            
+            // [수정] 관리자/점장 권한 - manageTabBtn은 존재하지 않으므로 제거
+            // (att-manage 서브탭은 항상 표시되므로 별도 처리 불필요)
+            
+            // [수정] 관리자 전용 기능
             if (data.role === 'admin') {
-                document.getElementById('bulkSection').style.display = 'block';
-                document.getElementById('logTabBtn').style.display = 'inline-block';
-                document.getElementById('salarySection').style.display = 'block';
-                loadLogs();
+                const bulkSection = document.getElementById('bulkSection');
+                if(bulkSection) bulkSection.style.display = 'block';
+                
+                const salarySection = document.getElementById('salarySection');
+                if(salarySection) salarySection.style.display = 'block';
+                
+                // [수정] logTabBtn은 존재하지 않으므로 제거
+                // (att-logs 서브탭은 항상 표시되므로 별도 처리 불필요)
+                
                 const backupBtn = document.getElementById('adminBackupBtn');
                 if(backupBtn) backupBtn.style.display = 'block';
+                
                 const unifiedBtn = document.getElementById('unifiedTabBtn');
-                if(unifiedBtn) unifiedBtn.style.display = 'inline-block'; // 이 부분 추가 필요
+                if(unifiedBtn) unifiedBtn.style.display = 'inline-block';
+                
+                // [수정] 비동기 함수는 try-catch로 감싸서 에러 방지
+                try {
+                    await loadLogs();
+                } catch(e) {
+                    console.error('로그 로드 실패:', e);
+                }
             }
             
+            // [수정] 현재 활성 탭이 회계면 데이터 로드
             const activeTab = document.querySelector('.tab-content.active');
-            if(activeTab && activeTab.id === 'accounting-content') loadAccountingData();
-            renderManageList(); 
+            if(activeTab && activeTab.id === 'accounting-content') {
+                try {
+                    await loadAccountingData();
+                } catch(e) {
+                    console.error('회계 데이터 로드 실패:', e);
+                }
+            }
+            
+            // [수정] renderManageList도 에러 방지
+            try {
+                renderManageList();
+            } catch(e) {
+                console.error('관리 리스트 렌더링 실패:', e);
+            }
+            
         } else {
             const err = document.getElementById('loginError');
-            err.style.display = 'block';
-            err.textContent = '비밀번호가 일치하지 않습니다.';
+            if(err) {
+                err.style.display = 'block';
+                err.textContent = '비밀번호가 일치하지 않습니다.';
+            }
         }
-    } catch (e) { alert('서버 오류'); }
+    } catch (e) { 
+        console.error('로그인 에러:', e);
+        alert('로그인 처리 중 오류가 발생했습니다.'); 
+    }
 }
 
 // ==========================================
@@ -1459,6 +1498,7 @@ function calculateDuration(timeStr) {
     return (endMin - startMin) / 60;
 }
 
+// [수정] 일별 보기 렌더링 (임시 휴무 시각화)
 function renderDailyView() {
     const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const todayKey = dayMap[currentDate.getDay()];
@@ -1476,47 +1516,80 @@ function renderDailyView() {
     container.innerHTML = '';
 
     let dailyWorkers = [];
+    
     staffList.forEach(staff => {
         let isWorking = false;
         let workTime = staff.time;
         let isException = false;
+        let isOff = false; // 휴무 여부 플래그
 
         if (staff.exceptions && staff.exceptions[dateStr]) {
             const ex = staff.exceptions[dateStr];
-            if (ex.type === 'work') { isWorking = true; workTime = ex.time; isException = true; }
+            if (ex.type === 'work') { 
+                isWorking = true; workTime = ex.time; isException = true; 
+            } else if (ex.type === 'off') {
+                // [변경] 휴무여도 리스트에 포함시키되 플래그 설정
+                isWorking = true; 
+                isException = true;
+                isOff = true;
+            }
         } else {
             if (staff.workDays.includes(todayKey)) {
                 isWorking = true;
-                if(staff.exceptions && staff.exceptions[dateStr] && staff.exceptions[dateStr].type === 'off') isWorking = false;
             }
         }
-        if (isWorking) dailyWorkers.push({ ...staff, displayTime: workTime, isException });
+        
+        if (isWorking) {
+            dailyWorkers.push({ ...staff, displayTime: workTime, isException, isOff });
+        }
     });
 
+    // 휴무가 아닌 실제 근무자 수만 카운트
+    const realWorkCount = dailyWorkers.filter(w => !w.isOff).length;
     const badge = document.getElementById('dailyCountBadge');
-    if(badge) badge.textContent = `총 ${dailyWorkers.length}명 근무`;
+    if(badge) badge.textContent = `총 ${realWorkCount}명 근무`;
     
-    dailyWorkers.sort((a,b) => getStartTimeValue(a.displayTime) - getStartTimeValue(b.displayTime));
+    // 정렬 (휴무는 맨 아래로, 그 외는 시간순)
+    dailyWorkers.sort((a,b) => {
+        if(a.isOff && !b.isOff) return 1;
+        if(!a.isOff && b.isOff) return -1;
+        return getStartTimeValue(a.displayTime) - getStartTimeValue(b.displayTime);
+    });
 
     if (dailyWorkers.length === 0) {
         container.innerHTML = '<div class="empty-state">근무자가 없습니다.</div>';
     } else {
         dailyWorkers.forEach(s => {
-            const adminButtons = `
+            // [UI] 휴무일 경우 스타일 및 버튼 변경
+            let rowClass = s.isOff ? 'reservation-item temp-off-row' : 'reservation-item';
+            let statusBadge = '';
+            
+            if (s.isOff) statusBadge = '<span class="badge" style="background:#9e9e9e; color:white;">⛔ 임시휴무</span>';
+            else if (s.isException) statusBadge = '<span class="badge alternative-badge">변동</span>';
+
+            // 휴무인 경우 '휴무취소(복구)' 버튼, 근무인 경우 '시간변경', '오늘휴무' 버튼
+            let adminButtons = '';
+            if (s.isOff) {
+                adminButtons = `
+                <div style="margin-top:5px; border-top:1px dashed #ccc; padding-top:5px; text-align:right;">
+                     <button onclick="cancelException(${s.id}, '${dateStr}')" style="font-size:11px; padding:3px 6px; background:#666; color:white; border:none; border-radius:3px; cursor:pointer;">↩️ 휴무 취소 (근무복구)</button>
+                </div>`;
+            } else {
+                adminButtons = `
                 <div style="margin-top:5px; border-top:1px dashed #eee; padding-top:5px; text-align:right;">
-                    <button onclick="setDailyException(${s.id}, '${dateStr}', 'time')" style="font-size:11px; padding:3px 6px; background:#17a2b8; color:white; border:none; border-radius:3px; cursor:pointer; margin-right:5px;">⏰ 시간변경</button>
+                    <button onclick="openTimeChangeModal(${s.id}, '${dateStr}', '${s.displayTime}')" style="font-size:11px; padding:3px 6px; background:#17a2b8; color:white; border:none; border-radius:3px; cursor:pointer; margin-right:5px;">⏰ 시간변경</button>
                     <button onclick="setDailyException(${s.id}, '${dateStr}', 'off')" style="font-size:11px; padding:3px 6px; background:#dc3545; color:white; border:none; border-radius:3px; cursor:pointer;">⛔ 오늘휴무</button>
-                </div>
-            `;
-            const highlightStyle = s.isException ? 'background-color:#fff3cd; border-color:#ffc107;' : '';
-            const statusBadge = s.isException ? '<span class="badge alternative-badge">변동</span>' : '';
+                </div>`;
+            }
 
             container.innerHTML += `
-                <div class="reservation-item" style="border-left:5px solid #4CAF50; ${highlightStyle}">
+                <div class="${rowClass}" style="border-left:5px solid ${s.isOff ? '#999' : '#4CAF50'};">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                         <div>
                             <strong>${s.name}</strong> ${statusBadge}
-                            <div style="font-size:14px; color:#0066cc; font-weight:bold; margin-top:2px;">${s.displayTime}</div>
+                            <div class="reservation-time" style="font-size:14px; color:${s.isOff ? '#999' : '#0066cc'}; font-weight:bold; margin-top:2px;">
+                                ${s.isOff ? '휴무' : s.displayTime}
+                            </div>
                             <div style="font-size:12px; color:#666;">${s.position || '직원'}</div>
                         </div>
                     </div>
@@ -1529,7 +1602,9 @@ function renderDailyView() {
 function changeDate(d) { currentDate.setDate(currentDate.getDate() + d); renderDailyView(); }
 function resetToToday() { currentDate = new Date(); renderDailyView(); }
 
+// [수정] 주간 뷰 렌더링 (임시 휴무 시각화)
 function renderWeeklyView() {
+    // ... (날짜 계산 로직 기존 동일) ...
     const startWeek = new Date(currentWeekStartDate);
     const endWeek = new Date(currentWeekStartDate);
     endWeek.setDate(endWeek.getDate() + 6);
@@ -1565,32 +1640,132 @@ function renderWeeklyView() {
             let isWorking = false;
             let workTime = s.time;
             let isException = false;
+            let isOff = false;
 
             if (s.exceptions && s.exceptions[dateStr]) {
                 const ex = s.exceptions[dateStr];
                 if (ex.type === 'work') { isWorking = true; workTime = ex.time; isException = true; }
-                else if (ex.type === 'off') isWorking = false;
+                else if (ex.type === 'off') { isWorking = true; isOff = true; } // 표시를 위해 true
             } else {
                 if (s.workDays.includes(dayKey)) isWorking = true;
             }
-            if (isWorking) dayWorkers.push({ staff: s, time: workTime, isException });
+            if (isWorking) dayWorkers.push({ staff: s, time: workTime, isException, isOff });
         });
 
-        dayWorkers.sort((a,b) => getStartTimeValue(a.time) - getStartTimeValue(b.time));
+        // 정렬
+        dayWorkers.sort((a,b) => {
+             if(a.isOff && !b.isOff) return 1;
+             if(!a.isOff && b.isOff) return -1;
+             return getStartTimeValue(a.time) - getStartTimeValue(b.time)
+        });
 
         const col = document.getElementById(`col-${dayKey}`);
         if(col) {
             dayWorkers.forEach(w => {
-                const exceptionClass = w.isException ? 'exception' : '';
+                let cardClass = 'staff-card-weekly';
+                let timeText = w.time;
+                
+                if (w.isOff) {
+                    cardClass += ' off-exception';
+                    timeText = '휴무';
+                } else if (w.isException) {
+                    cardClass += ' exception';
+                }
+
                 col.innerHTML += `
-                    <div class="staff-card-weekly ${exceptionClass}">
+                    <div class="${cardClass}">
                         <strong>${w.staff.name}</strong>
-                        <span>${w.time}</span>
+                        <span>${timeText}</span>
                     </div>`;
             });
         }
     }
 }
+
+// [추가] 시간 변경 모달 열기
+function openTimeChangeModal(id, dateStr, currentStr) {
+    if (!currentUser) { openLoginModal(); return; }
+    
+    // 시간 옵션 생성 (staff.js 초기화 시점에 initTimeOptions가 실행되어 있어야 함. 
+    // 하지만 모달이 새로 생겼으므로 여기서 옵션을 다시 채워주거나 전역으로 관리해야 함.
+    // 간단하게 여기서 옵션 생성 로직을 호출해줍니다.)
+    initTimeChangeOptions(); 
+
+    document.getElementById('timeChangeId').value = id;
+    document.getElementById('timeChangeDate').value = dateStr;
+    document.getElementById('timeChangeModal').style.display = 'flex';
+    
+    // 현재 시간 파싱해서 선택해주면 좋겠지만, 일단 기본값으로 둡니다.
+}
+
+function closeTimeChangeModal() {
+    document.getElementById('timeChangeModal').style.display = 'none';
+}
+
+function initTimeChangeOptions() {
+    const hours = [];
+    for(let i=0; i<=30; i++) {
+        const val = i < 24 ? i : i - 24; 
+        const txt = i < 24 ? `${i}` : `(익일)${i-24}`;
+        const valStr = String(val).padStart(2, '0');
+        hours.push(`<option value="${valStr}">${txt}</option>`);
+    }
+    const html = hours.join('');
+    
+    const els = ['tcStartHour', 'tcEndHour'];
+    els.forEach(id => {
+        const el = document.getElementById(id);
+        if(el && el.children.length === 0) { // 비어있을 때만 채움
+            el.innerHTML = html;
+            if(id === 'tcStartHour') el.value = "18";
+            if(id === 'tcEndHour') el.value = "23";
+        }
+    });
+}
+
+// [추가] 시간 변경 저장
+async function submitTimeChange() {
+    const id = parseInt(document.getElementById('timeChangeId').value);
+    const dateStr = document.getElementById('timeChangeDate').value;
+    
+    const sh = document.getElementById('tcStartHour').value;
+    const sm = document.getElementById('tcStartMin').value;
+    const eh = document.getElementById('tcEndHour').value;
+    const em = document.getElementById('tcEndMin').value;
+    
+    const newTime = `${sh}:${sm}~${eh}:${em}`;
+    
+    await callExceptionApi({ id, date: dateStr, type: 'work', time: newTime });
+    alert('시간이 변경되었습니다.');
+    closeTimeChangeModal();
+}
+
+// [추가] 예외(휴무 등) 취소 함수
+async function cancelException(id, dateStr) {
+    if(!confirm('휴무 설정을 취소하고 원래 근무로 되돌리시겠습니까?')) return;
+    
+    try {
+        // [수정] DELETE 메서드가 아니라 POST 메서드에 type: 'delete'로 전송
+        await fetch('/api/staff/exception', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                id: id, 
+                date: dateStr, 
+                type: 'delete',  // ✅ 이 타입이 서버에서 예외를 삭제하도록 함
+                actor: currentUser.name, 
+                store: currentStore 
+            })
+        });
+        alert('휴무가 취소되고 원래 근무로 복구되었습니다.');
+        loadStaffData();
+    } catch(e) { 
+        console.error('휴무 복구 실패:', e);
+        alert('복구 실패'); 
+    }
+}
+
+
 function changeWeek(weeks) { currentWeekStartDate.setDate(currentWeekStartDate.getDate() + (weeks * 7)); renderWeeklyView(); }
 function resetToThisWeek() {
     const today = new Date();
@@ -1884,6 +2059,7 @@ function closeTempModal() {
 }
 
 // 4. 저장하기 (서버 통신)
+// [수정] 일일 대타/추가 등록 (중복 방지 로직 적용)
 async function saveTempWorker() {
     const name = document.getElementById('tempName').value.trim();
     const salary = document.getElementById('tempSalary').value;
@@ -1896,40 +2072,54 @@ async function saveTempWorker() {
     if (!name) { alert('이름을 입력해주세요.'); return; }
     if (!salary) { alert('시급을 입력해주세요.'); return; }
 
-    // 시간 문자열 조합 (예: 18:00~23:10)
     const timeStr = `${sh}:${sm}~${eh}:${em}`;
-
-    // 현재 선택된 날짜 가져오기
+    
+    // 현재 선택된 날짜
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const day = String(currentDate.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
-    try {
-        const res = await fetch('/api/staff/temp', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                name: name, 
-                date: dateStr, 
-                time: timeStr, 
-                salary: salary, // 시급 추가 전송
-                actor: currentUser.name, 
-                store: currentStore 
-            })
-        });
-        const json = await res.json();
+    // 1. 기존 직원 리스트에서 이름이 같은 사람이 있는지 확인
+    const existingStaff = staffList.find(s => s.name === name);
+
+    if (existingStaff) {
+        // 2-A. 존재하면: 해당 직원의 오늘 날짜 '근무(work)' 예외로 등록 (기존 ID 재사용)
+        if(!confirm(`${name}님은 이미 등록된 직원입니다.\n기존 정보에 오늘 근무를 추가하시겠습니까?`)) return;
         
-        if (json.success) { 
-            alert(`${dateStr}에 ${name}님이 등록되었습니다.`);
-            closeTempModal();
-            loadStaffData(); // 목록 새로고침
-        } else {
-            alert('등록 실패: 서버 오류');
-        }
-    } catch(e) { 
-        console.error(e);
-        alert('서버 통신 오류'); 
+        await callExceptionApi({ 
+            id: existingStaff.id, 
+            date: dateStr, 
+            type: 'work', 
+            time: timeStr 
+        });
+        alert('기존 직원 근무 일정에 추가되었습니다.');
+        closeTempModal();
+        
+    } else {
+        // 2-B. 없으면: 새로운 임시 직원 생성 (기존 로직)
+        try {
+            const res = await fetch('/api/staff/temp', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    name: name, 
+                    date: dateStr, 
+                    time: timeStr, 
+                    salary: salary, 
+                    actor: currentUser.name, 
+                    store: currentStore 
+                })
+            });
+            const json = await res.json();
+            if (json.success) { 
+                alert('임시 근무자가 등록되었습니다.');
+                closeTempModal();
+                loadStaffData(); 
+            } else {
+                alert('등록 실패');
+            }
+        } catch(e) { console.error(e); alert('서버 통신 오류'); }
     }
 }
 
@@ -1945,6 +2135,7 @@ async function callExceptionApi(payload) {
     } catch(e) { alert('오류 발생'); }
 }
 
+// [수정] 근무/직원 관련 로그만 로드
 async function loadLogs() {
     try {
         const res = await fetch(`/api/logs?store=${currentStore}`);
@@ -1958,7 +2149,16 @@ async function loadLogs() {
                 return;
             }
 
-            json.data.forEach(log => {
+            // [필터링] 직원/근무 관련 로그만 표시
+            const staffActions = ['직원등록', '직원수정', '직원삭제', '근무변경', '대타등록'];
+            const filteredLogs = json.data.filter(log => staffActions.includes(log.action));
+
+            if (filteredLogs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">직원/근무 관련 기록이 없습니다.</td></tr>';
+                return;
+            }
+
+            filteredLogs.forEach(log => {
                 const date = new Date(log.timestamp).toLocaleString('ko-KR', {
                     month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'
                 });
@@ -1973,6 +2173,46 @@ async function loadLogs() {
             });
         }
     } catch(e) { console.error("로그 로드 실패", e); }
+}
+
+// [신규] 매입/매출 관련 로그만 로드
+async function loadAccountingLogs() {
+    try {
+        const res = await fetch(`/api/logs?store=${currentStore}`);
+        const json = await res.json();
+        const tbody = document.getElementById('accLogTableBody');
+        
+        if(tbody) {
+            tbody.innerHTML = '';
+            if (!json.data || json.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">기록이 없습니다.</td></tr>';
+                return;
+            }
+
+            // [필터링] 매입/매출 관련 로그만 표시
+            const accountingActions = ['매출입력', '매출수정', '매출삭제', '월간지출', '선결제충전', '선결제사용', '선결제취소'];
+            const filteredLogs = json.data.filter(log => accountingActions.includes(log.action));
+
+            if (filteredLogs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">매입/매출 관련 기록이 없습니다.</td></tr>';
+                return;
+            }
+
+            filteredLogs.forEach(log => {
+                const date = new Date(log.timestamp).toLocaleString('ko-KR', {
+                    month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'
+                });
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${date}</td>
+                        <td>${log.actor}</td>
+                        <td class="log-action-${log.action}">${log.action}</td>
+                        <td>${log.target}</td>
+                        <td>${log.details}</td>
+                    </tr>`;
+            });
+        }
+    } catch(e) { console.error("회계 로그 로드 실패", e); }
 }
 
 async function downloadAllData() {
