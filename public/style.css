@@ -1,4 +1,54 @@
-/* 기본 스타일 */
+/* =========================================
+   1. 테마 정의 (CSS 변수 시스템)
+   ========================================= */
+   :root {
+    /* 공통 기본값 */
+    --white: #ffffff;
+    --gray-light: #f8f9fa;
+    --gray-border: #ddd;
+    --text-dark: #333;
+    --shadow: rgba(0,0,0,0.1);
+}
+
+/* 🌿 초가짚 테마 (기본) - 볏짚, 숲, 편안함 */
+body, body.theme-chogazip {
+    /* 배경: 차분한 딥그린 ~ 네이비 그라데이션 */
+    --bg-gradient-start: #134E5E;
+    --bg-gradient-end: #71B280;
+    
+    /* 메인 컬러: 짙은 녹색 */
+    --primary-color: #2e7d32; 
+    --primary-hover: #1b5e20;
+    --primary-light: #e8f5e9; /* 연한 배경용 */
+    
+    /* 강조 컬러: 우드 브라운 */
+    --accent-color: #795548;
+    
+    /* 텍스트 그림자 */
+    --header-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+/* 🥘 양은이네 테마 - 양은냄비, 활기, 포차 */
+body.theme-yangeun {
+    /* 배경: 쨍한 오렌지 ~ 옐로우 (양은냄비 느낌) */
+    --bg-gradient-start: #FF8008;
+    --bg-gradient-end: #FFC837;
+    
+    /* 메인 컬러: 쨍한 주황색 */
+    --primary-color: #ff6f00;
+    --primary-hover: #e65100;
+    --primary-light: #fff3e0;
+    
+    /* 강조 컬러: 빨강 (식욕 자극) */
+    --accent-color: #d32f2f;
+    
+    /* 텍스트 그림자 (밝은 배경 대비) */
+    --header-shadow: 1px 1px 3px rgba(160, 80, 0, 0.6);
+}
+
+/* =========================================
+   2. 기본 스타일
+   ========================================= */
 * {
     margin: 0;
     padding: 0;
@@ -7,9 +57,11 @@
 
 body {
     font-family: 'Arial', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* 테마 변수 적용 */
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
     min-height: 100vh;
     padding: 10px;
+    transition: background 0.5s ease; /* 테마 변경 시 부드럽게 전환 */
 }
 
 .container {
@@ -26,7 +78,8 @@ body {
 .header h1 {
     font-size: clamp(1.8em, 5vw, 2.5em);
     margin-bottom: 10px;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    text-shadow: var(--header-shadow);
+    font-weight: 900;
 }
 
 /* 상태 바 스타일 */
@@ -78,20 +131,22 @@ body {
     padding: 15px 10px;
     text-align: center;
     cursor: pointer;
-    background: #f8f9fa;
+    background: var(--gray-light);
     border: none;
-    font-size: clamp(14px, 3vw, 16px);
+    font-size: clamp(13px, 3vw, 15px);
     font-weight: bold;
     transition: all 0.3s ease;
-    color: #333;
+    color: #555;
+    border-right: 1px solid #eee;
 }
 
 .tab:hover {
     background: #e9ecef;
+    color: var(--primary-color);
 }
 
 .tab.active {
-    background: #4CAF50;
+    background: var(--primary-color);
     color: white;
 }
 
@@ -104,12 +159,13 @@ body {
 }
 
 /* 컨테이너 스타일 */
-.form-container, .status-container {
+.form-container, .status-container, .accounting-card {
     background: white;
     padding: 20px;
     border-radius: 15px;
     box-shadow: 0 8px 25px rgba(0,0,0,0.1);
     margin-bottom: 20px;
+    border-top: 5px solid var(--primary-color); /* 상단에 테마 컬러 띠 */
 }
 
 .form-group {
@@ -181,9 +237,9 @@ label {
 }
 
 .preference-option.selected, .method-option.selected {
-    background: #4CAF50;
+    background: var(--primary-color);
     color: white;
-    border-color: #388E3C;
+    border-color: var(--primary-hover);
     transform: scale(1.05);
 }
 
@@ -256,9 +312,9 @@ label {
 }
 
 .table-selection-item.selected {
-    background: #4CAF50;
+    background: var(--primary-color);
     color: white;
-    border-color: #388E3C;
+    border-color: var(--primary-hover);
 }
 
 .table-selection-item.disabled {
@@ -320,6 +376,7 @@ input, select {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
+    outline: none;
 }
 
 select {
@@ -330,13 +387,12 @@ select {
 }
 
 input:focus, select:focus {
-    border-color: #4CAF50;
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .btn {
-    background: #4CAF50;
+    background: var(--primary-color);
     color: white;
     padding: 18px 30px;
     border: none;
@@ -350,7 +406,7 @@ input:focus, select:focus {
 }
 
 .btn:hover {
-    background: #45a049;
+    background: var(--primary-hover);
     transform: translateY(-2px);
 }
 
@@ -374,7 +430,7 @@ input:focus, select:focus {
 
 .spinner {
     border: 4px solid #f3f3f3;
-    border-top: 4px solid #4CAF50;
+    border-top: 4px solid var(--primary-color);
     border-radius: 50%;
     width: 40px;
     height: 40px;
@@ -470,75 +526,6 @@ input:focus, select:focus {
     color: #c62828;
 }
 
-.table-cell.group-reserved {
-    border: 3px solid;
-    color: white;
-    font-size: 11px;
-    padding: 3px;
-    line-height: 1.2;
-    font-weight: bold;
-}
-
-.table-cell.group-reserved.group-1 {
-    background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
-    border-color: #990000;
-}
-
-.table-cell.group-reserved.group-2 {
-    background: linear-gradient(135deg, #4444ff 0%, #0000cc 100%);
-    border-color: #000099;
-}
-
-.table-cell.group-reserved.group-3 {
-    background: linear-gradient(135deg, #44ff44 0%, #00cc00 100%);
-    border-color: #009900;
-    color: #003300;
-}
-
-.table-cell.group-reserved.group-4 {
-    background: linear-gradient(135deg, #ff8800 0%, #cc5500 100%);
-    border-color: #993300;
-}
-
-.table-cell.group-reserved.group-5 {
-    background: linear-gradient(135deg, #8844ff 0%, #5500cc 100%);
-    border-color: #330099;
-}
-
-.table-cell.group-reserved.group-6 {
-    background: linear-gradient(135deg, #ff44aa 0%, #cc0077 100%);
-    border-color: #990055;
-}
-
-.table-cell.group-reserved.group-7 {
-    background: linear-gradient(135deg, #44aaff 0%, #0077cc 100%);
-    border-color: #005599;
-}
-
-.table-cell.group-reserved.group-8 {
-    background: linear-gradient(135deg, #ffaa44 0%, #cc7700 100%);
-    border-color: #995500;
-}
-
-.group-info-cell {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    gap: 1px;
-}
-
-.group-name {
-    font-weight: bold;
-    font-size: 10px;
-}
-
-.group-details {
-    font-size: 8px;
-    opacity: 0.9;
-}
-
 .table-cell:hover:not(.empty-cell) {
     transform: scale(1.05);
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
@@ -584,41 +571,6 @@ input:focus, select:focus {
 .status-dot.reserved {
     background: #ffebee;
     border-color: #f44336;
-}
-
-/* 단체석 정보 스타일 */
-.group-info {
-    background: #f8f9fa;
-    padding: 20px;
-    border-radius: 10px;
-    margin-top: 20px;
-}
-
-.group-info h3 {
-    margin-bottom: 15px;
-    color: #333;
-}
-
-.group-status {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 10px;
-}
-
-.group-item {
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 14px;
-}
-
-.group-item.available {
-    background: #e8f5e8;
-    color: #2e7d32;
-}
-
-.group-item.unavailable {
-    background: #ffebee;
-    color: #c62828;
 }
 
 /* 예약 목록 스타일 */
@@ -722,7 +674,7 @@ input:focus, select:focus {
 }
 
 .edit-btn {
-    background: #4CAF50;
+    background: var(--primary-color);
     color: white;
     border: none;
     padding: 8px 15px;
@@ -733,7 +685,7 @@ input:focus, select:focus {
 }
 
 .edit-btn:hover {
-    background: #45a049;
+    background: var(--primary-hover);
 }
 
 .delete-btn {
@@ -785,7 +737,7 @@ input:focus, select:focus {
     position: fixed;
     top: 50px;
     right: 20px;
-    background: #4CAF50;
+    background: var(--primary-color);
     color: white;
     padding: 15px 20px;
     border-radius: 8px;
@@ -802,27 +754,6 @@ input:focus, select:focus {
 
 .notification.error {
     background: #f44336;
-}
-
-.sound-control {
-    position: fixed;
-    top: 60px;
-    right: 10px;
-    z-index: 1000;
-}
-
-.sound-btn {
-    background: #2196F3;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.sound-btn.muted {
-    background: #666;
 }
 
 .alert {
@@ -848,11 +779,6 @@ input:focus, select:focus {
     background: #d1ecf1;
     color: #0c5460;
     border: 1px solid #bee5eb;
-}
-
-.alternative-highlight {
-    background: linear-gradient(45deg, #fff3cd, #ffeaa7);
-    border-left: 4px solid #fdcb6e;
 }
 
 /* 애니메이션 */
@@ -890,16 +816,11 @@ input:focus, select:focus {
         padding: 5px;
     }
     
-    .sound-control {
-        position: static;
-        align-self: flex-end;
-    }
-    
     .container {
         margin-top: 10px;
     }
     
-    .form-container, .status-container {
+    .form-container, .status-container, .accounting-card {
         padding: 15px;
     }
     
@@ -931,10 +852,6 @@ input:focus, select:focus {
         padding: 2px;
     }
     
-    .group-status {
-        grid-template-columns: 1fr;
-    }
-
     input, select {
         padding: 14px;
         font-size: 16px;
@@ -985,6 +902,15 @@ input:focus, select:focus {
         width: 30px;
         height: 30px;
         font-size: 9px;
+    }
+    
+    /* 주간 헤더 (가로모드) */
+    .weekly-container {
+        display: grid;
+        min-width: 700px;
+    }
+    .status-container {
+        overflow-x: auto;
     }
 }
 
@@ -1166,3 +1092,82 @@ input:focus, select:focus {
     font-size: 16px;
     background: white;
 }
+
+/* 가계부 스타일 */
+.dashboard-summary {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;
+}
+.summary-card {
+    background: white; padding: 15px 10px; border-radius: 10px; text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    border: 1px solid #eee;
+}
+.summary-card.total-sales .val { color: #1976D2; }
+.summary-card.total-cost .val { color: #d32f2f; }
+.summary-card.net-profit { 
+    /* 순수익 카드는 테마 컬러 그라데이션 */
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: white;
+    border: none;
+}
+.summary-card.net-profit .lbl { color: rgba(255,255,255,0.8); }
+.summary-card.net-profit .val { color: #fff; font-size: 16px; font-weight: bold; }
+.sub-val { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+
+/* 주간 근무표 헤더 (테마 적용) */
+.weekly-container {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+}
+.weekly-header {
+    background: var(--primary-color);
+    color: white;
+    padding: 10px 0; text-align: center; font-weight: bold;
+    border-right: 1px solid rgba(255,255,255,0.2);
+}
+.weekly-header.sunday { background: #e53935; } /* 일요일은 빨강 */
+.weekly-header.saturday { background: #1e88e5; } /* 토요일은 파랑 */
+
+.weekly-col {
+    border-right: 1px solid #eee;
+    min-height: 300px;
+    padding: 5px;
+    background: #fafafa;
+}
+.weekly-col:last-child { border-right: none; }
+
+/* 오늘 날짜 강조 */
+.today-highlight {
+    background-color: var(--primary-light) !important;
+    border: 2px solid var(--primary-color) !important;
+    position: relative;
+}
+
+/* 가계부 바 차트 스타일 */
+.chart-title { font-size: 14px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-bottom: 10px; }
+.bar-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; }
+.bar-label { width: 80px; text-align: right; margin-right: 10px; color: #555; }
+.bar-track { flex: 1; background: #f1f3f5; height: 15px; border-radius: 4px; overflow: hidden; position: relative; }
+.bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 5px; color: white; font-size: 10px; white-space: nowrap; }
+.bar-value { margin-left: 10px; font-weight: bold; width: 60px; text-align: right; }
+
+/* 관리자 모달창 스타일 (테마 적용) */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); display: none;
+    justify-content: center; align-items: center; z-index: 2000;
+}
+.modal-box {
+    background: white; padding: 25px; border-radius: 10px;
+    width: 90%; max-width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    border-top: 5px solid var(--primary-color);
+}
+.modal-box h2 { margin-bottom: 15px; text-align: center; }
+.modal-field { margin-bottom: 15px; }
+.modal-field label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.modal-actions .btn { background: var(--primary-color); }

@@ -26,12 +26,27 @@ const DAY_KEYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 document.addEventListener('DOMContentLoaded', () => {
     document.title = `${storeNameKr} 관리자 모드`;
-    const titleEl = document.getElementById('pageTitle');
-    if(titleEl) titleEl.textContent = `👥 ${storeNameKr} 관리 시스템`;
+    // 1. 타이틀 설정
+    document.title = `${storeNameKr} 관리자 모드`;
     
+    // 2. [NEW] 매장별 테마(CSS 클래스) 적용 (여기가 핵심!)
+    // body 태그에 theme-chogazip 또는 theme-yangeun 클래스를 강제로 주입합니다.
     if (currentStore === 'yangeun') {
-        const header = document.querySelector('.weekly-header');
-        if(header) header.style.background = '#ff9800'; 
+        document.body.classList.add('theme-yangeun');
+        document.body.classList.remove('theme-chogazip');
+    } else {
+        document.body.classList.add('theme-chogazip');
+        document.body.classList.remove('theme-yangeun');
+    }
+
+    // 3. 헤더 텍스트 변경 (아이콘 추가로 구분감 UP)
+    const titleEl = document.getElementById('pageTitle');
+    if(titleEl) {
+        if (currentStore === 'yangeun') {
+            titleEl.innerHTML = `🥘 양은이네 <span style="font-size:0.7em; opacity:0.8;">관리시스템</span>`;
+        } else {
+            titleEl.innerHTML = `🏠 초가짚 <span style="font-size:0.7em; opacity:0.8;">관리시스템</span>`;
+        }
     }
 
     // 매장에 따른 가계부 UI 변경 실행
