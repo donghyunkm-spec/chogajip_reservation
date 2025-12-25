@@ -715,6 +715,8 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
 }
 
 // 2. (UPDATE) 브리핑 생성 및 전송 함수
+// server.js - generateAndSendBriefing 함수 전체 교체 또는 해당 부분 수정
+
 async function generateAndSendBriefing() {
     try {
         const today = new Date();
@@ -734,11 +736,18 @@ async function generateAndSendBriefing() {
         // 통합 데이터
         const totalSales = choga.sales + yang.sales;
         const totalProfitPred = choga.profitPred + yang.profitPred;
-        const totalProfitReal = choga.profitReal + yang.profitReal; // 통합 현실 순익
+        const totalProfitReal = choga.profitReal + yang.profitReal;
 
         // 퍼센트 계산 헬퍼
         const getPct = (val, total) => total > 0 ? `(${(val/total*100).toFixed(1)}%)` : '(0%)';
         const formatMoney = (n) => n.toLocaleString();
+        
+        // [수정] 흑자/적자 텍스트 생성 헬퍼
+        const getProfitText = (val) => {
+            if (val > 0) return `📈 흑자: +${formatMoney(val)}원`;
+            if (val < 0) return `📉 적자: ${formatMoney(val)}원`; // 음수는 자동으로 -가 붙음
+            return `0원 (본전)`;
+        };
 
         // 메시지 작성
         const message = `
@@ -749,8 +758,8 @@ async function generateAndSendBriefing() {
 ■ 예상순익: ${formatMoney(choga.profitPred)}원
 - 한강유통: ${formatMoney(choga.items.meat)} ${getPct(choga.items.meat, choga.sales)}
 - 삼시세끼: ${formatMoney(choga.items.food)} ${getPct(choga.items.food, choga.sales)}
-- 임대료(일할): ${formatMoney(choga.items.rent)} ${getPct(choga.items.rent, choga.sales)}
-- 인건비(예상): ${formatMoney(choga.items.staff)} ${getPct(choga.items.staff, choga.sales)}
+- 임대료(일할): ${formatMoney(choga.items.rent)}
+- 인건비(예상): ${formatMoney(choga.items.staff)}
 - 관리/공과: ${formatMoney(choga.items.utility)}
 - 주류/대출: ${formatMoney(choga.items.liquor + choga.items.loan)}
 
@@ -760,17 +769,17 @@ async function generateAndSendBriefing() {
 - SPC/재료: ${formatMoney(yang.items.meat)} ${getPct(yang.items.meat, yang.sales)}
 - 삼시세끼: ${formatMoney(yang.items.food)} ${getPct(yang.items.food, yang.sales)}
 - 배달수수료: ${formatMoney(yang.items.delivery)} ${getPct(yang.items.delivery, yang.sales)}
-- 임대료(일할): ${formatMoney(yang.items.rent)} ${getPct(yang.items.rent, yang.sales)}
-- 인건비(예상): ${formatMoney(yang.items.staff)} ${getPct(yang.items.staff, yang.sales)}
+- 임대료(일할): ${formatMoney(yang.items.rent)}
+- 인건비(예상): ${formatMoney(yang.items.staff)}
 
 💰 통합 요약
 ■ 합산매출: ${formatMoney(totalSales)}원
 ■ 예상순익: ${formatMoney(totalProfitPred)}원
 
-📉 월간 현실 점검 (고정비 100% 기준)
-■ 초가짚: ${choga.profitReal > 0 ? '🎉 흑자 전환 완료!' : `${formatMoney(Math.abs(choga.profitReal))}원 더 팔아야 본전`}
-■ 양은이네: ${yang.profitReal > 0 ? '🎉 흑자 전환 완료!' : `${formatMoney(Math.abs(yang.profitReal))}원 더 팔아야 본전`}
-■ 통합손익: ${formatMoney(totalProfitReal)}원
+📉 월간 현실 점검 (고정비 100% 반영)
+■ 초가짚: ${getProfitText(choga.profitReal)}
+■ 양은이네: ${getProfitText(yang.profitReal)}
+■ 통합손익: ${getProfitText(totalProfitReal)}
 `.trim();
 
         await sendToKakao(message);
@@ -781,6 +790,10 @@ async function generateAndSendBriefing() {
 }
 
 // [NEW] 특정 날짜의 근무자 명단 및 일일 인건비 메시지 생성 함수
+// server.js - getDailyScheduleMessage 함수 교체
+
+// server.js - getDailyScheduleMessage 함수 교체
+
 function getDailyScheduleMessage(store, dateObj) {
     const storeName = store === 'yangeun' ? '🥘 양은이네' : '🏠 초가짚';
     const file = getStaffFile(store);
@@ -792,13 +805,12 @@ function getDailyScheduleMessage(store, dateObj) {
     const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayKey = dayMap[dateObj.getDay()];
-    const lastDayOfMonth = new Date(year, month, 0).getDate(); // 이번 달이 며칠까지 있는지 (30 or 31)
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
 
     let workers = [];
     let totalDailyCost = 0;
 
     staffList.forEach(s => {
-        // 1. 퇴사자 제외 로직 (기존 로직 활용)
         const sDate = s.startDate ? new Date(s.startDate) : null;
         const eDate = s.endDate ? new Date(s.endDate) : null;
         const targetDate = new Date(year, month - 1, day); targetDate.setHours(0,0,0,0);
@@ -806,28 +818,22 @@ function getDailyScheduleMessage(store, dateObj) {
         if (sDate) { const start = new Date(sDate); start.setHours(0,0,0,0); if (targetDate < start) return; }
         if (eDate) { const end = new Date(eDate); end.setHours(0,0,0,0); if (targetDate > end) return; }
 
-        // 2. 근무 여부 확인
         let isWorking = false;
         let timeStr = s.time;
 
-        // 예외 처리(휴무/시간변경) 확인
         if (s.exceptions && s.exceptions[dateStr]) {
             const ex = s.exceptions[dateStr];
             if (ex.type === 'work') { isWorking = true; timeStr = ex.time; }
             else if (ex.type === 'off') { isWorking = false; }
         } else {
-            // 정기 근무 요일 확인
             if (s.workDays && s.workDays.includes(dayKey)) isWorking = true;
         }
 
         if (isWorking) {
-            // 3. 일일 인건비 계산
             let cost = 0;
             if (s.salaryType === 'monthly') {
-                // 월급제: 월급 / 해당 월의 일수 (예: 300만 / 30일 = 10만)
                 cost = Math.floor((s.salary || 0) / lastDayOfMonth);
             } else {
-                // 시급제: 시간 계산 * 시급
                 if (timeStr && timeStr.includes('~')) {
                     const [start, end] = timeStr.split('~');
                     const [sh, sm] = start.trim().split(':').map(Number);
@@ -835,24 +841,30 @@ function getDailyScheduleMessage(store, dateObj) {
                     
                     let startMin = sh * 60 + (sm || 0);
                     let endMin = eh * 60 + (em || 0);
-                    if (endMin < startMin) endMin += 24 * 60; // 새벽 넘어가면 24시간 더함
+                    if (endMin < startMin) endMin += 24 * 60;
                     
                     const hours = (endMin - startMin) / 60;
                     cost = Math.floor(hours * (s.salary || 0));
                 }
             }
-            
             totalDailyCost += cost;
             workers.push({ name: s.name, time: timeStr });
         }
     });
 
-    // 4. 메시지 포맷 작성
     if (workers.length === 0) {
         return `${storeName}: 근무 없음 (휴무)`;
     }
 
     let msg = `${storeName}: 근무인원 ${workers.length}명\n`;
+    
+    // [수정] 8명 이상(과다) 또는 6명 이하(부족) 경고 로직 추가
+    if (workers.length >= 8) {
+        msg += `🚨 [경고] 인원과다(${workers.length}명) → 비용 점검필요\n`;
+    } else if (workers.length <= 6) {
+        msg += `⚠️ [확인] 인원부족(${workers.length}명) → 서비스 점검필요\n`;
+    }
+
     workers.forEach(w => {
         msg += `- ${w.name}: ${w.time}\n`;
     });

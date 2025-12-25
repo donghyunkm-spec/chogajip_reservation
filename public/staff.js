@@ -1545,6 +1545,8 @@ function calculateDuration(timeStr) {
 }
 
 // [수정] 일별 보기 렌더링 (임시 휴무 시각화)
+// staff.js - renderDailyView 함수 교체
+
 function renderDailyView() {
     const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const todayKey = dayMap[currentDate.getDay()];
@@ -1567,14 +1569,13 @@ function renderDailyView() {
         let isWorking = false;
         let workTime = staff.time;
         let isException = false;
-        let isOff = false; // 휴무 여부 플래그
+        let isOff = false;
 
         if (staff.exceptions && staff.exceptions[dateStr]) {
             const ex = staff.exceptions[dateStr];
             if (ex.type === 'work') { 
                 isWorking = true; workTime = ex.time; isException = true; 
             } else if (ex.type === 'off') {
-                // [변경] 휴무여도 리스트에 포함시키되 플래그 설정
                 isWorking = true; 
                 isException = true;
                 isOff = true;
@@ -1590,12 +1591,29 @@ function renderDailyView() {
         }
     });
 
-    // 휴무가 아닌 실제 근무자 수만 카운트
     const realWorkCount = dailyWorkers.filter(w => !w.isOff).length;
-    const badge = document.getElementById('dailyCountBadge');
-    if(badge) badge.textContent = `총 ${realWorkCount}명 근무`;
     
-    // 정렬 (휴무는 맨 아래로, 그 외는 시간순)
+    // [수정] 8명 이상(과다) 또는 6명 이하(부족) 경고 표시
+    const badge = document.getElementById('dailyCountBadge');
+    if(badge) {
+        // 기본 스타일
+        badge.style.background = '#ff5722'; 
+        
+        if (realWorkCount >= 8) {
+            // 인원 과다 -> 빨강
+            badge.style.background = '#d32f2f';
+            badge.innerHTML = `총 ${realWorkCount}명 근무<br><span style="font-size:11px; background:white; color:#d32f2f; padding:2px 5px; border-radius:4px; margin-top:4px; display:inline-block;">⚠️ 인원 과다 (비용 확인)</span>`;
+        } else if (realWorkCount > 0 && realWorkCount <= 6) {
+            // 인원 부족 -> 주황/빨강 계열
+            badge.style.background = '#e65100'; 
+            badge.innerHTML = `총 ${realWorkCount}명 근무<br><span style="font-size:11px; background:white; color:#e65100; padding:2px 5px; border-radius:4px; margin-top:4px; display:inline-block;">⚠️ 인원 부족? (확인)</span>`;
+        } else {
+            // 정상 (7명 등)
+            badge.textContent = `총 ${realWorkCount}명 근무`;
+        }
+    }
+    
+    // 정렬
     dailyWorkers.sort((a,b) => {
         if(a.isOff && !b.isOff) return 1;
         if(!a.isOff && b.isOff) return -1;
@@ -1606,14 +1624,12 @@ function renderDailyView() {
         container.innerHTML = '<div class="empty-state">근무자가 없습니다.</div>';
     } else {
         dailyWorkers.forEach(s => {
-            // [UI] 휴무일 경우 스타일 및 버튼 변경
             let rowClass = s.isOff ? 'reservation-item temp-off-row' : 'reservation-item';
             let statusBadge = '';
             
             if (s.isOff) statusBadge = '<span class="badge" style="background:#9e9e9e; color:white;">⛔ 임시휴무</span>';
             else if (s.isException) statusBadge = '<span class="badge alternative-badge">변동</span>';
 
-            // 휴무인 경우 '휴무취소(복구)' 버튼, 근무인 경우 '시간변경', '오늘휴무' 버튼
             let adminButtons = '';
             if (s.isOff) {
                 adminButtons = `
@@ -1863,11 +1879,13 @@ function renderMonthlyView() {
         let count = 0;
         staffList.forEach(staff => {
             let isWorking = false;
+            // 예외처리 로직 (날짜별)
             if (staff.exceptions && staff.exceptions[dateStr]) {
                 if (staff.exceptions[dateStr].type === 'work') isWorking = true;
             } else {
                 if (staff.workDays.includes(dayKey)) isWorking = true;
             }
+            // 월별 뷰는 간단하게 근무 여부만 카운트 (상세 입퇴사 로직은 생략하거나 필요시 추가)
             if(isWorking) count++;
         });
         
@@ -1880,13 +1898,21 @@ function renderMonthlyView() {
             dayClass += ' today-highlight';
         }
 
+        // [수정] 근무자 수에 따른 스타일 지정 (6명 이하 or 8명 이상 -> 빨간색 강조)
+        let countStyle = 'background: #e3f2fd; color: #1565c0;'; // 기본 파란색
+        if (count > 0 && (count <= 6 || count >= 8)) {
+            // 경고 스타일 (배경 연한 빨강, 글씨 진한 빨강)
+            countStyle = 'background: #ffebee; color: #d32f2f; border: 1px solid #ffcdd2;';
+        }
+
         container.innerHTML += `
             <div class="calendar-day ${dayClass}" onclick="goToDailyDetail(${year}, ${month}, ${day})">
                 <span class="calendar-date-num">${day}</span>
-                ${count > 0 ? `<span class="calendar-staff-count">근무 ${count}명</span>` : ''}
+                ${count > 0 ? `<span class="calendar-staff-count" style="${countStyle} padding: 4px; border-radius: 4px; text-align: center; font-size: 12px; font-weight: bold; margin-top: 5px; display: block;">근무 ${count}명</span>` : ''}
             </div>`;
     }
 }
+
 function changeMonth(d) { calendarDate.setMonth(calendarDate.getMonth() + d); renderMonthlyView(); }
 function resetToThisMonth() { calendarDate = new Date(); renderMonthlyView(); }
 
