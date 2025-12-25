@@ -418,14 +418,14 @@ app.get('/api/backup', (req, res) => {
     }
 });
 
-// 1. 카카오 인증 코드 받기 및 토큰 발급 (Redirect URI)
+// 1. 카카오 인증 코드 받기 -> 사용자 식별 -> 토큰 저장 (중복 방지 로직 추가)
 app.get('/oauth/kakao', async (req, res) => {
     const { code } = req.query;
     if (!code) return res.send('인증 코드가 없습니다.');
 
     try {
-        // 토큰 발급 요청
-        const response = await axios.post('https://kauth.kakao.com/oauth/token', null, {
+        // [1] 토큰 발급 요청
+        const tokenRes = await axios.post('https://kauth.kakao.com/oauth/token', null, {
             params: {
                 grant_type: 'authorization_code',
                 client_id: KAKAO_REST_API_KEY,
@@ -435,16 +435,51 @@ app.get('/oauth/kakao', async (req, res) => {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
 
-        const tokens = response.data;
-        // 토큰 파일 저장
-        writeJson(KAKAO_TOKEN_FILE, tokens);
+        const newTokens = tokenRes.data;
+
+        // [2] 사용자 정보 요청 (누구인지 식별하기 위해 필수!)
+        const userRes = await axios.get('https://kapi.kakao.com/v2/user/me', {
+            headers: { Authorization: `Bearer ${newTokens.access_token}` }
+        });
+
+        const userId = userRes.data.id; // 카카오 고유 회원번호
+        const userNickname = userRes.data.properties?.nickname || '이름없음';
+
+        // [3] 기존 토큰 파일 읽기
+        let tokenList = readJson(KAKAO_TOKEN_FILE, []);
+        if (!Array.isArray(tokenList)) tokenList = []; // 파일이 깨졌거나 객체면 배열로 초기화
+
+        // [4] 중복 확인 및 업데이트 (핵심 로직)
+        const existingIdx = tokenList.findIndex(t => t.userId === userId);
+
+        if (existingIdx !== -1) {
+            // 이미 등록된 사용자라면 -> 토큰 정보만 갱신 (덮어쓰기)
+            console.log(`🔄 기존 사용자(${userNickname}) 토큰 갱신`);
+            tokenList[existingIdx] = {
+                userId,
+                nickname: userNickname,
+                ...newTokens,
+                updatedAt: new Date().toISOString()
+            };
+        } else {
+            // 새로운 사용자라면 -> 리스트에 추가
+            console.log(`➕ 새 사용자(${userNickname}) 등록`);
+            tokenList.push({
+                userId,
+                nickname: userNickname,
+                ...newTokens,
+                updatedAt: new Date().toISOString()
+            });
+        }
+
+        // [5] 저장
+        writeJson(KAKAO_TOKEN_FILE, tokenList);
         
-        console.log('✅ 카카오 토큰 발급 및 저장 완료');
-        res.send('<h1>✅ 카카오 로그인 성공!</h1><p>토큰이 서버에 저장되었습니다. 창을 닫으셔도 됩니다.</p>');
+        res.send(`<h1>✅ 로그인 성공!</h1><p>${userNickname}님 등록 완료.<br>현재 알림 받는 인원: ${tokenList.length}명</p>`);
 
     } catch (error) {
-        console.error('토큰 발급 실패:', error.response ? error.response.data : error.message);
-        res.send('토큰 발급 실패. 로그를 확인하세요.');
+        console.error('카카오 로그인 실패:', error.response ? error.response.data : error.message);
+        res.send(`로그인 실패: ${error.message}`);
     }
 });
 
@@ -515,58 +550,82 @@ function calculateServerStaffCost(staffList, monthStr) {
     return totalPay;
 }
 
-// 2. 메시지 전송 함수 (나에게 보내기)
+// 2. 메시지 전송 함수 (등록된 모든 사용자에게 전송)
 async function sendToKakao(text) {
-    try {
-        let tokens = readJson(KAKAO_TOKEN_FILE, null);
-        if (!tokens) {
-            console.log('❌ 저장된 카카오 토큰이 없습니다. /kakao-auth.html 에서 로그인해주세요.');
-            return;
-        }
+    let tokenList = readJson(KAKAO_TOKEN_FILE, []);
+    
+    // 배열이 아니거나 비어있으면 중단
+    if (!Array.isArray(tokenList) || tokenList.length === 0) {
+        console.log('❌ 카카오톡 발송 실패: 등록된 사용자가 없습니다.');
+        return;
+    }
 
-        // 액세스 토큰 갱신 시도 (만료 대비 무조건 갱신 시도 혹은 유효성 체크 후 갱신)
-        // 간단하게 리프레시 토큰으로 갱신 먼저 시도
+    console.log(`📢 총 ${tokenList.length}명에게 카톡 전송 시작...`);
+    let isListChanged = false; // 저장 필요 여부 체크
+
+    // 모든 사용자에게 순차 전송
+    for (let i = 0; i < tokenList.length; i++) {
+        let user = tokenList[i];
+        
         try {
-            const refreshRes = await axios.post('https://kauth.kakao.com/oauth/token', null, {
-                params: {
-                    grant_type: 'refresh_token',
-                    client_id: KAKAO_REST_API_KEY,
-                    refresh_token: tokens.refresh_token
-                },
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            });
-            
-            // 갱신된 토큰 정보 합치기 (새로운 access_token 등)
-            if (refreshRes.data.access_token) {
-                tokens = { ...tokens, ...refreshRes.data };
-                writeJson(KAKAO_TOKEN_FILE, tokens); // 갱신된 토큰 저장
-            }
-        } catch (refreshErr) {
-            console.log('🔄 토큰 갱신 건너뜀 (아직 유효하거나 리프레시 만료):', refreshErr.message);
-            // 리프레시 토큰도 만료되면 다시 로그인해야 함
-        }
+            // [A] 액세스 토큰 갱신 시도 (만료 대비)
+            // 리프레시 토큰이 있으면 무조건 갱신 시도해보는 것이 안전함
+            try {
+                const refreshRes = await axios.post('https://kauth.kakao.com/oauth/token', null, {
+                    params: {
+                        grant_type: 'refresh_token',
+                        client_id: KAKAO_REST_API_KEY,
+                        refresh_token: user.refresh_token
+                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                });
 
-        // 메시지 전송 (나에게 보내기 - 텍스트 템플릿)
-        await axios.post('https://kapi.kakao.com/v2/api/talk/memo/default/send', {
-            template_object: JSON.stringify({
-                object_type: 'text',
-                text: text,
-                link: {
-                    web_url: 'https://yyyn-reservation-production.up.railway.app', // 클릭 시 이동할 주소
-                    mobile_web_url: 'https://yyyn-reservation-production.up.railway.app'
+                if (refreshRes.data.access_token) {
+                    // 갱신 성공 시 정보 업데이트
+                    user.access_token = refreshRes.data.access_token;
+                    // 리프레시 토큰도 새로 왔다면 업데이트 (만료 기간 연장됨)
+                    if (refreshRes.data.refresh_token) {
+                        user.refresh_token = refreshRes.data.refresh_token;
+                    }
+                    isListChanged = true;
                 }
-            })
-        }, {
-            headers: {
-                'Authorization': `Bearer ${tokens.access_token}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
+            } catch (refreshErr) {
+                console.log(`⚠️ ${user.nickname}: 토큰 갱신 실패 (만료되었을 수 있음)`);
+                // 여기서 실패하면 아래 전송도 실패할 확률 높음 -> 재로그인 필요
             }
-        });
 
-        console.log('🚀 카카오톡 알림 전송 성공');
+            // [B] 메시지 전송 (나에게 보내기 API 사용)
+            await axios.post('https://kapi.kakao.com/v2/api/talk/memo/default/send', {
+                template_object: JSON.stringify({
+                    object_type: 'text',
+                    text: text,
+                    link: {
+                        web_url: 'https://chogajipreservation-production.up.railway.app',
+                        mobile_web_url: 'https://chogajipreservation-production.up.railway.app'
+                    }
+                })
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${user.access_token}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
 
-    } catch (error) {
-        console.error('❌ 카카오 전송 실패:', error.response ? error.response.data : error.message);
+            console.log(`✅ 전송 성공: ${user.nickname}`);
+
+        } catch (error) {
+            console.error(`❌ 전송 실패 (${user.nickname}):`, error.response ? error.response.data : error.message);
+            // 필요 시, 실패한 사용자는 리스트에서 제거하거나 에러 표시를 할 수 있음
+        }
+        
+        // 업데이트된 정보 배열에 다시 반영
+        tokenList[i] = user;
+    }
+
+    // 변경사항(토큰 갱신 등)이 있으면 파일 저장
+    if (isListChanged) {
+        writeJson(KAKAO_TOKEN_FILE, tokenList);
+        console.log('💾 갱신된 토큰 정보를 저장했습니다.');
     }
 }
 
