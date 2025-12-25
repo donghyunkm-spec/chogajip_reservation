@@ -259,7 +259,10 @@
             <h2>⚡ 일일 대타/추가 근무 등록</h2>
             <div class="modal-field">
                 <label>이름</label>
-                <input type="text" id="tempName" placeholder="근무자 이름">
+                <input type="text" id="tempName" list="staffNameList" 
+                    placeholder="이름을 입력하거나 선택하세요"
+                    oninput="autoFillSalary(this.value)"> 
+                <datalist id="staffNameList"></datalist>
             </div>
             <div class="modal-field">
                 <label>시급 (원)</label>

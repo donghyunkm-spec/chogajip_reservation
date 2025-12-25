@@ -2056,19 +2056,58 @@ document.addEventListener('DOMContentLoaded', () => {
     initTimeOptions();
 });
 
-// 2. 모달 열기
-function addTempWorker() { // 함수명은 버튼 onclick과 동일하게 유지
+// 2. 모달 열기 (직원 리스트 자동완성 추가)
+function addTempWorker() {
     if (!currentUser) { openLoginModal(); return; }
     
+    // 입력창 초기화
     document.getElementById('tempName').value = '';
-    // 시급은 이전에 입력한게 있으면 편하겠지만 일단 기본값
     document.getElementById('tempSalary').value = '10000'; 
+    
+    const dataList = document.getElementById('staffNameList');
+    if (dataList && typeof staffList !== 'undefined') {
+        // [수정] 월급(monthly) 직원은 제외하고, 시급(hourly) 알바만 필터링해서 보여줌
+        const options = staffList
+            .filter(s => s.salaryType !== 'monthly') // 월급 직원 제외
+            .map(s => `<option value="${s.name}">`)
+            .join('');
+        
+        dataList.innerHTML = options;
+    }
+
     document.getElementById('tempWorkerModal').style.display = 'flex';
 }
 
-// 3. 모달 닫기
 function closeTempModal() {
     document.getElementById('tempWorkerModal').style.display = 'none';
+}
+
+// [staff.js] autoFillSalary 함수 수정 (맨 아래쪽에 있음)
+
+function autoFillSalary(inputName) {
+    if (!inputName) return;
+
+    // [수정] 이름이 같아도, "현재 일하고 있는(퇴사일이 안 지난)" 기록을 우선적으로 찾음
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    const target = staffList.find(s => {
+        if (s.name !== inputName) return false;
+        
+        // 퇴사일(endDate)이 존재하고, 그게 오늘보다 전이면 -> 이미 퇴사한 기록(제외)
+        if (s.endDate && s.endDate < todayStr) return false;
+        
+        // 아직 입사 안 한 미래의 기록도 제외하고 싶다면 아래 주석 해제 (보통은 냅둬도 됨)
+        // if (s.startDate && s.startDate > todayStr) return false;
+
+        return true;
+    });
+
+    // 만약 활성 기록을 못 찾았으면 그냥 이름 같은 아무나(가장 최근 등록된) 찾음 (혹시 모르니)
+    const finalTarget = target || staffList.find(s => s.name === inputName);
+
+    if (finalTarget && finalTarget.salary) {
+        document.getElementById('tempSalary').value = finalTarget.salary;
+    }
 }
 
 // 4. 저장하기 (서버 통신)
