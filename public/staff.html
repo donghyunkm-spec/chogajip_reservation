@@ -472,13 +472,13 @@
                     </div>
                     
                     <div class="weekly-container">
-                        <div class="weekly-header sunday">일</div>
-                        <div class="weekly-header">월</div>
-                        <div class="weekly-header">화</div>
-                        <div class="weekly-header">수</div>
-                        <div class="weekly-header">목</div>
-                        <div class="weekly-header">금</div>
-                        <div class="weekly-header saturday">토</div>
+                        <div id="header-Sun" class="weekly-header sunday">일</div>
+                        <div id="header-Mon" class="weekly-header">월</div>
+                        <div id="header-Tue" class="weekly-header">화</div>
+                        <div id="header-Wed" class="weekly-header">수</div>
+                        <div id="header-Thu" class="weekly-header">목</div>
+                        <div id="header-Fri" class="weekly-header">금</div>
+                        <div id="header-Sat" class="weekly-header saturday">토</div>
                         
                         <div id="col-Sun" class="weekly-col" data-day="일요일"></div>
                         <div id="col-Mon" class="weekly-col" data-day="월요일"></div>
@@ -627,28 +627,6 @@
                 </div>
             </div>
         </div>
-
-        <div id="daily-content" class="tab-content active">
-            <div class="status-container">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                    <button onclick="changeDate(-1)" class="number-btn">&lt;</button>
-                    <div style="text-align: center;">
-                        <h2 id="currentDateDisplay" style="margin:0;"></h2>
-                        <button onclick="resetToToday()" class="reset-btn">오늘 보기</button> 
-                        <span id="dailyCountBadge" class="count-badge" style="margin-top:5px; display:inline-block;">총 0명 근무</span>
-                    </div>
-                    <button onclick="changeDate(1)" class="number-btn">&gt;</button>
-                </div>
-
-                <div id="dailyTools" style="text-align:right; margin-bottom:10px; padding:10px; background:#f1f3f5; border-radius:8px;">
-                    <span style="font-size:12px; color:#666; margin-right:10px;">⚡ 오늘 일정 관리:</span>
-                    <button onclick="addTempWorker()" style="background:#28a745; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">+ 일일 대타/추가 등록</button>
-                </div>
-
-                <div id="dailyStaffList"></div>
-            </div>
-        </div>
-
         <div id="weekly-content" class="tab-content">
             <div class="status-container">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">

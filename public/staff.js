@@ -1613,6 +1613,19 @@ function renderWeeklyView() {
     if(rangeDisplay) rangeDisplay.textContent = `${startWeek.getMonth()+1}월 ${startWeek.getDate()}일 ~ ${endWeek.getMonth()+1}월 ${endWeek.getDate()}일`;
 
     const realToday = new Date(); 
+
+    // 주간 헤더에 날짜 업데이트
+    DAY_KEYS.forEach((k, index) => {
+        const headerDate = new Date(currentWeekStartDate);
+        headerDate.setDate(headerDate.getDate() + index);
+        const headerEl = document.getElementById(`header-${k}`);
+        if (headerEl) {
+            const month = headerDate.getMonth() + 1;
+            const day = headerDate.getDate();
+            headerEl.innerHTML = `${month}/${day}<br>${DAY_MAP[k]}`;
+        }
+    });
+    
     DAY_KEYS.forEach(k => {
         const col = document.getElementById(`col-${k}`);
         if(col) { col.innerHTML = ''; col.classList.remove('today-highlight'); }

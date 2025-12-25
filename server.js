@@ -893,10 +893,7 @@ function sendDailyBriefing() {
         console.log("--------------------------------");
         
         // [카카오톡/슬랙 전송 로직 위치]
-        // 예: sendToKakao(message); 
-        // 실제 카카오 API 연동은 복잡하므로, 우선 서버 로그로 확인하시거나 
-        // Slack Webhook 등을 이용하시면 훨씬 간편하게 받아보실 수 있습니다.
-
+        sendToKakao(message); 
     } catch (e) {
         console.error('브리핑 생성 실패:', e);
     }
