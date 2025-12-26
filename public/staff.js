@@ -274,6 +274,10 @@ function updateUnifiedView() {
             Object.keys(d.daily).forEach(date => {
                 if(date.startsWith(monthStr)) {
                     const day = d.daily[date];
+                    // [수정] 통합 뷰에서도 계좌이체는 매출에 포함되지 않음 (이미 저장된 sales 사용)
+                    // 기존에 저장된 데이터는 sales에 포함되어 있을 수 있으므로 재계산을 추천하지만,
+                    // 일단 저장된 daily.sales 값을 신뢰하거나, 필요 시 여기서도 재계산 로직을 넣을 수 있음.
+                    // (일관성을 위해 저장된 값 사용)
                     totalSales += (day.sales || 0);
                     
                     // 변동비는 예상이나 현실이나 똑같음 (이미 쓴 돈)
@@ -350,8 +354,6 @@ function updateUnifiedView() {
     document.getElementById('uniDashMargin').textContent = `실질마진: ${fullMargin}%`;
 
     // [중요] 월간 분석 탭에도 차트를 그리기 위해 HTML에 컨테이너가 필요합니다.
-    // 기존 HTML에 'uniSalesChart' 밑이나 위에 'uniDashCostList'라는 id를 가진 div를 추가해야 합니다.
-    // 만약 HTML 수정이 어렵다면 JS에서 동적으로 생성합니다.
     let dashListEl = document.getElementById('uniDashCostList');
     if (!dashListEl) {
         // 차트 그릴 공간이 없으면 동적으로 salesChart 위에 생성
@@ -452,11 +454,11 @@ function renderUnifiedSalesChart(types, total) {
 
     const renderBar = (l, v, c) => v > 0 ? `<div class="bar-row"><div class="bar-label">${l}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max((v/total)*100,1)}%; background:${c};"></div></div><div class="bar-value">${v.toLocaleString()}</div></div>` : '';
 
+    // [수정] 통합 차트에서도 계좌이체 바(Bar) 제거 (매출 아님)
     el.innerHTML = `
         ${renderBar('💳 카드', types.card, '#42a5f5')}
         ${renderBar('📱 배달앱', types.app, '#2ac1bc')}
         ${renderBar('💵 현금', types.cash, '#66bb6a')}
-        ${renderBar('🏦 계좌', types.transfer, '#ab47bc')}
         ${renderBar('🎫 기타', types.etc, '#ffa726')}
     `;
 }
@@ -805,6 +807,9 @@ function calcDrawerTotal() {
     const transfer = parseInt(document.getElementById('inpTransfer').value) || 0;   
     const deposit = parseInt(document.getElementById('inpDeposit').value) || 0;     
 
+    // [수정] 돈통 계산은 기존과 동일 (계좌이체는 돈통에 없는 돈이므로 차감)
+    // 현금 매출(CashSales)에는 계좌이체가 포함되어 있다고 가정하므로, 
+    // 실제 돈통에는 (현금매출 - 계좌이체) 만큼의 현금이 더해져야 함.
     const finalTotal = (startCash + cashSales) - (transfer + deposit);
     const displayEl = document.getElementById('drawerTotalDisplay');
     displayEl.textContent = finalTotal.toLocaleString() + '원';
@@ -871,11 +876,13 @@ async function saveDailyAccounting() {
         baemin = parseInt(document.getElementById('inpBaemin').value) || 0;
         yogiyo = parseInt(document.getElementById('inpYogiyo').value) || 0;
         coupang = parseInt(document.getElementById('inpCoupang').value) || 0;
-        totalSales = card + cash + transfer + baemin + yogiyo + coupang;
+        // [수정] 계좌이체(transfer)는 매출 합계에서 제외 (현금에 포함됨 or 관리용)
+        totalSales = card + cash + baemin + yogiyo + coupang; 
     } else {
         card = parseInt(document.getElementById('inpCard').value) || 0;
         gift = parseInt(document.getElementById('inpGift').value) || 0;
-        totalSales = card + cash + transfer + gift;
+        // [수정] 계좌이체(transfer)는 매출 합계에서 제외
+        totalSales = card + cash + gift;
     }
 
     const totalCost = food + meat + etc;
@@ -923,7 +930,8 @@ function loadHistoryTable() {
             let details = [];
             if(d.card) details.push(`💳카드:${d.card.toLocaleString()}`);
             if(d.cash) details.push(`💵현금:${d.cash.toLocaleString()}`);
-            if(d.transfer) details.push(`🏦이체:${d.transfer.toLocaleString()}`);
+            // [수정] 계좌이체는 보여주되, 매출 미포함임을 알 수 있게 (참고) 표시
+            if(d.transfer) details.push(`🏦이체(참고):${d.transfer.toLocaleString()}`);
             
             if (currentStore === 'yangeun') {
                 if(d.baemin) details.push(`배민:${d.baemin.toLocaleString()}`);
@@ -1228,7 +1236,9 @@ function renderDashboardStats() {
         });
     }
 
-    sales.total = sales.card + sales.cash + sales.transfer + sales.gift + sales.baemin + sales.yogiyo + sales.coupang;
+    // [수정] 계좌이체(transfer)는 매출 합계(total)에서 제외
+    sales.total = sales.card + sales.cash + sales.gift + sales.baemin + sales.yogiyo + sales.coupang;
+    
     const deliverySalesTotal = sales.baemin + sales.yogiyo + sales.coupang;
 
     const staffCost = getEstimatedStaffCost(monthStr);
@@ -1336,19 +1346,18 @@ function renderDashboardCharts(sales, totalCost, mData, staffCost, variableCostT
         else {
             const renderBar = (l, v, c) => v > 0 ? `<div class="bar-row"><div class="bar-label">${l}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max((v/sales.total)*100,1)}%; background:${c};"></div></div><div class="bar-value">${v.toLocaleString()}</div></div>` : '';
             
+            // [수정] 차트에서도 계좌이체 제거 (매출 아님)
             if (currentStore === 'yangeun') {
                 chartEl.innerHTML = `
                     ${renderBar('💳 카드', sales.card, '#42a5f5')}
                     ${renderBar('🛵 배민', sales.baemin, '#2ac1bc')}
                     ${renderBar('🛵 요기요', sales.yogiyo, '#fa0050')}
                     ${renderBar('🛵 쿠팡', sales.coupang, '#00a5ff')}
-                    ${renderBar('💵 현금', sales.cash, '#66bb6a')}
-                    ${renderBar('🏦 계좌', sales.transfer, '#ab47bc')}`;
+                    ${renderBar('💵 현금', sales.cash, '#66bb6a')}`;
             } else {
                 chartEl.innerHTML = `
                     ${renderBar('💳 카드', sales.card, '#42a5f5')}
                     ${renderBar('💵 현금', sales.cash, '#66bb6a')}
-                    ${renderBar('🏦 계좌', sales.transfer, '#ab47bc')}
                     ${renderBar('🎫 기타', sales.gift, '#ffa726')}`;
             }
         }
