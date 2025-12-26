@@ -748,49 +748,55 @@ async function generateAndSendBriefing() {
             return `0원 (본전)`;
         };
 
-        // [NEW] 비용 항목 표시 헬퍼 함수
-        // - 100만원 이상: 개별 항목으로 표시
-        // - 100만원 미만: '기타운영비(소액)'으로 합산 표시
+        // [NEW] 비용 항목 표시 헬퍼 함수 (수정됨: 금액 높은 순 정렬)
         const buildCostMessage = (data, storeName) => {
             const { items, sales } = data;
             let msg = '';
             
-            // 표시할 항목 정의 (순서대로 체크)
+            // 1. 항목 정의
             const costKeys = [
                 { key: 'meat', label: storeName === 'chogazip' ? '한강유통' : 'SPC/재료' },
                 { key: 'food', label: '삼시세끼' },
-                { key: 'liquor', label: '주류' },       // 분리 표시
-                { key: 'loan', label: '주류대출' },     // 분리 표시
+                { key: 'liquor', label: '주류' },
+                { key: 'loan', label: '주류대출' },
                 { key: 'staff', label: '인건비(예상)' },
                 { key: 'rent', label: '임대료(일할)' },
                 { key: 'delivery', label: '배달수수료' },
                 { key: 'utility', label: '관리/공과' }
             ];
 
+            // 2. 항목 분류 (고액 / 소액)
+            let highValueList = [];
             let smallCostTotal = 0;
-            // let smallItemsList = []; // (디버깅용) 어떤 항목이 묶였는지
 
-            // 항목별 금액 체크
             costKeys.forEach(({ key, label }) => {
                 const val = items[key] || 0;
                 if (val >= 1000000) {
-                    // 100만원 이상이면 개별 표시
-                    const pct = sales > 0 ? `(${(val / sales * 100).toFixed(1)}%)` : '';
-                    msg += `- ${label}: ${formatMoney(val)} ${pct}\n`;
+                    // 100만원 이상 -> 리스트에 추가 (나중에 정렬)
+                    highValueList.push({ label, val });
                 } else if (val > 0) {
-                    // 100만원 미만이면 합산
+                    // 100만원 미만 -> 합산
                     smallCostTotal += val;
-                    // smallItemsList.push(label);
                 }
             });
 
-            // 기타 잡비(etc)는 무조건 소액 합산에 포함
+            // 3. 기타 잡비(etc)는 무조건 소액 합산에 포함
             const etcVal = items.etc || 0;
             if (etcVal > 0) {
                 smallCostTotal += etcVal;
             }
 
-            // 소액 합산 결과 표시
+            // 4. 고액 항목 정렬 (금액 큰 순서대로 내림차순)
+            highValueList.sort((a, b) => b.val - a.val);
+
+            // 5. 메시지 생성
+            // 5-1. 고액 항목 출력
+            highValueList.forEach(item => {
+                const pct = sales > 0 ? `(${(item.val / sales * 100).toFixed(1)}%)` : '';
+                msg += `- ${item.label}: ${formatMoney(item.val)} ${pct}\n`;
+            });
+
+            // 5-2. 소액 합산 출력 (마지막에 표시)
             if (smallCostTotal > 0) {
                 msg += `- 기타운영비(소액): ${formatMoney(smallCostTotal)}\n`;
             }
