@@ -970,51 +970,10 @@ ${msgYang}
 
 cron.schedule('0 11 * * *', () => {
     console.log('🔔 [알림] 오전 11시 일일 브리핑 생성 중...');
-    sendDailyBriefing();
+    generateAndSendBriefing();
 }, {
     timezone: "Asia/Seoul"
 });
-
-function sendDailyBriefing() {
-    try {
-        const today = new Date();
-        const monthStr = today.toISOString().slice(0, 7); // YYYY-MM
-        
-        // 1. 데이터 읽기
-        const accChoga = readJson(getAccountingFile('chogazip'), { monthly: {}, daily: {} });
-        const accYang = readJson(getAccountingFile('yangeun'), { monthly: {}, daily: {} });
-
-        // 2. 이번 달 데이터 집계 (예상 순익 계산 로직 간소화)
-        const statsChoga = calculateMonthStats(accChoga, monthStr, today.getDate());
-        const statsYang = calculateMonthStats(accYang, monthStr, today.getDate());
-        
-        // 3. 메시지 작성
-        const message = `
-[📅 ${today.getMonth()+1}월 ${today.getDate()}일 경영 브리핑]
-
-🏠 초가짚
-- 현재매출: ${statsChoga.sales.toLocaleString()}원
-- 예상순익: ${statsChoga.profit.toLocaleString()}원 (${statsChoga.margin}%)
-
-🥘 양은이네
-- 현재매출: ${statsYang.sales.toLocaleString()}원
-- 예상순익: ${statsYang.profit.toLocaleString()}원 (${statsYang.margin}%)
-
-💰 통합 예상 순익
-- 합산매출: ${(statsChoga.sales + statsYang.sales).toLocaleString()}원
-- 합산순익: ${(statsChoga.profit + statsYang.profit).toLocaleString()}원
-        `.trim();
-
-        console.log("--------------------------------");
-        console.log(message);
-        console.log("--------------------------------");
-        
-        // [카카오톡/슬랙 전송 로직 위치]
-        sendToKakao(message); 
-    } catch (e) {
-        console.error('브리핑 생성 실패:', e);
-    }
-}
 
 // 간단 통계 계산 헬퍼
 // 2. (UPDATE) 통계 계산 함수 고도화 (인건비 및 상세 항목 포함)
