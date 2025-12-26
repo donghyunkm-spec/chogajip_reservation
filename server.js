@@ -717,6 +717,8 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
 // 2. (UPDATE) 브리핑 생성 및 전송 함수
 // server.js - generateAndSendBriefing 함수 전체 교체 또는 해당 부분 수정
 
+// server.js - generateAndSendBriefing 함수 교체
+
 async function generateAndSendBriefing() {
     try {
         const today = new Date();
@@ -738,39 +740,77 @@ async function generateAndSendBriefing() {
         const totalProfitPred = choga.profitPred + yang.profitPred;
         const totalProfitReal = choga.profitReal + yang.profitReal;
 
-        // 퍼센트 계산 헬퍼
-        const getPct = (val, total) => total > 0 ? `(${(val/total*100).toFixed(1)}%)` : '(0%)';
         const formatMoney = (n) => n.toLocaleString();
         
-        // [수정] 흑자/적자 텍스트 생성 헬퍼
         const getProfitText = (val) => {
             if (val > 0) return `📈 흑자: +${formatMoney(val)}원`;
-            if (val < 0) return `📉 적자: ${formatMoney(val)}원`; // 음수는 자동으로 -가 붙음
+            if (val < 0) return `📉 적자: ${formatMoney(val)}원`;
             return `0원 (본전)`;
         };
 
-        // 메시지 작성
+        // [NEW] 비용 항목 표시 헬퍼 함수
+        // - 100만원 이상: 개별 항목으로 표시
+        // - 100만원 미만: '기타운영비(소액)'으로 합산 표시
+        const buildCostMessage = (data, storeName) => {
+            const { items, sales } = data;
+            let msg = '';
+            
+            // 표시할 항목 정의 (순서대로 체크)
+            const costKeys = [
+                { key: 'meat', label: storeName === 'chogazip' ? '한강유통' : 'SPC/재료' },
+                { key: 'food', label: '삼시세끼' },
+                { key: 'liquor', label: '주류' },       // 분리 표시
+                { key: 'loan', label: '주류대출' },     // 분리 표시
+                { key: 'staff', label: '인건비(예상)' },
+                { key: 'rent', label: '임대료(일할)' },
+                { key: 'delivery', label: '배달수수료' },
+                { key: 'utility', label: '관리/공과' }
+            ];
+
+            let smallCostTotal = 0;
+            // let smallItemsList = []; // (디버깅용) 어떤 항목이 묶였는지
+
+            // 항목별 금액 체크
+            costKeys.forEach(({ key, label }) => {
+                const val = items[key] || 0;
+                if (val >= 1000000) {
+                    // 100만원 이상이면 개별 표시
+                    const pct = sales > 0 ? `(${(val / sales * 100).toFixed(1)}%)` : '';
+                    msg += `- ${label}: ${formatMoney(val)} ${pct}\n`;
+                } else if (val > 0) {
+                    // 100만원 미만이면 합산
+                    smallCostTotal += val;
+                    // smallItemsList.push(label);
+                }
+            });
+
+            // 기타 잡비(etc)는 무조건 소액 합산에 포함
+            const etcVal = items.etc || 0;
+            if (etcVal > 0) {
+                smallCostTotal += etcVal;
+            }
+
+            // 소액 합산 결과 표시
+            if (smallCostTotal > 0) {
+                msg += `- 기타운영비(소액): ${formatMoney(smallCostTotal)}\n`;
+            }
+            
+            return msg;
+        };
+
+        // 메시지 본문 작성
         const message = `
 [📅 ${today.getMonth()+1}월 ${today.getDate()}일 경영 브리핑]
 
 🏠 초가짚 (예상마진 ${(choga.sales>0?(choga.profitPred/choga.sales*100).toFixed(1):0)}%)
 ■ 매출: ${formatMoney(choga.sales)}원
 ■ 예상순익: ${formatMoney(choga.profitPred)}원
-- 한강유통: ${formatMoney(choga.items.meat)} ${getPct(choga.items.meat, choga.sales)}
-- 삼시세끼: ${formatMoney(choga.items.food)} ${getPct(choga.items.food, choga.sales)}
-- 임대료(일할): ${formatMoney(choga.items.rent)}
-- 인건비(예상): ${formatMoney(choga.items.staff)}
-- 관리/공과: ${formatMoney(choga.items.utility)}
-- 주류/대출: ${formatMoney(choga.items.liquor + choga.items.loan)}
+${buildCostMessage(choga, 'chogazip')}
 
 🥘 양은이네 (예상마진 ${(yang.sales>0?(yang.profitPred/yang.sales*100).toFixed(1):0)}%)
 ■ 매출: ${formatMoney(yang.sales)}원
 ■ 예상순익: ${formatMoney(yang.profitPred)}원
-- SPC/재료: ${formatMoney(yang.items.meat)} ${getPct(yang.items.meat, yang.sales)}
-- 삼시세끼: ${formatMoney(yang.items.food)} ${getPct(yang.items.food, yang.sales)}
-- 배달수수료: ${formatMoney(yang.items.delivery)} ${getPct(yang.items.delivery, yang.sales)}
-- 임대료(일할): ${formatMoney(yang.items.rent)}
-- 인건비(예상): ${formatMoney(yang.items.staff)}
+${buildCostMessage(yang, 'yangeun')}
 
 💰 통합 요약
 ■ 합산매출: ${formatMoney(totalSales)}원
@@ -790,10 +830,6 @@ async function generateAndSendBriefing() {
 }
 
 // [NEW] 특정 날짜의 근무자 명단 및 일일 인건비 메시지 생성 함수
-// server.js - getDailyScheduleMessage 함수 교체
-
-// server.js - getDailyScheduleMessage 함수 교체
-
 function getDailyScheduleMessage(store, dateObj) {
     const storeName = store === 'yangeun' ? '🥘 양은이네' : '🏠 초가짚';
     const file = getStaffFile(store);
