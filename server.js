@@ -964,11 +964,15 @@ ${msgYang}
     } catch (e) {
         console.error('❌ 근무표 전송 실패:', e);
     }
+}, {
+    timezone: "Asia/Seoul"
 });
 
 cron.schedule('0 11 * * *', () => {
     console.log('🔔 [알림] 오전 11시 일일 브리핑 생성 중...');
     sendDailyBriefing();
+}, {
+    timezone: "Asia/Seoul"
 });
 
 function sendDailyBriefing() {
