@@ -26,11 +26,8 @@ const DAY_KEYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 document.addEventListener('DOMContentLoaded', () => {
     document.title = `${storeNameKr} 관리자 모드`;
-    // 1. 타이틀 설정
-    document.title = `${storeNameKr} 관리자 모드`;
     
-    // 2. [NEW] 매장별 테마(CSS 클래스) 적용 (여기가 핵심!)
-    // body 태그에 theme-chogazip 또는 theme-yangeun 클래스를 강제로 주입합니다.
+    // 2. 매장별 테마 적용
     if (currentStore === 'yangeun') {
         document.body.classList.add('theme-yangeun');
         document.body.classList.remove('theme-chogazip');
@@ -39,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.remove('theme-yangeun');
     }
 
-    // 3. 헤더 텍스트 변경 (아이콘 추가로 구분감 UP)
+    // 3. 헤더 텍스트 변경
     const titleEl = document.getElementById('pageTitle');
     if(titleEl) {
         if (currentStore === 'yangeun') {
@@ -63,12 +60,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. 매장 전환 버튼 텍스트 설정
     initSwitchStoreButton();
 
-    // 2. [핵심] 로그인 유지 확인 (세션 스토리지 체크)
-    const savedUser = sessionStorage.getItem('staffUser');
-    if (savedUser) {
-        currentUser = JSON.parse(savedUser);
-        // 로그인 성공 처리 함수 재사용 (UI 갱신)
-        onLoginSuccess(currentUser); 
+    // ============================================================
+    // [수정됨] 로그인 유지 확인 (localStorage + 3시간 타임아웃 적용)
+    // ============================================================
+    const savedUserStr = localStorage.getItem('staffUser'); // sessionStorage -> localStorage로 변경
+    
+    if (savedUserStr) {
+        try {
+            const savedUser = JSON.parse(savedUserStr);
+            const now = new Date().getTime();
+            const threeHours = 3 * 60 * 60 * 1000; // 3시간 (밀리초 단위)
+
+            // 저장된 로그인 시간(loginTime)이 있고, 3시간이 지나지 않았는지 체크
+            if (savedUser.loginTime && (now - savedUser.loginTime < threeHours)) {
+                // 유효하면 로그인 유지
+                currentUser = savedUser;
+                onLoginSuccess(currentUser); 
+            } else {
+                // 3시간 지났으면 정보 삭제 (로그아웃)
+                console.log('⌛ 로그인 세션이 만료되었습니다. (3시간 경과)');
+                localStorage.removeItem('staffUser');
+                currentUser = null;
+            }
+        } catch (e) {
+            // 데이터가 깨졌을 경우 초기화
+            console.error('로그인 정보 파싱 오류', e);
+            localStorage.removeItem('staffUser');
+        }
     }
 });
 
@@ -647,10 +665,18 @@ async function tryLogin() {
         const data = await res.json();
         
         if (data.success) {
-            // [추가] 로그인 성공 시 세션에 저장 (브라우저 닫기 전까지 유지)
-            sessionStorage.setItem('staffUser', JSON.stringify(data));
+            // ============================================================
+            // [수정됨] 로그인 성공 시 localStorage에 저장 (시간 포함)
+            // ============================================================
+            const sessionData = {
+                ...data,
+                loginTime: new Date().getTime() // 현재 시간(타임스탬프) 추가
+            };
             
-            // 로그인 성공 UI 처리 호출
+            // sessionStorage 대신 localStorage 사용 (브라우저 꺼도 유지됨)
+            localStorage.setItem('staffUser', JSON.stringify(sessionData));
+            
+            // 로그인 성공 UI 처리 함수 호출
             onLoginSuccess(data);
             
             closeLoginModal();
