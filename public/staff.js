@@ -938,39 +938,87 @@ async function saveDailyAccounting() {
     } catch(e) { alert('저장 실패: 서버 오류'); }
 }
 
-function loadHistoryTable() {
+// [staff.js]
+
+// 1. [NEW] 필터 적용 버튼 클릭 시 실행
+function applyHistoryFilter() {
+    const filterKey = document.getElementById('historyFilterSelect').value;
+    loadHistoryTable(filterKey);
+}
+
+// 2. [UPDATE] 기존 loadHistoryTable 함수 교체
+function loadHistoryTable(filterKey = 'all') {
     const monthStr = getMonthStr(currentDashboardDate); 
     const tbody = document.getElementById('historyTableBody');
+    const summaryDiv = document.getElementById('filterResultSummary'); // 요약 박스
+    
     if(!tbody) return;
     tbody.innerHTML = '';
+    
+    // 필터링된 항목의 총합을 계산하기 위한 변수
+    let filteredSum = 0;
+    let filteredCount = 0;
+    
+    // 레이블 맵핑 (화면 표시용)
+    const labelMap = {
+        'card': '💳 카드', 'cash': '💵 현금', 'baemin': '🛵 배민', 
+        'yogiyo': '🛵 요기요', 'coupang': '🛵 쿠팡', 'gift': '🎫 기타',
+        'meat': (currentStore === 'yangeun' ? '🍞 SPC' : '🥩 고기'),
+        'food': '🥬 삼시세끼', 'etc': '🍦 잡비'
+    };
 
     const rows = []; 
 
     if (accountingData.daily) {
         Object.keys(accountingData.daily).forEach(date => {
-            if (!date.startsWith(monthStr)) return;
+            if (!date.startsWith(monthStr)) return; // 현재 월 데이터만
+            
             const d = accountingData.daily[date];
+            
+            // === [핵심 로직] 필터링 수행 ===
+            if (filterKey !== 'all') {
+                const targetValue = d[filterKey] || 0;
+                // 해당 항목의 값이 0이면 리스트에서 제외 (검증할 필요 없음)
+                if (targetValue === 0) return;
+                
+                // 값이 있으면 합계에 누적
+                filteredSum += targetValue;
+                filteredCount++;
+            }
+            // ============================
+
             const totalSales = (d.sales||0);
             const totalCost = (d.cost||0);
             
+            // 상세 내역 텍스트 생성
             let details = [];
-            if(d.card) details.push(`💳카드:${d.card.toLocaleString()}`);
-            if(d.cash) details.push(`💵현금:${d.cash.toLocaleString()}`);
-            // [수정] 계좌이체는 보여주되, 매출 미포함임을 알 수 있게 (참고) 표시
-            if(d.transfer) details.push(`🏦이체(참고):${d.transfer.toLocaleString()}`);
             
-            if (currentStore === 'yangeun') {
-                if(d.baemin) details.push(`배민:${d.baemin.toLocaleString()}`);
-                if(d.yogiyo) details.push(`요기:${d.yogiyo.toLocaleString()}`);
-                if(d.coupang) details.push(`쿠팡:${d.coupang.toLocaleString()}`);
+            // 필터링 중이라면, 해당 항목을 강조해서 보여줌
+            if (filterKey !== 'all') {
+                const val = d[filterKey] || 0;
+                const label = labelMap[filterKey] || filterKey;
+                // 강조 스타일 적용
+                details.push(`<span style="background:#fff9c4; color:#f57f17; padding:2px 4px; font-weight:bold; border-radius:3px; border:1px solid #fbc02d;">${label}: ${val.toLocaleString()}</span>`);
             } else {
-                if(d.gift) details.push(`🎫기타:${d.gift.toLocaleString()}`);
+                // 전체 보기일 때는 기존 로직 유지
+                if(d.card) details.push(`💳카드:${d.card.toLocaleString()}`);
+                if(d.cash) details.push(`💵현금:${d.cash.toLocaleString()}`);
+                if(d.transfer) details.push(`🏦이체:${d.transfer.toLocaleString()}`);
+                
+                if (currentStore === 'yangeun') {
+                    if(d.baemin) details.push(`배민:${d.baemin.toLocaleString()}`);
+                    if(d.yogiyo) details.push(`요기:${d.yogiyo.toLocaleString()}`);
+                    if(d.coupang) details.push(`쿠팡:${d.coupang.toLocaleString()}`);
+                } else {
+                    if(d.gift) details.push(`🎫기타:${d.gift.toLocaleString()}`);
+                }
+                
+                const meatName = (currentStore === 'yangeun') ? 'SPC' : '고기';
+                if(d.meat) details.push(`${meatName}:${d.meat.toLocaleString()}`);
+                if(d.food) details.push(`유통:${d.food.toLocaleString()}`);
+                if(d.etc) details.push(`잡비:${d.etc.toLocaleString()}`);
             }
-            
-            const meatName = (currentStore === 'yangeun') ? 'SPC' : '고기';
-            if(d.meat) details.push(`${meatName}:${d.meat.toLocaleString()}`);
-            if(d.food) details.push(`유통:${d.food.toLocaleString()}`);
-            if(d.etc) details.push(`잡비:${d.etc.toLocaleString()}`);
+
             if(d.note) details.push(`📝"${d.note}"`);
 
             rows.push({
@@ -981,49 +1029,67 @@ function loadHistoryTable() {
         });
     }
 
-    if (accountingData.monthly && accountingData.monthly[monthStr]) {
+    // [월 고정비 표시] - 전체 보기일 때만 표시 (필터링 중일 땐 헷갈리므로 제외하거나 필요시 추가)
+    if (filterKey === 'all' && accountingData.monthly && accountingData.monthly[monthStr]) {
         const m = accountingData.monthly[monthStr];
         const fixedTotal = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + (m.beverage||0) + (m.etc_fixed||0)
                          + (m.disposable||0) + (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0) + (m.liquorLoan||0)
                          + (m.deliveryFee||0);
         
         if (fixedTotal > 0) {
-            let fDetails = [];
-            if(m.rent) fDetails.push(`🏠월세:${m.rent.toLocaleString()}`);
-            if(m.utility) fDetails.push(`💡관리:${m.utility.toLocaleString()}`);
-            if(m.liquor) fDetails.push(`🍺주류:${m.liquor.toLocaleString()}`);
-            
-            const [year, month] = monthStr.split('-').map(Number);
-            const lastDay = new Date(year, month, 0).getDate(); 
             rows.push({
-                date: `${monthStr}-${lastDay}`, dayStr: `${lastDay}일 (고정비)`,
+                date: `${monthStr}-99`, dayStr: `월말 고정`, // 맨 뒤로 보내기 위해 99
                 sales: 0, cost: fixedTotal,
-                desc: `<span style="color:#00796b; font-weight:bold;">[월 고정]</span> ` + fDetails.join('/'),
+                desc: `<span style="color:#00796b; font-weight:bold;">[월 고정비 합계]</span>`,
                 type: 'fixed'
             });
         }
     }
 
-    if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#999;">데이터가 없습니다.</td></tr>'; return; }
+    // [UI 업데이트] 결과 없음 처리
+    if (rows.length === 0) { 
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#999;">해당 내역이 없습니다.</td></tr>'; 
+        if(summaryDiv) summaryDiv.style.display = 'none';
+        return; 
+    }
 
+    // [UI 업데이트] 요약 박스 표시 (필터 모드일 때만)
+    if (filterKey !== 'all' && summaryDiv) {
+        summaryDiv.style.display = 'block';
+        const label = labelMap[filterKey] || filterKey;
+        const [y, m] = monthStr.split('-');
+        summaryDiv.innerHTML = `
+            <div>✅ ${m}월 [${label}] 검증 결과</div>
+            <div style="font-size:18px; margin-top:5px;">총 ${filteredCount}건 / 합계: <span style="font-weight:900; text-decoration:underline;">${filteredSum.toLocaleString()}원</span></div>
+            <div style="font-size:11px; font-weight:normal; margin-top:2px;">(앱/영수증 합계와 일치하는지 확인하세요)</div>
+        `;
+    } else if (summaryDiv) {
+        summaryDiv.style.display = 'none';
+    }
+
+    // 날짜 역순 정렬
     rows.sort((a,b) => b.date.localeCompare(a.date));
 
+    // 테이블 렌더링
     rows.forEach(r => {
         let actionBtn = '';
         if (r.type === 'daily') {
             const btnStyle = "background:#607d8b; color:white; border:none; border-radius:3px; padding:5px 10px; cursor:pointer; font-size:12px;";
+            // 필터링 중일 때 수정 버튼 누르면 해당 날짜로 이동하면서 전체보기로 바뀌는게 덜 헷갈림
             actionBtn = `<button onclick="editHistoryDate('${r.date}')" style="${btnStyle}">✏️ 수정</button>`;
         } else {
              const btnStyle = "background:#00796b; color:white; border:none; border-radius:3px; padding:5px 10px; cursor:pointer; font-size:12px;";
              actionBtn = `<button onclick="switchAccSubTab('acc-monthly')" style="${btnStyle}">⚙️ 설정</button>`;
         }
+        
         const rowStyle = `border-bottom:1px solid #eee; ${r.type === 'fixed' ? 'background:#e0f7fa;' : ''}`;
+        
         tbody.innerHTML += `
             <tr style="${rowStyle}">
                 <td style="text-align:center;"><strong>${r.dayStr}</strong></td>
                 <td style="color:#1976D2; font-weight:bold; text-align:right;">${r.sales.toLocaleString()}</td>
                 <td style="color:#d32f2f; text-align:right;">${r.cost.toLocaleString()}</td>
-                <td style="font-size:11px; color:#555; word-break:keep-all; line-height:1.4;">${r.desc}</td>
+                <td style="font-size:12px; color:#555; word-break:keep-all; line-height:1.4;">${r.desc}</td>
                 <td style="text-align:center;">${actionBtn}</td>
             </tr>`;
     });
