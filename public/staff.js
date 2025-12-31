@@ -1667,6 +1667,13 @@ function renderDailyView() {
     let dailyWorkers = [];
     
     staffList.forEach(staff => {
+        // [입퇴사 체크] 해당 날짜가 직원의 근무 기간 내인지 확인 (문자열 직접 비교)
+        // 입사일 체크: 입사일 이전이면 제외
+        if (staff.startDate && dateStr < staff.startDate) return;
+        
+        // 퇴사일 체크: 퇴사일 이후면 제외
+        if (staff.endDate && dateStr > staff.endDate) return;
+        
         let isWorking = false;
         let workTime = staff.time;
         let isException = false;
@@ -1813,6 +1820,13 @@ function renderWeeklyView() {
 
         let dayWorkers = [];
         staffList.forEach(s => {
+            // [입퇴사 체크] 해당 날짜가 직원의 근무 기간 내인지 확인 (문자열 직접 비교)
+            // 입사일 체크: 입사일 이전이면 제외
+            if (s.startDate && dateStr < s.startDate) return;
+            
+            // 퇴사일 체크: 퇴사일 이후면 제외
+            if (s.endDate && dateStr > s.endDate) return;
+            
             let isWorking = false;
             let workTime = s.time;
             let isException = false;
@@ -1979,6 +1993,13 @@ function renderMonthlyView() {
         
         let count = 0;
         staffList.forEach(staff => {
+            // [입퇴사 체크] 해당 날짜가 직원의 근무 기간 내인지 확인 (문자열 직접 비교)
+            // 입사일 체크: 입사일 이전이면 제외
+            if (staff.startDate && dateStr < staff.startDate) return;
+            
+            // 퇴사일 체크: 퇴사일 이후면 제외
+            if (staff.endDate && dateStr > staff.endDate) return;
+            
             let isWorking = false;
             // 예외처리 로직 (날짜별)
             if (staff.exceptions && staff.exceptions[dateStr]) {
@@ -1986,7 +2007,7 @@ function renderMonthlyView() {
             } else {
                 if (staff.workDays.includes(dayKey)) isWorking = true;
             }
-            // 월별 뷰는 간단하게 근무 여부만 카운트 (상세 입퇴사 로직은 생략하거나 필요시 추가)
+            // 월별 뷰는 간단하게 근무 여부만 카운트
             if(isWorking) count++;
         });
         
