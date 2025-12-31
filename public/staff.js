@@ -2320,52 +2320,94 @@ async function saveTempWorker() {
 
     const timeStr = `${sh}:${sm}~${eh}:${em}`;
     
-    // 현재 선택된 날짜
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const day = String(currentDate.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
-    // 1. 기존 직원 리스트에서 이름이 같은 사람이 있는지 확인
+    // 1. 정확히 같은 이름이 있는지 확인
     const existingStaff = staffList.find(s => s.name === name);
 
     if (existingStaff) {
-        // 2-A. 존재하면: 해당 직원의 오늘 날짜 '근무(work)' 예외로 등록 (기존 ID 재사용)
-        if(!confirm(`${name}님은 이미 등록된 직원입니다.\n기존 정보에 오늘 근무를 추가하시겠습니까?`)) return;
+        // 2. 동일 이름 발견 → 확인 창
+        const isExisting = confirm(
+            `⚠️ "${name}"님과 동일한 이름이 이미 있습니다.\n\n` +
+            `✅ [확인] → 기존 인원에 오늘 근무 추가\n` +
+            `❌ [취소] → 동명이인으로 별도 등록 (${name}1, ${name}2...)`
+        );
         
-        await callExceptionApi({ 
-            id: existingStaff.id, 
-            date: dateStr, 
-            type: 'work', 
-            time: timeStr 
-        });
-        alert('기존 직원 근무 일정에 추가되었습니다.');
-        closeTempModal();
-        
-    } else {
-        // 2-B. 없으면: 새로운 임시 직원 생성 (기존 로직)
-        try {
-            const res = await fetch('/api/staff/temp', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    name: name, 
-                    date: dateStr, 
-                    time: timeStr, 
-                    salary: salary, 
-                    actor: currentUser.name, 
-                    store: currentStore 
-                })
+        if (isExisting) {
+            // 2-A. "예" (확인) → 기존 직원에 오늘 근무 추가
+            await callExceptionApi({ 
+                id: existingStaff.id, 
+                date: dateStr, 
+                type: 'work', 
+                time: timeStr 
             });
-            const json = await res.json();
-            if (json.success) { 
-                alert('임시 근무자가 등록되었습니다.');
-                closeTempModal();
-                loadStaffData(); 
-            } else {
-                alert('등록 실패');
+            alert('✅ 기존 직원 근무 일정에 추가되었습니다.');
+            closeTempModal();
+            return;
+            
+        } else {
+            // 2-B. "아니요" (취소) → 동명이인 처리 (이름에 숫자 붙이기)
+            const sameNameList = staffList.filter(s => 
+                s.name === name || s.name.match(new RegExp(`^${name}\\d+$`))
+            );
+            
+            // 가장 큰 숫자 찾기
+            let maxNum = 0;
+            sameNameList.forEach(s => {
+                const match = s.name.match(/(\d+)$/);
+                if (match) {
+                    maxNum = Math.max(maxNum, parseInt(match[1]));
+                } else if (s.name === name) {
+                    maxNum = Math.max(maxNum, 0); // 숫자 없는 기본 이름
+                }
+            });
+            
+            // 새 이름 생성
+            const newName = `${name}${maxNum + 1}`;
+            
+            if (!confirm(`동명이인으로 "${newName}"(으)로 등록하시겠습니까?`)) {
+                return;
             }
-        } catch(e) { console.error(e); alert('서버 통신 오류'); }
+            
+            // 새로운 임시 직원 생성 (이름만 변경)
+            await createNewTempWorker(newName, dateStr, timeStr, salary);
+            return;
+        }
+    }
+
+    // 3. 같은 이름 없음 → 바로 새 직원 생성
+    await createNewTempWorker(name, dateStr, timeStr, salary);
+}
+
+// [신규] 새 임시 직원 생성 함수 (중복 제거)
+async function createNewTempWorker(name, dateStr, timeStr, salary) {
+    try {
+        const res = await fetch('/api/staff/temp', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                name: name, 
+                date: dateStr, 
+                time: timeStr, 
+                salary: salary, 
+                actor: currentUser.name, 
+                store: currentStore 
+            })
+        });
+        const json = await res.json();
+        if (json.success) { 
+            alert('✅ 임시 근무자가 등록되었습니다.');
+            closeTempModal();
+            loadStaffData(); 
+        } else {
+            alert('❌ 등록 실패');
+        }
+    } catch(e) { 
+        console.error(e); 
+        alert('❌ 서버 통신 오류'); 
     }
 }
 
