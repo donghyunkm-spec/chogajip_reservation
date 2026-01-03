@@ -13,6 +13,7 @@ let currentWeekStartDate = new Date();
 let accountingData = { daily: {}, monthly: {} };
 let currentAccDate = new Date().toISOString().split('T')[0];
 let currentDashboardDate = new Date(); // 가계부 조회 기준 월
+let currentUnifiedDate = new Date(); // 통합분석 조회 기준 월
 let prepayData = { customers: {}, logs: [] }; 
 
 // 현재 매장 정보 파싱
@@ -265,8 +266,14 @@ function switchUnifiedSubTab(subId, btn) {
 
 function updateUnifiedView() {
     const mode = document.getElementById('unifiedStoreSelect').value;
-    const today = new Date(); 
-    const monthStr = getMonthStr(today); 
+    const today = currentUnifiedDate; 
+    const monthStr = getMonthStr(today);
+    
+    // 제목 업데이트
+    const titleEl = document.getElementById('unifiedMonthTitle');
+    if (titleEl) {
+        titleEl.textContent = `${today.getFullYear()}년 ${today.getMonth() + 1}월`;
+    } 
     
     // 데이터셋 준비
     const datasets = [];
@@ -756,6 +763,17 @@ function changeAccMonth(delta) {
 function resetAccMonth() {
     currentDashboardDate = new Date();
     loadAccountingData();
+}
+
+// 통합분석 월 이동 함수
+function changeUnifiedMonth(delta) {
+    currentUnifiedDate.setMonth(currentUnifiedDate.getMonth() + delta);
+    loadUnifiedData(); 
+}
+
+function resetUnifiedMonth() {
+    currentUnifiedDate = new Date();
+    loadUnifiedData();
 }
 
 async function loadAccountingData() {
@@ -1482,6 +1500,30 @@ function renderManageList() {
     list.innerHTML = '';
     
     const isAdmin = currentUser && currentUser.role === 'admin';
+    
+    // 중복 직원 감지 (같은 이름의 직원이 여러 명인 경우)
+    const nameCount = {};
+    staffList.forEach(s => {
+        nameCount[s.name] = (nameCount[s.name] || 0) + 1;
+    });
+    
+    // 중복 직원 병합 버튼 (사장님 전용)
+    if (isAdmin) {
+        const duplicates = Object.keys(nameCount).filter(name => nameCount[name] > 1);
+        if (duplicates.length > 0) {
+            list.innerHTML += `
+                <div style="background:#fff3cd; border:2px solid #ffc107; padding:15px; border-radius:8px; margin-bottom:20px;">
+                    <h4 style="color:#856404; margin:0 0 10px 0;">⚠️ 중복 직원 감지됨</h4>
+                    <p style="font-size:13px; color:#856404; margin-bottom:10px;">
+                        같은 이름의 직원이 여러 개 등록되어 있습니다: <strong>${duplicates.join(', ')}</strong>
+                    </p>
+                    <button onclick="showMergeStaffModal()" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                        🔧 중복 직원 병합하기
+                    </button>
+                </div>
+            `;
+        }
+    }
 
     staffList.forEach(s => {
         const daysStr = s.workDays.map(d => DAY_MAP[d]).join(',');
@@ -1571,6 +1613,96 @@ async function deleteStaff(id) {
     await fetch(`/api/staff/${id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });
     loadStaffData();
     if(currentUser.role === 'admin') loadLogs();
+}
+
+// 중복 직원 병합 모달 열기
+function showMergeStaffModal() {
+    const nameCount = {};
+    staffList.forEach(s => {
+        nameCount[s.name] = (nameCount[s.name] || 0) + 1;
+    });
+    
+    const duplicates = Object.keys(nameCount).filter(name => nameCount[name] > 1);
+    
+    if (duplicates.length === 0) {
+        alert('중복된 직원이 없습니다.');
+        return;
+    }
+    
+    let html = `
+        <div style="max-height:400px; overflow-y:auto;">
+            <p style="font-size:13px; color:#666; margin-bottom:15px;">
+                같은 이름의 직원들을 하나로 병합합니다. 병합 후 첫 번째 직원만 남고 나머지는 삭제됩니다.
+            </p>
+    `;
+    
+    duplicates.forEach(name => {
+        const sameNameStaff = staffList.filter(s => s.name === name);
+        html += `
+            <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #dee2e6;">
+                <h4 style="margin:0 0 10px 0; color:#495057;">👤 ${name} (${sameNameStaff.length}명)</h4>
+        `;
+        
+        sameNameStaff.forEach((s, idx) => {
+            html += `
+                <div style="background:white; padding:10px; border-radius:5px; margin-bottom:5px; font-size:12px;">
+                    ${idx === 0 ? '✅ ' : '❌ '}<strong>ID: ${s.id}</strong> | 
+                    근무시간: ${s.time} | 
+                    근무요일: ${s.workDays.map(d => DAY_MAP[d]).join(',')} |
+                    ${s.salary ? '급여: ' + s.salary.toLocaleString() + '원' : '급여 미설정'}
+                </div>
+            `;
+        });
+        
+        html += `
+                <button onclick="mergeStaffByName('${name}')" style="width:100%; background:#dc3545; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; margin-top:10px;">
+                    🔧 ${name} 병합 (첫 번째만 남기고 나머지 삭제)
+                </button>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    document.getElementById('mergeModalContent').innerHTML = html;
+    document.getElementById('mergeModalOverlay').style.display = 'flex';
+}
+
+function closeMergeModal() {
+    document.getElementById('mergeModalOverlay').style.display = 'none';
+}
+
+// 같은 이름의 직원들을 병합 (첫 번째만 남기고 나머지 삭제)
+async function mergeStaffByName(name) {
+    const sameNameStaff = staffList.filter(s => s.name === name);
+    
+    if (sameNameStaff.length < 2) {
+        alert('병합할 직원이 부족합니다.');
+        return;
+    }
+    
+    const keepStaff = sameNameStaff[0];
+    const deleteStaffList = sameNameStaff.slice(1);
+    
+    const confirmMsg = `${name} 직원 ${sameNameStaff.length}명 중 첫 번째(ID: ${keepStaff.id})만 남기고 ${deleteStaffList.length}명을 삭제하시겠습니까?`;
+    
+    if (!confirm(confirmMsg)) return;
+    
+    try {
+        // 나머지 직원들 삭제
+        for (const staff of deleteStaffList) {
+            await fetch(`/api/staff/${staff.id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { 
+                method: 'DELETE' 
+            });
+        }
+        
+        alert(`✅ ${name} 직원 병합 완료! ${deleteStaffList.length}명 삭제됨`);
+        closeMergeModal();
+        loadStaffData();
+        if(currentUser.role === 'admin') loadLogs();
+    } catch(e) {
+        alert('병합 중 오류가 발생했습니다: ' + e.message);
+    }
 }
 
 async function processBulkText() {
@@ -2506,28 +2638,53 @@ async function loadAccountingLogs() {
 async function downloadAllData() {
     if (!currentUser || currentUser.role !== 'admin') { alert("사장님만 가능한 기능입니다."); return; }
 
-    if (!confirm(`현재 매장(${currentStore})의 모든 데이터를 다운로드하시겠습니까?\n(예약, 직원, 매출, 선결제, 로그 포함)`)) return;
+    if (!confirm(`현재 매장(${currentStore})의 모든 데이터를 파일별로 다운로드하시겠습니까?\n(staff, accounting, prepayments, logs 각각 별도 파일)`)) return;
 
     try {
         const res = await fetch(`/api/backup?store=${currentStore}`);
         const json = await res.json();
 
         if (json.success) {
-            const dataStr = JSON.stringify(json.data, null, 2);
+            const data = json.data;
             const date = new Date();
             const dateStr = date.getFullYear() + String(date.getMonth() + 1).padStart(2, '0') + String(date.getDate()).padStart(2, '0');
-            const fileName = `${currentStore}_backup_${dateStr}.json`;
-
-            const blob = new Blob([dataStr], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            alert("다운로드가 완료되었습니다.\nPC의 '다운로드' 폴더를 확인하세요.");
+            
+            // 각 데이터를 별도 파일로 다운로드
+            const files = [
+                { name: 'staff', data: data.staff, desc: '직원 데이터' },
+                { name: 'accounting', data: data.accounting, desc: '회계 데이터' },
+                { name: 'prepayments', data: data.prepayments, desc: '선결제 데이터' },
+                { name: 'logs', data: data.logs, desc: '변경 이력' }
+            ];
+            
+            let downloadCount = 0;
+            
+            for (const file of files) {
+                const dataStr = JSON.stringify(file.data, null, 2);
+                const fileName = `${currentStore}_${file.name}_${dateStr}.json`;
+                
+                const blob = new Blob([dataStr], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                downloadCount++;
+                
+                // 파일 간 다운로드 간격 (브라우저 제한 회피)
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            alert(`✅ ${downloadCount}개 파일 다운로드 완료!\n\n다운로드된 파일:\n` +
+                  files.map(f => `- ${currentStore}_${f.name}_${dateStr}.json`).join('\n') +
+                  `\n\nPC의 '다운로드' 폴더를 확인하세요.`);
         } else alert("백업 데이터 생성 실패");
-    } catch (e) { console.error(e); alert("서버 통신 오류"); }
+    } catch (e) { 
+        console.error(e); 
+        alert("서버 통신 오류: " + e.message); 
+    }
 }

@@ -320,6 +320,20 @@
                 <label>근무 시간 (예: 18:00~23:00)</label>
                 <input type="text" id="editTime">
             </div>
+
+    <!-- 중복 직원 병합 모달 -->
+    <div id="mergeModalOverlay" class="modal-overlay">
+        <div class="modal-box" style="max-width:600px;">
+            <h2>🔧 중복 직원 병합</h2>
+            <div id="mergeModalContent"></div>
+            <div class="modal-actions">
+                <button onclick="closeMergeModal()" style="background:#6c757d; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; width:100%;">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
             <div style="background:#fff3e0; padding:10px; border-radius:5px; margin-bottom:15px; margin-top:10px;">
                 <h4 style="margin:0 0 10px 0; font-size:13px; color:#ef6c00;">📅 입/퇴사 관리 (급여 계산용)</h4>
                 <div class="input-group-row"> 
@@ -570,6 +584,16 @@
         </div>
 
         <div id="unified-content" class="tab-content">
+            <!-- 월 이동 네비게이션 추가 -->
+            <div class="accounting-header-nav">
+                <button onclick="changeUnifiedMonth(-1)" class="nav-btn">◀ 전월</button>
+                <div class="current-month-display">
+                    <h2 id="unifiedMonthTitle" style="margin:0;">2024년 12월</h2>
+                    <button onclick="resetUnifiedMonth()" class="reset-btn-mini">이번 달로 이동</button>
+                </div>
+                <button onclick="changeUnifiedMonth(1)" class="nav-btn">익월 ▶</button>
+            </div>
+            
             <div class="accounting-card" style="border-top: 4px solid #2e7d32;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
                     <h2 style="color:#1b5e20; margin:0;">📊 통합 현황판</h2>
@@ -1139,7 +1163,7 @@
                     <h2>📜 근무표 및 데이터 변경 이력</h2>
                     
                     <button id="adminBackupBtn" onclick="downloadAllData()" style="display:none; background:#2e7d32; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
-                        💾 전체 데이터 다운로드 (백업)
+                        💾 파일별 백업 다운로드 (4개 파일)
                     </button>
                 </div>
 
