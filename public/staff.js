@@ -2285,15 +2285,19 @@ function goToDailyDetail(year, month, day) {
 // 7. 기타 기능 (급여/로그/예외처리)
 // ==========================================
 
+// [수정] 현재 선택된 월(currentManageDate)을 기준으로 급여 계산
 function calculateMonthlySalary() {
-    const targetDate = currentManageDate;
-    const year = now.getFullYear();
-    const month = now.getMonth(); 
-
-    // 모달 제목 업데이트 (어떤 달의 급여인지 표시)
+    // 1. 기준 날짜 설정 (현재 보고 있는 달)
+    const targetDate = currentManageDate; 
+    
+    // [수정 포인트] now 대신 targetDate 사용
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth(); // 0 ~ 11
+    
+    // 모달 제목 업데이트
     const modalTitle = document.querySelector('#salaryModal h2');
     if(modalTitle) modalTitle.textContent = `💰 ${year}년 ${month + 1}월 예상 급여`;
-    
+
     const lastDayObj = new Date(year, month + 1, 0);
     const totalDaysInMonth = lastDayObj.getDate(); 
     const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -2301,26 +2305,31 @@ function calculateMonthlySalary() {
     let salaryReport = [];
 
     staffList.forEach(s => {
+        // 입/퇴사일 체크를 위한 날짜 객체 변환
         const sDate = s.startDate ? new Date(s.startDate) : null;
         const eDate = s.endDate ? new Date(s.endDate) : null;
         
-        const isEmployedAt = (targetDate) => {
-            const t = new Date(targetDate); t.setHours(0,0,0,0);
+        // 해당 날짜(checkDate)에 재직 중인지 확인하는 함수
+        const isEmployedAt = (checkDate) => {
+            const t = new Date(checkDate); t.setHours(0,0,0,0);
             if (sDate) { const start = new Date(sDate); start.setHours(0,0,0,0); if (t < start) return false; }
             if (eDate) { const end = new Date(eDate); end.setHours(0,0,0,0); if (t > end) return false; }
             return true;
         };
 
+        // 1. 월급제 계산
         if (s.salaryType === 'monthly') {
             let employedDays = 0;
             let statusText = '만근';
 
+            // 해당 월의 1일부터 말일까지 루프
             for (let d = 1; d <= totalDaysInMonth; d++) {
                 const currentDay = new Date(year, month, d);
                 if (isEmployedAt(currentDay)) employedDays++;
             }
 
             let finalPay = s.salary || 0;
+            // 만근이 아니면 일할 계산
             if (employedDays < totalDaysInMonth) {
                 finalPay = Math.floor((s.salary / totalDaysInMonth) * employedDays);
                 statusText = `${employedDays}일 재직 (일할)`;
@@ -2330,6 +2339,7 @@ function calculateMonthlySalary() {
             return;
         }
 
+        // 2. 시급제 계산
         let totalHours = 0;
         let workCount = 0;
         
@@ -2338,20 +2348,26 @@ function calculateMonthlySalary() {
             const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             const dayKey = dayMap[currentDate.getDay()];
             
+            // 재직 기간이 아니면 스킵
             if (!isEmployedAt(currentDate)) continue;
 
             let isWorking = false;
             let timeStr = s.time;
 
+            // 예외 근무(대타, 휴무) 우선 적용
             if (s.exceptions && s.exceptions[dateStr]) {
                 const ex = s.exceptions[dateStr];
                 if (ex.type === 'work') { isWorking = true; timeStr = ex.time; }
                 else if (ex.type === 'off') { isWorking = false; }
             } else {
+                // 고정 근무 요일 확인
                 if (s.workDays.includes(dayKey)) isWorking = true;
             }
 
-            if (isWorking) { workCount++; totalHours += calculateDuration(timeStr); }
+            if (isWorking) { 
+                workCount++; 
+                totalHours += calculateDuration(timeStr); 
+            }
         }
 
         salaryReport.push({
@@ -2361,22 +2377,26 @@ function calculateMonthlySalary() {
         });
     });
 
+    // 결과 렌더링
     const tbody = document.getElementById('salaryTableBody');
-    tbody.innerHTML = '';
-    let totalAll = 0;
-    
-    salaryReport.forEach(r => {
-        totalAll += r.amount;
-        tbody.innerHTML += `
-            <tr>
-                <td>${r.name}${(r.workCount.includes('일할')) ? '<br><span style="font-size:10px; color:red;">(중도 입/퇴사)</span>' : ''}</td>
-                <td><span class="badge" style="background:${r.type === '월급'?'#28a745':'#17a2b8'}; color:white; padding:3px 6px; border-radius:4px; font-size:11px;">${r.type}</span></td>
-                <td style="font-size:12px;">${r.workCount}<br>${r.type==='시급' ? '('+r.totalHours+')' : ''}</td>
-                <td style="text-align:right; font-weight:bold;">${r.amount.toLocaleString()}원</td>
-            </tr>`;
-    });
-    document.getElementById('totalSalaryAmount').textContent = `총 지출 예상: ${totalAll.toLocaleString()}원`;
-    document.getElementById('salaryModal').style.display = 'flex';
+    if(tbody) {
+        tbody.innerHTML = '';
+        let totalAll = 0;
+        
+        salaryReport.forEach(r => {
+            totalAll += r.amount;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${r.name}${(r.workCount.includes('일할')) ? '<br><span style="font-size:10px; color:red;">(중도 입/퇴사)</span>' : ''}</td>
+                    <td><span class="badge" style="background:${r.type === '월급'?'#28a745':'#17a2b8'}; color:white; padding:3px 6px; border-radius:4px; font-size:11px;">${r.type}</span></td>
+                    <td style="font-size:12px;">${r.workCount}<br>${r.type==='시급' ? '('+r.totalHours+')' : ''}</td>
+                    <td style="text-align:right; font-weight:bold;">${r.amount.toLocaleString()}원</td>
+                </tr>`;
+        });
+        const totalEl = document.getElementById('totalSalaryAmount');
+        if(totalEl) totalEl.textContent = `총 지출 예상: ${totalAll.toLocaleString()}원`;
+        document.getElementById('salaryModal').style.display = 'flex';
+    }
 }
 
 function closeSalaryModal() { document.getElementById('salaryModal').style.display = 'none'; }
