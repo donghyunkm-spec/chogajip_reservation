@@ -672,7 +672,8 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
     const m = (accData.monthly && accData.monthly[monthStr]) ? accData.monthly[monthStr] : {};
     const rent = m.rent || 0;
     const utility = (m.utility||0) + (m.gas||0) + (m.foodWaste||0) + (m.tableOrder||0);
-    const liquor = (m.liquor||0) + (m.beverage||0);
+    const makgeolli = m.makgeolli || 0;
+    const liquor = (m.liquor||0) + (m.beverage||0) + makgeolli;
     const liquorLoan = m.liquorLoan || 0;
     const delivery = m.deliveryFee || 0;
     const etcFixed = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
@@ -1005,7 +1006,7 @@ function calculateMonthStats(accountingData, staffData, monthStr, currentDay) {
     const totalStaffCost = calculateServerStaffCost(staffData, monthStr);
 
     // 고정비 합계 (인건비 제외한 순수 고정비)
-    const fixedItemsTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + 
+    const fixedItemsTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.makgeolli||0) +
                             (mData.liquor||0) + (mData.beverage||0) + (mData.etc_fixed||0) + 
                             (mData.liquorLoan||0) + (mData.deliveryFee||0) + (mData.disposable||0) + 
                             (mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + 

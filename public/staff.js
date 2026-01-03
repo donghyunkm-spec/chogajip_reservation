@@ -1151,6 +1151,9 @@ function loadMonthlyForm() {
     if(document.getElementById('fixUtility')) document.getElementById('fixUtility').value = mData.utility || '';
     if(document.getElementById('fixGas')) document.getElementById('fixGas').value = mData.gas || '';
     if(document.getElementById('fixLiquor')) document.getElementById('fixLiquor').value = mData.liquor || '';
+
+    if(document.getElementById('fixMakgeolli')) document.getElementById('fixMakgeolli').value = mData.makgeolli || '';
+
     if(document.getElementById('fixBeverage')) document.getElementById('fixBeverage').value = mData.beverage || '';
     if(document.getElementById('fixEtc')) document.getElementById('fixEtc').value = mData.etc_fixed || '';
     if(document.getElementById('fixLiquorLoan')) document.getElementById('fixLiquorLoan').value = mData.liquorLoan || '';
@@ -1177,6 +1180,9 @@ async function saveFixedCost() {
     const utility = parseInt(document.getElementById('fixUtility').value) || 0;
     const gas = parseInt(document.getElementById('fixGas').value) || 0;
     const liquor = parseInt(document.getElementById('fixLiquor').value) || 0; 
+
+    const makgeolli = parseInt(document.getElementById('fixMakgeolli').value) || 0;
+
     const beverage = parseInt(document.getElementById('fixBeverage').value) || 0;
     const etc_fixed = parseInt(document.getElementById('fixEtc').value) || 0;
     const liquorLoan = parseInt(document.getElementById('fixLiquorLoan').value) || 0;
@@ -1195,7 +1201,7 @@ async function saveFixedCost() {
     if(!confirm(`${monthStr} 고정 지출 및 매출 설정을 저장하시겠습니까?`)) return;
 
     const data = { 
-        rent, utility, gas, liquor, beverage, etc_fixed,
+        rent, utility, gas, liquor, makgeolli, beverage, etc_fixed,
         disposable, businessCard, taxAgent, tax, foodWaste, tableOrder, liquorLoan, deliveryFee,
         alcoholSales, beverageSales // 저장
     };
@@ -1307,7 +1313,7 @@ function renderPredictionStats() {
     }
 
     const estimatedStaffCost = getEstimatedStaffCost(monthStr);
-    const fixedRaw = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) 
+    const fixedRaw = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.makgeolli||0)
                    + (mData.liquor||0) + (mData.beverage||0) + (mData.etc_fixed||0)
                    + (mData.disposable||0) + (mData.businessCard||0) + (mData.taxAgent||0) 
                    + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0) + (mData.liquorLoan||0)
@@ -1373,7 +1379,7 @@ function renderDashboardStats() {
     const deliverySalesTotal = sales.baemin + sales.yogiyo + sales.coupang;
 
     const staffCost = getEstimatedStaffCost(monthStr);
-    const fixedTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.liquor||0) 
+    const fixedTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.liquor||0) + (mData.makgeolli||0)
                      + (mData.beverage||0) + (mData.etc_fixed||0) + staffCost
                      + (mData.disposable||0) + (mData.businessCard||0) + (mData.taxAgent||0) 
                      + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0) + (mData.liquorLoan||0)
@@ -1433,7 +1439,7 @@ function renderCostList(containerId, mData, staffCost, ratio, salesTotal, totalC
 
     const fRent = Math.floor((mData.rent||0) * ratio);
     const fStaff = Math.floor(staffCost * ratio);
-    const fLiquor = Math.floor(((mData.liquor||0) + (mData.beverage||0)) * ratio);
+    const fLiquor = Math.floor(((mData.liquor||0) + (mData.makgeolli||0) + (mData.beverage||0)) * ratio);
     const fUtility = Math.floor(((mData.utility||0) + (mData.gas||0)) * ratio);
     const fLoan = Math.floor((mData.liquorLoan||0) * ratio);
     const fDelivery = Math.floor((mData.deliveryFee||0) * ratio);
@@ -1449,7 +1455,7 @@ function renderCostList(containerId, mData, staffCost, ratio, salesTotal, totalC
         { label: '🏠 임대료', val: fRent, color: '#ab47bc' },
         { label: '👥 인건비', val: fStaff, color: '#ba68c8' },
         { label: '🛵 배달대행', val: fDelivery, color: '#00bcd4' },
-        { label: '🍶 대출/주류', val: fLoan + fLiquor, color: '#ce93d8' },
+        { label: '🍶 대출/주류/막걸리', val: fLoan + fLiquor, color: '#ce93d8' },
         { label: '💡 기타고정', val: fUtility + fOthers, color: '#e1bee7' }
     ].sort((a,b) => b.val - a.val);
 
