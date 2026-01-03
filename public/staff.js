@@ -1533,13 +1533,25 @@ function renderManageList() {
                     <p style="font-size:13px; color:#856404; margin-bottom:10px;">
                         같은 이름의 직원이 여러 개 등록되어 있습니다: <strong>${duplicates.join(', ')}</strong>
                     </p>
-                    <button onclick="showMergeStaffModal()" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                    <button id="mergeStaffBtn" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">
                         🔧 중복 직원 병합하기
                     </button>
                 </div>
             `;
         }
     }
+
+    // 병합 버튼에 이벤트 리스너 직접 추가
+    setTimeout(() => {
+        const mergeBtn = document.getElementById('mergeStaffBtn');
+        if (mergeBtn) {
+            mergeBtn.onclick = function() {
+                console.log('🔧 병합 버튼 클릭됨');
+                window.showMergeStaffModal();
+            };
+            console.log('✅ 병합 버튼 이벤트 리스너 등록됨');
+        }
+    }, 100);
 
     staffList.forEach(s => {
         const daysStr = s.workDays.map(d => DAY_MAP[d]).join(',');
@@ -1632,7 +1644,8 @@ async function deleteStaff(id) {
 }
 
 // 중복 직원 병합 모달 열기
-function showMergeStaffModal() {
+window.showMergeStaffModal = function() {
+    console.log('🔧 showMergeStaffModal 호출됨');
     const nameCount = {};
     staffList.forEach(s => {
         nameCount[s.name] = (nameCount[s.name] || 0) + 1;
@@ -1660,7 +1673,14 @@ function showMergeStaffModal() {
         `;
         
         sameNameStaff.forEach((s, idx) => {
-            const hasWorkRecord = s.startDate || s.endDate;
+            // 근무 기록 확인: startDate/endDate 또는 exceptions에 work 기록
+            let hasWorkRecord = s.startDate || s.endDate;
+            if (!hasWorkRecord && s.exceptions) {
+                const hasWorkException = Object.values(s.exceptions).some(
+                    exc => exc && exc.type === 'work'
+                );
+                hasWorkRecord = hasWorkException;
+            }
             const willBeMerged = hasWorkRecord && s.salary && s.salary > 0;
             
             html += `
@@ -1675,11 +1695,23 @@ function showMergeStaffModal() {
         
         // 실제로 합산될 급여 계산
         const mergedSalary = sameNameStaff.reduce((sum, s) => {
-            const hasWorkRecord = s.startDate || s.endDate;
+            let hasWorkRecord = s.startDate || s.endDate;
+            if (!hasWorkRecord && s.exceptions) {
+                const hasWorkException = Object.values(s.exceptions).some(
+                    exc => exc && exc.type === 'work'
+                );
+                hasWorkRecord = hasWorkException;
+            }
             return sum + (hasWorkRecord && s.salary && s.salary > 0 ? s.salary : 0);
         }, 0);
         const mergedCount = sameNameStaff.filter(s => {
-            const hasWorkRecord = s.startDate || s.endDate;
+            let hasWorkRecord = s.startDate || s.endDate;
+            if (!hasWorkRecord && s.exceptions) {
+                const hasWorkException = Object.values(s.exceptions).some(
+                    exc => exc && exc.type === 'work'
+                );
+                hasWorkRecord = hasWorkException;
+            }
             return hasWorkRecord && s.salary && s.salary > 0;
         }).length;
         
@@ -1699,16 +1731,34 @@ function showMergeStaffModal() {
     
     html += '</div>';
     
-    document.getElementById('mergeModalContent').innerHTML = html;
-    document.getElementById('mergeModalOverlay').style.display = 'flex';
+    const modalContent = document.getElementById('mergeModalContent');
+    const modalOverlay = document.getElementById('mergeModalOverlay');
+    
+    if (!modalContent || !modalOverlay) {
+        console.error('❌ 모달 요소를 찾을 수 없습니다!', {
+            modalContent: !!modalContent,
+            modalOverlay: !!modalOverlay
+        });
+        alert('모달을 표시할 수 없습니다. 페이지를 새로고침해주세요.');
+        return;
+    }
+    
+    modalContent.innerHTML = html;
+    modalOverlay.style.display = 'flex';
+    console.log('✅ 병합 모달 표시됨');
 }
 
-function closeMergeModal() {
-    document.getElementById('mergeModalOverlay').style.display = 'none';
+window.closeMergeModal = function() {
+    console.log('❌ closeMergeModal 호출됨');
+    const modal = document.getElementById('mergeModalOverlay');
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
 // 같은 이름의 직원들을 병합 (데이터 통합 + 나머지 삭제)
-async function mergeStaffByName(name) {
+window.mergeStaffByName = async function(name) {
+    console.log('🔧 mergeStaffByName 호출됨:', name);
     const sameNameStaff = staffList.filter(s => s.name === name);
     
     if (sameNameStaff.length < 2) {
@@ -1721,15 +1771,23 @@ async function mergeStaffByName(name) {
     const deleteStaffList = sameNameStaff.slice(1);
     
     // 2. 가장 이른 startDate와 가장 늦은 endDate 찾기
-    // ⚠️ 중요: 실제 근무 기록(startDate 또는 endDate가 있는)이 있는 직원만 급여 합산!
+    // ⚠️ 중요: 실제 근무 기록이 있는 직원만 급여 합산!
     let earliestStart = keepStaff.startDate;
     let latestEnd = keepStaff.endDate;
     let totalSalary = 0;
     let mergedCount = 0;
     
     sameNameStaff.forEach(staff => {
-        // 근무 기록이 있는지 확인 (startDate 또는 endDate가 설정되어 있음)
-        const hasWorkRecord = staff.startDate || staff.endDate;
+        // 근무 기록 확인: startDate/endDate 또는 exceptions에 work 기록
+        let hasWorkRecord = staff.startDate || staff.endDate;
+        
+        // exceptions에 실제 근무(work) 기록이 있는지 확인
+        if (!hasWorkRecord && staff.exceptions) {
+            const hasWorkException = Object.values(staff.exceptions).some(
+                exc => exc && exc.type === 'work'
+            );
+            hasWorkRecord = hasWorkException;
+        }
         
         if (staff.startDate && (!earliestStart || staff.startDate < earliestStart)) {
             earliestStart = staff.startDate;
