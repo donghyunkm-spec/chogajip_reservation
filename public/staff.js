@@ -1677,10 +1677,23 @@ async function saveStaffEdit() {
 
 async function deleteStaff(id) {
     if (!currentUser) { openLoginModal(); return; }
-    if (!confirm('삭제하시겠습니까?')) return;
-    await fetch(`/api/staff/${id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });
-    loadStaffData();
-    if(currentUser.role === 'admin') loadLogs();
+    
+    // [추가] 사장님(admin) 권한 체크 로직
+    if (currentUser.role !== 'admin') {
+        alert("직원삭제는 카톡으로 요청하세요");
+        return;
+    }
+
+    if (!confirm('정말로 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.')) return;
+    
+    try {
+        await fetch(`/api/staff/${id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });
+        loadStaffData();
+        // admin 체크는 위에서 했으므로 로그 로드는 무조건 실행
+        loadLogs(); 
+    } catch(e) {
+        alert('삭제 중 오류가 발생했습니다.');
+    }
 }
 
 // 중복 직원 병합 모달 열기
