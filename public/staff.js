@@ -1645,18 +1645,23 @@ function showMergeStaffModal() {
         
         sameNameStaff.forEach((s, idx) => {
             html += `
-                <div style="background:white; padding:10px; border-radius:5px; margin-bottom:5px; font-size:12px;">
-                    ${idx === 0 ? '✅ ' : '❌ '}<strong>ID: ${s.id}</strong> | 
-                    근무시간: ${s.time} | 
-                    근무요일: ${s.workDays.map(d => DAY_MAP[d]).join(',')} |
-                    ${s.salary ? '급여: ' + s.salary.toLocaleString() + '원' : '급여 미설정'}
+                <div style="background:white; padding:10px; border-radius:5px; margin-bottom:5px; font-size:12px; border-left:3px solid ${idx === 0 ? '#28a745' : '#dc3545'};">
+                    ${idx === 0 ? '✅ <strong>[통합 대표]</strong>' : '❌ <strong>[삭제 예정]</strong>'} ID: ${s.id}<br>
+                    📅 근무기간: ${s.startDate || '미설정'} ~ ${s.endDate || '미설정'}<br>
+                    ⏰ 근무시간: ${s.time} | 요일: ${s.workDays.map(d => DAY_MAP[d]).join(',')}<br>
+                    💰 급여: ${s.salary ? s.salary.toLocaleString() + '원' : '미설정'}
                 </div>
             `;
         });
         
         html += `
-                <button onclick="mergeStaffByName('${name}')" style="width:100%; background:#dc3545; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; margin-top:10px;">
-                    🔧 ${name} 병합 (첫 번째만 남기고 나머지 삭제)
+                <div style="background:#e7f3ff; padding:10px; border-radius:5px; margin-top:10px; font-size:12px; border:1px solid #2196F3;">
+                    <strong>📊 병합 후 결과 (예상)</strong><br>
+                    • 근무기간: 모든 기록 중 가장 이른 날짜 ~ 가장 늦은 날짜<br>
+                    • 급여: 모든 기록의 급여 합산 (${sameNameStaff.reduce((sum, s) => sum + (s.salary || 0), 0).toLocaleString()}원)
+                </div>
+                <button onclick="mergeStaffByName('${name}')" style="width:100%; background:#dc3545; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; margin-top:10px; font-size:14px;">
+                    🔧 ${name} 병합 실행 (데이터 통합 + ${sameNameStaff.length - 1}개 삭제)
                 </button>
             </div>
         `;
@@ -1672,7 +1677,7 @@ function closeMergeModal() {
     document.getElementById('mergeModalOverlay').style.display = 'none';
 }
 
-// 같은 이름의 직원들을 병합 (첫 번째만 남기고 나머지 삭제)
+// 같은 이름의 직원들을 병합 (데이터 통합 + 나머지 삭제)
 async function mergeStaffByName(name) {
     const sameNameStaff = staffList.filter(s => s.name === name);
     
@@ -1681,22 +1686,72 @@ async function mergeStaffByName(name) {
         return;
     }
     
+    // 1. 병합 전략: 첫 번째 직원을 기본으로 하되 날짜와 급여는 통합
     const keepStaff = sameNameStaff[0];
     const deleteStaffList = sameNameStaff.slice(1);
     
-    const confirmMsg = `${name} 직원 ${sameNameStaff.length}명 중 첫 번째(ID: ${keepStaff.id})만 남기고 ${deleteStaffList.length}명을 삭제하시겠습니까?`;
+    // 2. 가장 이른 startDate와 가장 늦은 endDate 찾기
+    let earliestStart = keepStaff.startDate;
+    let latestEnd = keepStaff.endDate;
+    let totalSalary = keepStaff.salary || 0;
     
-    if (!confirm(confirmMsg)) return;
+    sameNameStaff.forEach(staff => {
+        if (staff.startDate && (!earliestStart || staff.startDate < earliestStart)) {
+            earliestStart = staff.startDate;
+        }
+        if (staff.endDate && (!latestEnd || staff.endDate > latestEnd)) {
+            latestEnd = staff.endDate;
+        }
+        if (staff.id !== keepStaff.id && staff.salary) {
+            totalSalary += staff.salary;
+        }
+    });
+    
+    // 3. 병합 정보 표시
+    const mergeInfo = `
+【병합 정보】
+▸ 대표 직원: ID ${keepStaff.id}
+▸ 병합 전 근무기간: ${keepStaff.startDate || '미설정'} ~ ${keepStaff.endDate || '미설정'}
+▸ 병합 후 근무기간: ${earliestStart || '미설정'} ~ ${latestEnd || '미설정'}
+▸ 병합 전 급여: ${(keepStaff.salary || 0).toLocaleString()}원
+▸ 병합 후 급여: ${totalSalary.toLocaleString()}원 (${sameNameStaff.length}개 기록 합산)
+▸ 삭제될 기록: ${deleteStaffList.length}개
+
+⚠️ 병합 후 되돌릴 수 없습니다!
+계속하시겠습니까?`;
+    
+    if (!confirm(mergeInfo)) return;
     
     try {
-        // 나머지 직원들 삭제
+        // 4. 첫 번째 직원 정보 업데이트 (날짜 범위 및 급여 통합)
+        const updates = {
+            startDate: earliestStart,
+            endDate: latestEnd,
+            salary: totalSalary
+        };
+        
+        await fetch(`/api/staff/${keepStaff.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                updates: updates, 
+                actor: currentUser.name, 
+                store: currentStore 
+            })
+        });
+        
+        // 5. 나머지 직원들 삭제
         for (const staff of deleteStaffList) {
             await fetch(`/api/staff/${staff.id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { 
                 method: 'DELETE' 
             });
         }
         
-        alert(`✅ ${name} 직원 병합 완료! ${deleteStaffList.length}명 삭제됨`);
+        alert(`✅ ${name} 직원 병합 완료!\n\n` +
+              `▸ 근무기간: ${earliestStart} ~ ${latestEnd}\n` +
+              `▸ 총 급여: ${totalSalary.toLocaleString()}원\n` +
+              `▸ 삭제된 기록: ${deleteStaffList.length}개`);
+        
         closeMergeModal();
         loadStaffData();
         if(currentUser.role === 'admin') loadLogs();
