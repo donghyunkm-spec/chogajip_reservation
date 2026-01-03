@@ -531,11 +531,17 @@
 
             <div id="att-manage" class="att-sub-content">
                 <div class="form-container">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h2>직원 등록/관리</h2>
-                        <div id="salarySection" style="display:none;">
-                            <button onclick="calculateMonthlySalary()" style="background:#673ab7; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">
-                                💰 이번달 급여 예측
+                    <div class="calendar-controls" style="margin-bottom: 20px; background: #f8f9fa; padding: 10px; border-radius: 10px; border: 1px solid #eee;">
+                        <button onclick="changeManageMonth(-1)" class="number-btn" style="background:white; border:1px solid #ddd;">&lt;</button>
+                        <div style="text-align:center; min-width: 150px;">
+                            <h2 id="manageMonthTitle" style="margin:0; font-size: 18px; color: #333;"></h2>
+                            <button onclick="resetManageMonth()" class="reset-btn" style="margin-top:5px; font-size:11px;">이번 달 보기</button>
+                        </div>
+                        <button onclick="changeManageMonth(1)" class="number-btn" style="background:white; border:1px solid #ddd;">&gt;</button>
+                        
+                        <div id="salarySection" style="margin-left: auto; display:none;">
+                            <button onclick="calculateMonthlySalary()" style="background:#673ab7; color:white; border:none; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:13px; box-shadow: 0 2px 5px rgba(103, 58, 183, 0.3);">
+                                💰 이 달의 급여 예측
                             </button>
                         </div>
                     </div>
@@ -549,8 +555,7 @@
                         <button class="btn" onclick="processBulkText()">한 번에 등록하기</button>
                     </div>
 
-                    <hr style="margin:20px 0;">
-                    <h3>📋 직원 목록</h3>
+                    <h3 style="border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">📋 직원 목록</h3>
                     <div id="manageStaffList" style="margin-top:15px;"></div>
                 </div>
             </div>
@@ -652,60 +657,7 @@
                 </div>
             </div>
         </div>
-        <div id="weekly-content" class="tab-content">
-            <div class="status-container">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                    <button onclick="changeWeek(-1)" class="number-btn">&lt;</button>
-                    <div style="text-align: center;">
-                        <h2 id="weeklyRangeDisplay" style="margin:0;">12월 0일 ~ 12월 0일</h2>
-                        <button onclick="resetToThisWeek()" class="reset-btn">이번 주 보기</button>
-                    </div>
-                    <button onclick="changeWeek(1)" class="number-btn">&gt;</button>
-                </div>
-                
-                <div class="weekly-container">
-                    <div class="weekly-header sunday">일</div>
-                    <div class="weekly-header">월</div>
-                    <div class="weekly-header">화</div>
-                    <div class="weekly-header">수</div>
-                    <div class="weekly-header">목</div>
-                    <div class="weekly-header">금</div>
-                    <div class="weekly-header saturday">토</div>
-                    
-                    <div id="col-Sun" class="weekly-col" data-day="일요일"></div>
-                    <div id="col-Mon" class="weekly-col" data-day="월요일"></div>
-                    <div id="col-Tue" class="weekly-col" data-day="화요일"></div>
-                    <div id="col-Wed" class="weekly-col" data-day="수요일"></div>
-                    <div id="col-Thu" class="weekly-col" data-day="목요일"></div>
-                    <div id="col-Fri" class="weekly-col" data-day="금요일"></div>
-                    <div id="col-Sat" class="weekly-col" data-day="토요일"></div>
-                </div>
-            </div>
-        </div>
-
-        <div id="monthly-content" class="tab-content">
-            <div class="status-container">
-                <div class="calendar-controls">
-                    <button onclick="changeMonth(-1)" class="number-btn">&lt;</button>
-                    <div style="text-align:center;">
-                        <h2 id="monthDisplay" style="margin:0;"></h2>
-                        <button onclick="resetToThisMonth()" class="reset-btn" style="margin-top:5px;">이번 달 보기</button>
-                    </div>
-                    <button onclick="changeMonth(1)" class="number-btn">&gt;</button>
-                </div>
-                <div class="calendar-grid">
-                    <div class="calendar-head" style="color:red">일</div>
-                    <div class="calendar-head">월</div>
-                    <div class="calendar-head">화</div>
-                    <div class="calendar-head">수</div>
-                    <div class="calendar-head">목</div>
-                    <div class="calendar-head">금</div>
-                    <div class="calendar-head" style="color:blue">토</div>
-                    <div id="calendarBody" style="display:contents;"></div>
-                </div>
-            </div>
-        </div>
-    
+           
         <div id="accounting-content" class="tab-content">
             <div class="accounting-header-nav">
                 <button onclick="changeAccMonth(-1)" class="nav-btn">◀ 전월</button>

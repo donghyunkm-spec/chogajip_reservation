@@ -2286,9 +2286,13 @@ function goToDailyDetail(year, month, day) {
 // ==========================================
 
 function calculateMonthlySalary() {
-    const now = new Date();
+    const targetDate = currentManageDate;
     const year = now.getFullYear();
     const month = now.getMonth(); 
+
+    // 모달 제목 업데이트 (어떤 달의 급여인지 표시)
+    const modalTitle = document.querySelector('#salaryModal h2');
+    if(modalTitle) modalTitle.textContent = `💰 ${year}년 ${month + 1}월 예상 급여`;
     
     const lastDayObj = new Date(year, month + 1, 0);
     const totalDaysInMonth = lastDayObj.getDate(); 
