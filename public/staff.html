@@ -367,36 +367,6 @@
         </div>
     </div>
 
-    <div id="att-manage" class="att-sub-content">
-            <div class="form-container">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <h2>직원 등록/관리</h2>
-                    <div id="salarySection" style="display:none;">
-                        <button onclick="calculateMonthlySalary()" style="background:#673ab7; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">
-                            💰 이번달 급여 예측
-                        </button>
-                    </div>
-                </div>
-
-                <div class="accounting-header-nav" style="background:#f8f9fa; margin-bottom:20px;">
-                    <button onclick="changeManageMonth(-1)" class="nav-btn">◀ 전월</button>
-                    <div class="current-month-display">
-                        <h3 id="manageMonthTitle" style="margin:0; font-size:16px;">2024년 12월</h3>
-                        <button onclick="resetManageMonth()" class="reset-btn-mini">이번 달 보기</button>
-                    </div>
-                    <button onclick="changeManageMonth(1)" class="nav-btn">익월 ▶</button>
-                </div>
-                
-                <div id="bulkSection" style="margin-bottom: 30px; display: none;">
-                    </div>
-
-                <hr style="margin:20px 0;">
-                <h3>📋 직원 목록</h3>
-                <div id="manageStaffList" style="margin-top:15px;"></div>
-            </div>
-        </div>
-    </div>
-
     <div id="timeChangeModal" class="modal-overlay">
         <div class="modal-box">
             <h2>⏰ 근무 시간 변경</h2>
