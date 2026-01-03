@@ -175,7 +175,10 @@ function switchTab(tabName) {
         if(!activeSub || activeSub.id === 'att-daily') renderDailyView();
         else if(activeSub.id === 'att-weekly') renderWeeklyView();
         else if(activeSub.id === 'att-monthly') renderMonthlyView();
-        else if(activeSub.id === 'att-manage') renderManageList();
+        else if(activeSub.id === 'att-manage') {
+            // 직원관리 탭은 DOM 준비 후 렌더링
+            setTimeout(() => renderManageList(), 50);
+        }
         else if(activeSub.id === 'att-logs') loadLogs();
     }
     
@@ -211,7 +214,10 @@ function switchAttSubTab(subId, btn) {
     if(subId === 'att-daily') renderDailyView();
     else if(subId === 'att-weekly') renderWeeklyView();
     else if(subId === 'att-monthly') renderMonthlyView();
-    else if(subId === 'att-manage') renderManageList();
+    else if(subId === 'att-manage') {
+        // 직원관리 탭은 DOM이 준비된 후 렌더링
+        setTimeout(() => renderManageList(), 50);
+    }
     else if(subId === 'att-logs') loadLogs();
 }
 
@@ -1496,7 +1502,17 @@ async function loadStaffData() {
 
 function renderManageList() {
     const list = document.getElementById('manageStaffList');
-    if(!list) return;
+    if(!list) {
+        console.warn('manageStaffList 요소를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // staffList가 로드되지 않았으면 대기
+    if (!staffList || staffList.length === 0) {
+        list.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">직원 데이터를 불러오는 중...</div>';
+        return;
+    }
+    
     list.innerHTML = '';
     
     const isAdmin = currentUser && currentUser.role === 'admin';
@@ -1644,21 +1660,35 @@ function showMergeStaffModal() {
         `;
         
         sameNameStaff.forEach((s, idx) => {
+            const hasWorkRecord = s.startDate || s.endDate;
+            const willBeMerged = hasWorkRecord && s.salary && s.salary > 0;
+            
             html += `
                 <div style="background:white; padding:10px; border-radius:5px; margin-bottom:5px; font-size:12px; border-left:3px solid ${idx === 0 ? '#28a745' : '#dc3545'};">
                     ${idx === 0 ? '✅ <strong>[통합 대표]</strong>' : '❌ <strong>[삭제 예정]</strong>'} ID: ${s.id}<br>
                     📅 근무기간: ${s.startDate || '미설정'} ~ ${s.endDate || '미설정'}<br>
                     ⏰ 근무시간: ${s.time} | 요일: ${s.workDays.map(d => DAY_MAP[d]).join(',')}<br>
-                    💰 급여: ${s.salary ? s.salary.toLocaleString() + '원' : '미설정'}
+                    💰 급여: ${s.salary ? s.salary.toLocaleString() + '원' : '미설정'} ${willBeMerged ? '✅ 합산됨' : '⚠️ 제외'}
                 </div>
             `;
         });
+        
+        // 실제로 합산될 급여 계산
+        const mergedSalary = sameNameStaff.reduce((sum, s) => {
+            const hasWorkRecord = s.startDate || s.endDate;
+            return sum + (hasWorkRecord && s.salary && s.salary > 0 ? s.salary : 0);
+        }, 0);
+        const mergedCount = sameNameStaff.filter(s => {
+            const hasWorkRecord = s.startDate || s.endDate;
+            return hasWorkRecord && s.salary && s.salary > 0;
+        }).length;
         
         html += `
                 <div style="background:#e7f3ff; padding:10px; border-radius:5px; margin-top:10px; font-size:12px; border:1px solid #2196F3;">
                     <strong>📊 병합 후 결과 (예상)</strong><br>
                     • 근무기간: 모든 기록 중 가장 이른 날짜 ~ 가장 늦은 날짜<br>
-                    • 급여: 모든 기록의 급여 합산 (${sameNameStaff.reduce((sum, s) => sum + (s.salary || 0), 0).toLocaleString()}원)
+                    • 급여: 근무 기록 ${mergedCount}개 합산 → <strong>${mergedSalary.toLocaleString()}원</strong><br>
+                    <span style="color:#666; font-size:11px;">* 근무기간(날짜)이 설정된 기록만 급여 합산됩니다</span>
                 </div>
                 <button onclick="mergeStaffByName('${name}')" style="width:100%; background:#dc3545; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; margin-top:10px; font-size:14px;">
                     🔧 ${name} 병합 실행 (데이터 통합 + ${sameNameStaff.length - 1}개 삭제)
@@ -1691,21 +1721,35 @@ async function mergeStaffByName(name) {
     const deleteStaffList = sameNameStaff.slice(1);
     
     // 2. 가장 이른 startDate와 가장 늦은 endDate 찾기
+    // ⚠️ 중요: 실제 근무 기록(startDate 또는 endDate가 있는)이 있는 직원만 급여 합산!
     let earliestStart = keepStaff.startDate;
     let latestEnd = keepStaff.endDate;
-    let totalSalary = keepStaff.salary || 0;
+    let totalSalary = 0;
+    let mergedCount = 0;
     
     sameNameStaff.forEach(staff => {
+        // 근무 기록이 있는지 확인 (startDate 또는 endDate가 설정되어 있음)
+        const hasWorkRecord = staff.startDate || staff.endDate;
+        
         if (staff.startDate && (!earliestStart || staff.startDate < earliestStart)) {
             earliestStart = staff.startDate;
         }
         if (staff.endDate && (!latestEnd || staff.endDate > latestEnd)) {
             latestEnd = staff.endDate;
         }
-        if (staff.id !== keepStaff.id && staff.salary) {
+        
+        // 근무 기록이 있고 급여가 설정된 경우만 합산
+        if (hasWorkRecord && staff.salary && staff.salary > 0) {
             totalSalary += staff.salary;
+            mergedCount++;
         }
     });
+    
+    // 합산할 급여 기록이 없으면 첫 번째 직원 급여 유지
+    if (totalSalary === 0 && keepStaff.salary) {
+        totalSalary = keepStaff.salary;
+        mergedCount = 1;
+    }
     
     // 3. 병합 정보 표시
     const mergeInfo = `
@@ -1714,9 +1758,10 @@ async function mergeStaffByName(name) {
 ▸ 병합 전 근무기간: ${keepStaff.startDate || '미설정'} ~ ${keepStaff.endDate || '미설정'}
 ▸ 병합 후 근무기간: ${earliestStart || '미설정'} ~ ${latestEnd || '미설정'}
 ▸ 병합 전 급여: ${(keepStaff.salary || 0).toLocaleString()}원
-▸ 병합 후 급여: ${totalSalary.toLocaleString()}원 (${sameNameStaff.length}개 기록 합산)
+▸ 병합 후 급여: ${totalSalary.toLocaleString()}원 (근무 기록 ${mergedCount}개 합산)
 ▸ 삭제될 기록: ${deleteStaffList.length}개
 
+⚠️ 근무 기록(날짜)이 있는 직원만 급여 합산됩니다!
 ⚠️ 병합 후 되돌릴 수 없습니다!
 계속하시겠습니까?`;
     
