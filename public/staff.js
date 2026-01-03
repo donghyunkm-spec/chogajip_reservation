@@ -1734,51 +1734,70 @@ window.closeMergeModal = function() {
 }
 
 // [수정] 병합 실행 함수 (핵심 로직 수정)
+// [수정] 병합 실행 함수 (근무 요일 및 기록 통합 강화)
 window.mergeStaffByName = async function(name) {
     const sameNameStaff = staffList.filter(s => s.name === name);
     if (sameNameStaff.length < 2) return;
 
-    if (!confirm(`${name}님의 중복 데이터를 하나로 합치시겠습니까?\n모든 근무 기록(예외/대타)이 하나로 통합됩니다.`)) return;
+    if (!confirm(`${name}님의 중복 데이터를 하나로 합치시겠습니까?\n\n모든 근무 요일과 기록이 하나로 통합됩니다.`)) return;
 
-    // 1. 기준 직원 선정 (가장 최근 ID 또는 가장 정보가 확실한 직원)
-    // 날짜가 있는 직원을 우선으로, 그 다음 ID 역순
+    // 1. 기준 직원 선정 (가장 최근 ID를 기준으로 하되, 근무 시작일이 명시된 직원을 우선)
     sameNameStaff.sort((a, b) => {
         if (a.startDate && !b.startDate) return -1;
         if (!a.startDate && b.startDate) return 1;
-        return b.id - a.id;
+        return b.id - a.id; // ID 역순 (최신 등록이 위로)
     });
     
     const keeper = sameNameStaff[0];
     const deletables = sameNameStaff.slice(1);
 
-    // 2. 데이터 통합 (Exceptions 합치기 + 날짜 범위 확장)
+    // 2. 데이터 통합 준비
     let combinedExceptions = { ...keeper.exceptions };
+    
+    // [핵심 수정 1] 근무 요일(workDays) 통합을 위한 Set 생성 (중복 제거)
+    let combinedWorkDays = new Set(keeper.workDays || []);
+
     let earliestStart = keeper.startDate;
     let latestEnd = keeper.endDate;
 
     deletables.forEach(s => {
-        // 근무 기록 통합 (기존 keeper에 없는 날짜만 추가하거나, 덮어씌움)
+        // A. 근무 기록(Exceptions) 통합
         if (s.exceptions) {
+            // 날짜(Key)가 다르면 추가되고, 같으면 덮어씌워짐
             combinedExceptions = { ...combinedExceptions, ...s.exceptions };
         }
         
-        // 날짜 범위 확장
+        // B. [핵심 수정 2] 고정 근무 요일 통합
+        if (s.workDays && Array.isArray(s.workDays)) {
+            s.workDays.forEach(day => combinedWorkDays.add(day));
+        }
+        
+        // C. 날짜 범위 확장 (가장 빠른 입사일 ~ 가장 늦은 퇴사일)
         if (s.startDate && (!earliestStart || s.startDate < earliestStart)) earliestStart = s.startDate;
         if (s.endDate && (!latestEnd || s.endDate > latestEnd)) latestEnd = s.endDate;
     });
 
-    // 3. Keeper 업데이트 (급여는 합산하지 않고 Keeper의 것을 유지하거나 재설정)
-    // 만약 Keeper의 급여가 0원인데 삭제될 직원에 급여가 있다면 가져옴
+    // Set을 다시 배열로 변환
+    const finalWorkDays = Array.from(combinedWorkDays);
+
+    // 3. 급여 정보 결정 (Keeper의 급여가 0원이라면 다른 데이터에서 가져옴)
     let finalSalary = keeper.salary;
+    let finalSalaryType = keeper.salaryType;
+    
+    // Keeper 급여가 없는데 삭제될 데이터에 급여가 있다면 그것을 사용
     if (!finalSalary && deletables.some(s => s.salary > 0)) {
-        finalSalary = deletables.find(s => s.salary > 0).salary;
+        const salarySource = deletables.find(s => s.salary > 0);
+        finalSalary = salarySource.salary;
+        finalSalaryType = salarySource.salaryType;
     }
 
     const updates = {
         startDate: earliestStart,
         endDate: latestEnd,
-        exceptions: combinedExceptions, // [핵심] 근무기록 통합!
-        salary: finalSalary // [핵심] 급여는 합산(X) -> 단일값(O)
+        exceptions: combinedExceptions, // 일별 기록 통합
+        workDays: finalWorkDays,        // [NEW] 요일 통합 적용
+        salary: finalSalary,
+        salaryType: finalSalaryType
     };
 
     try {
@@ -1794,13 +1813,13 @@ window.mergeStaffByName = async function(name) {
             await fetch(`/api/staff/${s.id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });
         }
 
-        alert('병합 완료! 근무 기록이 통합되었습니다.');
-        closeMergeModal();
+        alert(`병합 완료!\n총 ${finalWorkDays.length}개의 요일과 근무 기록이 통합되었습니다.`);
+        window.closeMergeModal(); // 모달 닫기 명시적 호출
         loadStaffData(); // 리스트 갱신
 
     } catch (e) {
         console.error(e);
-        alert('병합 중 오류 발생');
+        alert('병합 중 오류 발생: ' + e.message);
     }
 }
 
