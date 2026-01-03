@@ -9,6 +9,8 @@ let currentDate = new Date();
 let calendarDate = new Date();
 let currentWeekStartDate = new Date();
 
+let currentManageDate = new Date(); // 직원 관리 탭용 날짜
+
 // 가계부용 전역 변수
 let accountingData = { daily: {}, monthly: {} };
 let currentAccDate = new Date().toISOString().split('T')[0];
@@ -90,6 +92,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+// [추가] 직원 관리 탭 월 이동 함수
+function changeManageMonth(delta) {
+    currentManageDate.setMonth(currentManageDate.getMonth() + delta);
+    renderManageList();
+}
+
+function resetManageMonth() {
+    currentManageDate = new Date();
+    renderManageList();
+}
+
+
 
 // 매장별 UI 세팅
 function initStoreSettings() {
@@ -1502,38 +1517,57 @@ async function loadStaffData() {
 
 function renderManageList() {
     const list = document.getElementById('manageStaffList');
-    if(!list) {
-        console.warn('manageStaffList 요소를 찾을 수 없습니다.');
-        return;
-    }
+    if(!list) return;
     
-    // staffList가 로드되지 않았으면 대기
+    // 1. 월 타이틀 업데이트
+    const titleEl = document.getElementById('manageMonthTitle');
+    if(titleEl) {
+        titleEl.textContent = `${currentManageDate.getFullYear()}년 ${currentManageDate.getMonth() + 1}월 근무자`;
+    }
+
     if (!staffList || staffList.length === 0) {
         list.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">직원 데이터를 불러오는 중...</div>';
         return;
     }
     
     list.innerHTML = '';
-    
     const isAdmin = currentUser && currentUser.role === 'admin';
     
-    // 중복 직원 감지 (같은 이름의 직원이 여러 명인 경우)
-    const nameCount = {};
-    staffList.forEach(s => {
-        nameCount[s.name] = (nameCount[s.name] || 0) + 1;
+    // 2. 현재 선택된 월의 시작/끝 날짜 계산
+    const y = currentManageDate.getFullYear();
+    const m = currentManageDate.getMonth();
+    const firstDay = new Date(y, m, 1).toISOString().split('T')[0];
+    const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0];
+
+    // 3. 필터링: 해당 월에 근무 기록이 있거나(재직 중), 기간이 겹치는 직원만 표시
+    const filteredStaff = staffList.filter(s => {
+        // 근무 기간이 설정되지 않았다면 -> 항상 표시 (또는 현재 재직자로 간주)
+        if (!s.startDate && !s.endDate) return true;
+        
+        // 입사일이 월말보다 늦으면 (아직 입사 안함) -> 제외
+        if (s.startDate && s.startDate > lastDay) return false;
+        
+        // 퇴사일이 월초보다 빠르면 (이미 퇴사함) -> 제외
+        if (s.endDate && s.endDate < firstDay) return false;
+        
+        return true;
     });
+
+    // 4. 중복 직원 감지 (전체 리스트 기준이 아니라, 현재 화면에 보이는 사람 기준일 수도 있지만 전체로 체크 추천)
+    const nameCount = {};
+    staffList.forEach(s => { nameCount[s.name] = (nameCount[s.name] || 0) + 1; });
     
-    // 중복 직원 병합 버튼 (사장님 전용)
     if (isAdmin) {
         const duplicates = Object.keys(nameCount).filter(name => nameCount[name] > 1);
         if (duplicates.length > 0) {
+            // [수정] onclick을 HTML에 직접 넣어 이벤트 바인딩 문제 해결
             list.innerHTML += `
                 <div style="background:#fff3cd; border:2px solid #ffc107; padding:15px; border-radius:8px; margin-bottom:20px;">
-                    <h4 style="color:#856404; margin:0 0 10px 0;">⚠️ 중복 직원 감지됨</h4>
+                    <h4 style="color:#856404; margin:0 0 10px 0;">⚠️ 중복 직원 감지됨 (${duplicates.length}명)</h4>
                     <p style="font-size:13px; color:#856404; margin-bottom:10px;">
-                        같은 이름의 직원이 여러 개 등록되어 있습니다: <strong>${duplicates.join(', ')}</strong>
+                        동일 이름의 직원이 여러 명입니다: <strong>${duplicates.join(', ')}</strong>
                     </p>
-                    <button id="mergeStaffBtn" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                    <button onclick="window.showMergeStaffModal()" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">
                         🔧 중복 직원 병합하기
                     </button>
                 </div>
@@ -1541,32 +1575,32 @@ function renderManageList() {
         }
     }
 
-    // 병합 버튼에 이벤트 리스너 직접 추가
-    setTimeout(() => {
-        const mergeBtn = document.getElementById('mergeStaffBtn');
-        if (mergeBtn) {
-            mergeBtn.onclick = function() {
-                console.log('🔧 병합 버튼 클릭됨');
-                window.showMergeStaffModal();
-            };
-            console.log('✅ 병합 버튼 이벤트 리스너 등록됨');
-        }
-    }, 100);
+    if (filteredStaff.length === 0) {
+        list.innerHTML += '<div style="text-align:center; padding:20px; color:#999;">선택한 달에 근무하는 직원이 없습니다.</div>';
+        return;
+    }
 
-    staffList.forEach(s => {
+    filteredStaff.forEach(s => {
         const daysStr = s.workDays.map(d => DAY_MAP[d]).join(',');
         const salaryInfo = isAdmin ? 
             `<div style="font-size:12px; color:#28a745; margin-top:3px;">
                 💰 ${s.salaryType === 'monthly' ? '월급' : '시급'}: ${s.salary ? s.salary.toLocaleString() : '0'}원
              </div>` : '';
 
+        // 퇴사자 표시
+        let statusBadge = '';
+        if (s.endDate && s.endDate < new Date().toISOString().split('T')[0]) {
+            statusBadge = '<span class="badge" style="background:#999; color:white; font-size:10px; margin-left:5px;">퇴사</span>';
+        }
+
         list.innerHTML += `
             <div class="reservation-item">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <strong style="font-size:16px;">${s.name}</strong> 
+                        <strong style="font-size:16px;">${s.name}</strong> ${statusBadge}
                         <span style="font-size:12px; color:#666;">(${s.time})</span>
                         <div style="font-size:13px; margin-top:5px;">📅 ${daysStr}</div>
+                        <div style="font-size:11px; color:#666; margin-top:2px;">기간: ${s.startDate||'미설정'} ~ ${s.endDate||'미설정'}</div>
                         ${salaryInfo}
                     </div>
                     <div>
@@ -1644,108 +1678,51 @@ async function deleteStaff(id) {
 }
 
 // 중복 직원 병합 모달 열기
+// [수정] 모달 열기 함수 (window 객체에 할당하여 확실히 호출되게 함)
 window.showMergeStaffModal = function() {
-    console.log('🔧 showMergeStaffModal 호출됨');
     const nameCount = {};
-    staffList.forEach(s => {
-        nameCount[s.name] = (nameCount[s.name] || 0) + 1;
-    });
-    
+    staffList.forEach(s => { nameCount[s.name] = (nameCount[s.name] || 0) + 1; });
     const duplicates = Object.keys(nameCount).filter(name => nameCount[name] > 1);
-    
+
     if (duplicates.length === 0) {
         alert('중복된 직원이 없습니다.');
         return;
     }
-    
-    let html = `
-        <div style="max-height:400px; overflow-y:auto;">
-            <p style="font-size:13px; color:#666; margin-bottom:15px;">
-                같은 이름의 직원들을 하나로 병합합니다. 병합 후 첫 번째 직원만 남고 나머지는 삭제됩니다.
-            </p>
-    `;
-    
+
+    let html = `<div style="max-height:400px; overflow-y:auto;">
+        <p style="font-size:13px; color:#666; margin-bottom:15px;">
+            이름이 같은 직원들의 <strong>근무 기록(출근부)을 하나로 합칩니다.</strong><br>
+            가장 최근 데이터(혹은 월급/시급이 설정된 데이터)를 기준으로 통합됩니다.
+        </p>`;
+
     duplicates.forEach(name => {
         const sameNameStaff = staffList.filter(s => s.name === name);
+        // [중요] 최신 입사일 혹은 최근 ID 순으로 정렬하여 '메인'을 정함
+        sameNameStaff.sort((a,b) => b.id - a.id);
+        const keeper = sameNameStaff[0]; // 가장 최근에 등록된/수정된 사람을 keeper로
+
         html += `
             <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #dee2e6;">
-                <h4 style="margin:0 0 10px 0; color:#495057;">👤 ${name} (${sameNameStaff.length}명)</h4>
-        `;
-        
-        sameNameStaff.forEach((s, idx) => {
-            // 근무 기록 확인: startDate/endDate 또는 exceptions에 work 기록
-            let hasWorkRecord = s.startDate || s.endDate;
-            if (!hasWorkRecord && s.exceptions) {
-                const hasWorkException = Object.values(s.exceptions).some(
-                    exc => exc && exc.type === 'work'
-                );
-                hasWorkRecord = hasWorkException;
-            }
-            const willBeMerged = hasWorkRecord && s.salary && s.salary > 0;
-            
-            html += `
-                <div style="background:white; padding:10px; border-radius:5px; margin-bottom:5px; font-size:12px; border-left:3px solid ${idx === 0 ? '#28a745' : '#dc3545'};">
-                    ${idx === 0 ? '✅ <strong>[통합 대표]</strong>' : '❌ <strong>[삭제 예정]</strong>'} ID: ${s.id}<br>
-                    📅 근무기간: ${s.startDate || '미설정'} ~ ${s.endDate || '미설정'}<br>
-                    ⏰ 근무시간: ${s.time} | 요일: ${s.workDays.map(d => DAY_MAP[d]).join(',')}<br>
-                    💰 급여: ${s.salary ? s.salary.toLocaleString() + '원' : '미설정'} ${willBeMerged ? '✅ 합산됨' : '⚠️ 제외'}
+                <h4 style="margin:0 0 10px 0; color:#495057;">👤 ${name} (${sameNameStaff.length}건)</h4>
+                <div style="font-size:12px; color:#666;">
+                    <strong>[유지될 정보]</strong> 시급: ${keeper.salary.toLocaleString()}원 / 근무: ${keeper.time}
                 </div>
-            `;
-        });
-        
-        // 실제로 합산될 급여 계산
-        const mergedSalary = sameNameStaff.reduce((sum, s) => {
-            let hasWorkRecord = s.startDate || s.endDate;
-            if (!hasWorkRecord && s.exceptions) {
-                const hasWorkException = Object.values(s.exceptions).some(
-                    exc => exc && exc.type === 'work'
-                );
-                hasWorkRecord = hasWorkException;
-            }
-            return sum + (hasWorkRecord && s.salary && s.salary > 0 ? s.salary : 0);
-        }, 0);
-        const mergedCount = sameNameStaff.filter(s => {
-            let hasWorkRecord = s.startDate || s.endDate;
-            if (!hasWorkRecord && s.exceptions) {
-                const hasWorkException = Object.values(s.exceptions).some(
-                    exc => exc && exc.type === 'work'
-                );
-                hasWorkRecord = hasWorkException;
-            }
-            return hasWorkRecord && s.salary && s.salary > 0;
-        }).length;
-        
-        html += `
-                <div style="background:#e7f3ff; padding:10px; border-radius:5px; margin-top:10px; font-size:12px; border:1px solid #2196F3;">
-                    <strong>📊 병합 후 결과 (예상)</strong><br>
-                    • 근무기간: 모든 기록 중 가장 이른 날짜 ~ 가장 늦은 날짜<br>
-                    • 급여: 근무 기록 ${mergedCount}개 합산 → <strong>${mergedSalary.toLocaleString()}원</strong><br>
-                    <span style="color:#666; font-size:11px;">* 근무기간(날짜)이 설정된 기록만 급여 합산됩니다</span>
+                <div style="margin-top:5px; font-size:12px; color:#007bff;">
+                    ➕ 과거 근무 기록들이 모두 이 직원에게 합쳐집니다.
                 </div>
-                <button onclick="mergeStaffByName('${name}')" style="width:100%; background:#dc3545; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; margin-top:10px; font-size:14px;">
-                    🔧 ${name} 병합 실행 (데이터 통합 + ${sameNameStaff.length - 1}개 삭제)
+                <button onclick="mergeStaffByName('${name}')" style="width:100%; background:#dc3545; color:white; border:none; padding:8px; border-radius:5px; font-weight:bold; margin-top:10px;">
+                    🔧 병합 실행 (나머지 ${sameNameStaff.length - 1}개 삭제)
                 </button>
-            </div>
-        `;
+            </div>`;
     });
-    
     html += '</div>';
-    
-    const modalContent = document.getElementById('mergeModalContent');
-    const modalOverlay = document.getElementById('mergeModalOverlay');
-    
-    if (!modalContent || !modalOverlay) {
-        console.error('❌ 모달 요소를 찾을 수 없습니다!', {
-            modalContent: !!modalContent,
-            modalOverlay: !!modalOverlay
-        });
-        alert('모달을 표시할 수 없습니다. 페이지를 새로고침해주세요.');
-        return;
+
+    const content = document.getElementById('mergeModalContent');
+    const overlay = document.getElementById('mergeModalOverlay');
+    if (content && overlay) {
+        content.innerHTML = html;
+        overlay.style.display = 'flex';
     }
-    
-    modalContent.innerHTML = html;
-    modalOverlay.style.display = 'flex';
-    console.log('✅ 병합 모달 표시됨');
 }
 
 window.closeMergeModal = function() {
@@ -1756,110 +1733,74 @@ window.closeMergeModal = function() {
     }
 }
 
-// 같은 이름의 직원들을 병합 (데이터 통합 + 나머지 삭제)
+// [수정] 병합 실행 함수 (핵심 로직 수정)
 window.mergeStaffByName = async function(name) {
-    console.log('🔧 mergeStaffByName 호출됨:', name);
     const sameNameStaff = staffList.filter(s => s.name === name);
-    
-    if (sameNameStaff.length < 2) {
-        alert('병합할 직원이 부족합니다.');
-        return;
-    }
-    
-    // 1. 병합 전략: 첫 번째 직원을 기본으로 하되 날짜와 급여는 통합
-    const keepStaff = sameNameStaff[0];
-    const deleteStaffList = sameNameStaff.slice(1);
-    
-    // 2. 가장 이른 startDate와 가장 늦은 endDate 찾기
-    // ⚠️ 중요: 실제 근무 기록이 있는 직원만 급여 합산!
-    let earliestStart = keepStaff.startDate;
-    let latestEnd = keepStaff.endDate;
-    let totalSalary = 0;
-    let mergedCount = 0;
-    
-    sameNameStaff.forEach(staff => {
-        // 근무 기록 확인: startDate/endDate 또는 exceptions에 work 기록
-        let hasWorkRecord = staff.startDate || staff.endDate;
-        
-        // exceptions에 실제 근무(work) 기록이 있는지 확인
-        if (!hasWorkRecord && staff.exceptions) {
-            const hasWorkException = Object.values(staff.exceptions).some(
-                exc => exc && exc.type === 'work'
-            );
-            hasWorkRecord = hasWorkException;
-        }
-        
-        if (staff.startDate && (!earliestStart || staff.startDate < earliestStart)) {
-            earliestStart = staff.startDate;
-        }
-        if (staff.endDate && (!latestEnd || staff.endDate > latestEnd)) {
-            latestEnd = staff.endDate;
-        }
-        
-        // 근무 기록이 있고 급여가 설정된 경우만 합산
-        if (hasWorkRecord && staff.salary && staff.salary > 0) {
-            totalSalary += staff.salary;
-            mergedCount++;
-        }
+    if (sameNameStaff.length < 2) return;
+
+    if (!confirm(`${name}님의 중복 데이터를 하나로 합치시겠습니까?\n모든 근무 기록(예외/대타)이 하나로 통합됩니다.`)) return;
+
+    // 1. 기준 직원 선정 (가장 최근 ID 또는 가장 정보가 확실한 직원)
+    // 날짜가 있는 직원을 우선으로, 그 다음 ID 역순
+    sameNameStaff.sort((a, b) => {
+        if (a.startDate && !b.startDate) return -1;
+        if (!a.startDate && b.startDate) return 1;
+        return b.id - a.id;
     });
     
-    // 합산할 급여 기록이 없으면 첫 번째 직원 급여 유지
-    if (totalSalary === 0 && keepStaff.salary) {
-        totalSalary = keepStaff.salary;
-        mergedCount = 1;
-    }
-    
-    // 3. 병합 정보 표시
-    const mergeInfo = `
-【병합 정보】
-▸ 대표 직원: ID ${keepStaff.id}
-▸ 병합 전 근무기간: ${keepStaff.startDate || '미설정'} ~ ${keepStaff.endDate || '미설정'}
-▸ 병합 후 근무기간: ${earliestStart || '미설정'} ~ ${latestEnd || '미설정'}
-▸ 병합 전 급여: ${(keepStaff.salary || 0).toLocaleString()}원
-▸ 병합 후 급여: ${totalSalary.toLocaleString()}원 (근무 기록 ${mergedCount}개 합산)
-▸ 삭제될 기록: ${deleteStaffList.length}개
+    const keeper = sameNameStaff[0];
+    const deletables = sameNameStaff.slice(1);
 
-⚠️ 근무 기록(날짜)이 있는 직원만 급여 합산됩니다!
-⚠️ 병합 후 되돌릴 수 없습니다!
-계속하시겠습니까?`;
-    
-    if (!confirm(mergeInfo)) return;
-    
-    try {
-        // 4. 첫 번째 직원 정보 업데이트 (날짜 범위 및 급여 통합)
-        const updates = {
-            startDate: earliestStart,
-            endDate: latestEnd,
-            salary: totalSalary
-        };
-        
-        await fetch(`/api/staff/${keepStaff.id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                updates: updates, 
-                actor: currentUser.name, 
-                store: currentStore 
-            })
-        });
-        
-        // 5. 나머지 직원들 삭제
-        for (const staff of deleteStaffList) {
-            await fetch(`/api/staff/${staff.id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { 
-                method: 'DELETE' 
-            });
+    // 2. 데이터 통합 (Exceptions 합치기 + 날짜 범위 확장)
+    let combinedExceptions = { ...keeper.exceptions };
+    let earliestStart = keeper.startDate;
+    let latestEnd = keeper.endDate;
+
+    deletables.forEach(s => {
+        // 근무 기록 통합 (기존 keeper에 없는 날짜만 추가하거나, 덮어씌움)
+        if (s.exceptions) {
+            combinedExceptions = { ...combinedExceptions, ...s.exceptions };
         }
         
-        alert(`✅ ${name} 직원 병합 완료!\n\n` +
-              `▸ 근무기간: ${earliestStart} ~ ${latestEnd}\n` +
-              `▸ 총 급여: ${totalSalary.toLocaleString()}원\n` +
-              `▸ 삭제된 기록: ${deleteStaffList.length}개`);
-        
+        // 날짜 범위 확장
+        if (s.startDate && (!earliestStart || s.startDate < earliestStart)) earliestStart = s.startDate;
+        if (s.endDate && (!latestEnd || s.endDate > latestEnd)) latestEnd = s.endDate;
+    });
+
+    // 3. Keeper 업데이트 (급여는 합산하지 않고 Keeper의 것을 유지하거나 재설정)
+    // 만약 Keeper의 급여가 0원인데 삭제될 직원에 급여가 있다면 가져옴
+    let finalSalary = keeper.salary;
+    if (!finalSalary && deletables.some(s => s.salary > 0)) {
+        finalSalary = deletables.find(s => s.salary > 0).salary;
+    }
+
+    const updates = {
+        startDate: earliestStart,
+        endDate: latestEnd,
+        exceptions: combinedExceptions, // [핵심] 근무기록 통합!
+        salary: finalSalary // [핵심] 급여는 합산(X) -> 단일값(O)
+    };
+
+    try {
+        // 4. Keeper 업데이트 API 호출
+        await fetch(`/api/staff/${keeper.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ updates, actor: currentUser.name, store: currentStore })
+        });
+
+        // 5. 나머지 삭제 API 호출
+        for (const s of deletables) {
+            await fetch(`/api/staff/${s.id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });
+        }
+
+        alert('병합 완료! 근무 기록이 통합되었습니다.');
         closeMergeModal();
-        loadStaffData();
-        if(currentUser.role === 'admin') loadLogs();
-    } catch(e) {
-        alert('병합 중 오류가 발생했습니다: ' + e.message);
+        loadStaffData(); // 리스트 갱신
+
+    } catch (e) {
+        console.error(e);
+        alert('병합 중 오류 발생');
     }
 }
 

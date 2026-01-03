@@ -320,20 +320,7 @@
                 <label>근무 시간 (예: 18:00~23:00)</label>
                 <input type="text" id="editTime">
             </div>
-
-    <!-- 중복 직원 병합 모달 -->
-    <div id="mergeModalOverlay" class="modal-overlay">
-        <div class="modal-box" style="max-width:600px;">
-            <h2>🔧 중복 직원 병합</h2>
-            <div id="mergeModalContent"></div>
-            <div class="modal-actions">
-                <button onclick="closeMergeModal()" style="background:#6c757d; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; width:100%;">
-                    닫기
-                </button>
-            </div>
-        </div>
-    </div>
-
+            
             <div style="background:#fff3e0; padding:10px; border-radius:5px; margin-bottom:15px; margin-top:10px;">
                 <h4 style="margin:0 0 10px 0; font-size:13px; color:#ef6c00;">📅 입/퇴사 관리 (급여 계산용)</h4>
                 <div class="input-group-row"> 
@@ -346,7 +333,6 @@
                         <input type="date" id="editEndDate" style="width:100%; padding:5px;">
                     </div>
                 </div>
-                <p style="font-size:11px; color:#666; margin-top:5px;">* 비워두면 해당 월 전체 근무로 간주합니다. 입사일 관계없이 월급기준으로 입력하면 자동계산됩니다</p>
             </div>
             
             <div id="modalSalarySection" style="display:none; background:#f0f8ff; padding:10px; border-radius:5px;">
@@ -366,6 +352,47 @@
             <div class="modal-actions">
                 <button class="btn" onclick="saveStaffEdit()" style="flex:1;">저장</button>
                 <button class="btn" onclick="closeEditModal()" style="flex:1; background:#666;">취소</button>
+            </div>
+        </div>
+    </div> 
+    <div id="mergeModalOverlay" class="modal-overlay">
+        <div class="modal-box" style="max-width:600px;">
+            <h2>🔧 중복 직원 병합</h2>
+            <div id="mergeModalContent"></div>
+            <div class="modal-actions">
+                <button onclick="closeMergeModal()" style="background:#6c757d; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; width:100%;">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="att-manage" class="att-sub-content">
+            <div class="form-container">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h2>직원 등록/관리</h2>
+                    <div id="salarySection" style="display:none;">
+                        <button onclick="calculateMonthlySalary()" style="background:#673ab7; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                            💰 이번달 급여 예측
+                        </button>
+                    </div>
+                </div>
+
+                <div class="accounting-header-nav" style="background:#f8f9fa; margin-bottom:20px;">
+                    <button onclick="changeManageMonth(-1)" class="nav-btn">◀ 전월</button>
+                    <div class="current-month-display">
+                        <h3 id="manageMonthTitle" style="margin:0; font-size:16px;">2024년 12월</h3>
+                        <button onclick="resetManageMonth()" class="reset-btn-mini">이번 달 보기</button>
+                    </div>
+                    <button onclick="changeManageMonth(1)" class="nav-btn">익월 ▶</button>
+                </div>
+                
+                <div id="bulkSection" style="margin-bottom: 30px; display: none;">
+                    </div>
+
+                <hr style="margin:20px 0;">
+                <h3>📋 직원 목록</h3>
+                <div id="manageStaffList" style="margin-top:15px;"></div>
             </div>
         </div>
     </div>
@@ -1124,36 +1151,6 @@
                         💾 <span id="fixBtnMonth">12월</span> 데이터 저장
                     </button>
                 </div>
-            </div>
-        </div>
-
-        <div id="manage-content" class="tab-content">
-            <div class="form-container">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2>직원 등록/관리</h2>
-                    
-                    <div id="salarySection" style="display:none;">
-                        <button onclick="calculateMonthlySalary()" style="background:#673ab7; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">
-                            💰 이번달 급여 예측
-                        </button>
-                    </div>
-                </div>
-                
-                <div id="bulkSection" style="margin-bottom: 30px; display: none;">
-                    <h3>📑 일괄 등록 (사장님 전용)</h3>
-                    <div class="bulk-guide">
-                        <strong>💡 입력 형식:</strong> 이름, 근무요일, 시간 (한 줄에 한 명씩)<br>
-                        <strong>예시:</strong><br>
-                        이준호, 월화수금토일, 15~03<br>
-                        임현준, 토일, 18:00~23:00
-                    </div>
-                    <textarea id="bulkText" class="bulk-input-area" placeholder="이름, 근무요일, 시간&#13;&#10;이름, 근무요일, 시간" style="height: 200px; width:100%; padding:10px; margin-top:5px;"></textarea>
-                    <button class="btn" onclick="processBulkText()">한 번에 등록하기</button>
-                </div>
-
-                <hr style="margin:20px 0;">
-                <h3>📋 직원 목록 (수정/삭제)</h3>
-                <div id="manageStaffList" style="margin-top:15px;"></div>
             </div>
         </div>
 
