@@ -1272,7 +1272,6 @@ function createAnalysisCard(title, row1, row2, row3, bg) {
     </div>`;
 }
 
-// [예상 순익 로직 수정]
 function renderPredictionStats() {
     const today = new Date();
     const currentYear = currentDashboardDate.getFullYear();
@@ -1283,50 +1282,74 @@ function renderPredictionStats() {
     let appliedDay = lastDayOfThisMonth;
     let ratio = 1.0;
 
+    // 현재 보고 있는 달이 '이번 달'인 경우에만 일할 비율 적용
     if (today.getFullYear() === currentYear && (today.getMonth() + 1) === currentMonth) {
         appliedDay = today.getDate();
         ratio = appliedDay / lastDayOfThisMonth;
     } else if (new Date(currentYear, currentMonth - 1, 1) > today) {
+        // 미래의 달
         appliedDay = 0; ratio = 0;
     }
 
     const ratioText = `${appliedDay}/${lastDayOfThisMonth}`;
     if(document.getElementById('predDateRatio')) document.getElementById('predDateRatio').textContent = ratioText;
-    if(document.getElementById('predCostText')) document.getElementById('predCostText').textContent = `${ratioText}일치`;
+    if(document.getElementById('predCostText')) document.getElementById('predCostText').textContent = `(일할/실비 구분적용)`;
 
     const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
     
-    let salesTotal = 0;
+    // 1. 매출 데이터 집계 (배달 통합)
+    let sales = { card: 0, cash: 0, delivery: 0, gift: 0, total: 0 };
     let variableCostTotal = 0;
-    let deliverySalesTotal = 0; 
+    let deliverySalesTotal = 0; // 분석용
 
     if (accountingData.daily) {
         Object.keys(accountingData.daily).forEach(date => {
             if (date.startsWith(monthStr)) {
                 const d = accountingData.daily[date];
-                const daySales = (d.sales || 0);
-                salesTotal += daySales;
-                deliverySalesTotal += (d.baemin||0) + (d.yogiyo||0) + (d.coupang||0);
+                
+                // 매출 합산
+                sales.card += (d.card || 0);
+                sales.cash += (d.cash || 0);
+                sales.gift += (d.gift || 0);
+                
+                // 배달 3사 합산 -> 'delivery'로 통합
+                const dayDelivery = (d.baemin || 0) + (d.yogiyo || 0) + (d.coupang || 0);
+                sales.delivery += dayDelivery;
+                
+                // [참고] 계좌이체는 매출에 포함 안 함 (현금에 포함된 것으로 간주하거나 별도 관리)
+                
                 variableCostTotal += (d.cost || 0);
             }
         });
     }
+    sales.total = sales.card + sales.cash + sales.delivery + sales.gift;
+    deliverySalesTotal = sales.delivery;
 
-    const estimatedStaffCost = getEstimatedStaffCost(monthStr);
-    const fixedRaw = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.makgeolli||0)
-                   + (mData.liquor||0) + (mData.beverage||0) + (mData.etc_fixed||0)
-                   + (mData.disposable||0) + (mData.businessCard||0) + (mData.taxAgent||0) 
-                   + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0) + (mData.liquorLoan||0)
-                   + (mData.deliveryFee||0);
+    // 2. 비용 계산 로직 개선
+    // [A] 일할 계산 대상 (Time-based): 임대료, 공과금, 기타고정비 등
+    const timeBasedFixedRaw = (mData.rent||0) + (mData.utility||0) + (mData.gas||0)
+                            + (mData.etc_fixed||0) + (mData.disposable||0) + (mData.businessCard||0) 
+                            + (mData.taxAgent||0) + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0);
     
-    const totalFixedFull = fixedRaw + estimatedStaffCost;
-    const appliedFixedCost = Math.floor(totalFixedFull * ratio); 
+    // [B] 100% 반영 대상 (Actuals): 주류, 음료, 막걸리, 대출상환, 배달수수료
+    // -> 이미 들어온 물건값이거나 매출에 비례해 발생한 수수료이므로 나누지 않음
+    const actualBasedFixed = (mData.liquor||0) + (mData.makgeolli||0) + (mData.beverage||0)
+                           + (mData.liquorLoan||0) + (mData.deliveryFee||0);
 
-    const totalCurrentCost = variableCostTotal + appliedFixedCost;
-    const netProfit = salesTotal - totalCurrentCost;
-    const margin = salesTotal > 0 ? ((netProfit / salesTotal) * 100).toFixed(1) : 0;
+    // [C] 인건비 (예상치에 일할 적용)
+    const estimatedStaffCostFull = getEstimatedStaffCost(monthStr);
+    const appliedStaffCost = Math.floor(estimatedStaffCostFull * ratio);
 
-    document.getElementById('predTotalSales').textContent = salesTotal.toLocaleString() + '원';
+    // 최종 보정된 비용 합계
+    // = 변동비(실비) + 시간비례고정비(일할) + 실비성고정비(100%) + 인건비(일할)
+    const appliedTimeBased = Math.floor(timeBasedFixedRaw * ratio);
+    const totalCurrentCost = variableCostTotal + appliedTimeBased + actualBasedFixed + appliedStaffCost;
+
+    const netProfit = sales.total - totalCurrentCost;
+    const margin = sales.total > 0 ? ((netProfit / sales.total) * 100).toFixed(1) : 0;
+
+    // 3. UI 업데이트
+    document.getElementById('predTotalSales').textContent = sales.total.toLocaleString() + '원';
     document.getElementById('predTotalCost').textContent = totalCurrentCost.toLocaleString() + '원';
     
     const profitEl = document.getElementById('predNetProfit');
@@ -1334,50 +1357,151 @@ function renderPredictionStats() {
     profitEl.style.color = netProfit >= 0 ? '#fff' : '#ffab91';
     document.getElementById('predMargin').textContent = `보정 마진율: ${margin}%`;
 
-    renderCostList('predCostList', mData, estimatedStaffCost, ratio, salesTotal, totalCurrentCost, monthStr);
+    // 4. 차트 렌더링
+    // [NEW] 매출 차트 (그룹화된 데이터 사용)
+    renderGroupedSalesChart('predSalesChart', sales);
 
+    // 비용 리스트 (계산된 값 전달)
+    // renderCostList 함수가 비율을 내부에서 곱해버리므로, 
+    // 여기서는 '이미 계산된 값'을 표시하기 위해 커스텀 객체를 만들어 전달하거나 
+    // renderCostList를 수정해야 합니다. 
+    // -> 기존 renderCostList는 비율을 무조건 곱하므로, 정확한 표시를 위해 
+    //    여기서 직접 HTML을 그리는 헬퍼를 호출하거나, renderCostList에 1.0을 주고 미리 계산된 값을 넘기는 꼼수를 씁니다.
+    
+    // 꼼수: mData를 조작해서 넘기기보다, 새로운 비용 렌더링 함수 사용 권장.
+    // 하지만 코드 수정을 최소화하기 위해 mData 복사본을 만들어 '비율 적용 안 할 항목'은 ratio 역산해서 넣기? -> 복잡함.
+    // 결론: 직접 렌더링하는 로직을 여기에 작성 (가장 깔끔)
+    
+    renderPredictionCostList('predCostList', {
+        meat: getVariableCostSum(monthStr, 'meat'),
+        food: getVariableCostSum(monthStr, 'food'),
+        etc: getVariableCostSum(monthStr, 'etc'),
+        rent: Math.floor((mData.rent||0) * ratio),
+        staff: appliedStaffCost,
+        delivery: mData.deliveryFee || 0, // 100%
+        liquor: (mData.liquor||0) + (mData.makgeolli||0) + (mData.beverage||0) + (mData.liquorLoan||0), // 100%
+        utility: Math.floor(((mData.utility||0) + (mData.gas||0)) * ratio),
+        others: Math.floor(((mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + (mData.tableOrder||0) + (mData.etc_fixed||0) + (mData.foodWaste||0) + (mData.disposable||0)) * ratio)
+    }, sales.total, totalCurrentCost);
+
+    // 분석 HTML 생성
     const analysisContainer = document.getElementById('predDetailAnalysis');
     if (analysisContainer) {
-        const adjAlcoholSales = Math.floor((mData.alcoholSales || 0) * ratio);
-        const adjBeverageSales = Math.floor((mData.beverageSales || 0) * ratio);
-        const adjLiquorCost = Math.floor((mData.liquor || 0) * ratio);
-        const adjBeverageCost = Math.floor((mData.beverage || 0) * ratio);
-        const adjDeliveryFee = Math.floor((mData.deliveryFee || 0) * ratio);
+        // 주류 매출 등도 일할 계산 할지 말지 결정 필요하나, 보통 매출은 실적이므로 100% 씁니다.
+        // 다만 고정비(Liquor Cost)를 100% 썼으므로 매출도 100% 써야 원가율이 맞습니다.
+        const alcoholSales = mData.alcoholSales || 0;
+        const beverageSales = mData.beverageSales || 0;
+        const liquorCost = (mData.liquor||0) + (mData.makgeolli||0) + (mData.liquorLoan||0);
+        const beverageCost = mData.beverage || 0;
+        const deliveryFee = mData.deliveryFee || 0;
 
         analysisContainer.innerHTML = generateDetailAnalysisHtml(
-            salesTotal, variableCostTotal, deliverySalesTotal,
-            adjAlcoholSales, adjBeverageSales, 
-            adjLiquorCost, adjBeverageCost, adjDeliveryFee
+            sales.total, variableCostTotal, deliverySalesTotal,
+            alcoholSales, beverageSales, 
+            liquorCost, beverageCost, deliveryFee
         );
     }
 }
 
-// [월간 분석 로직 수정]
+// [HELPER] 변동비 합계 구하기
+function getVariableCostSum(monthStr, type) {
+    let sum = 0;
+    if (accountingData.daily) {
+        Object.keys(accountingData.daily).forEach(date => {
+            if (date.startsWith(monthStr)) {
+                sum += (accountingData.daily[date][type] || 0);
+            }
+        });
+    }
+    return sum;
+}
+
+// [NEW] 그룹화된 매출 차트 렌더링 (공통 사용)
+function renderGroupedSalesChart(containerId, sales) {
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    
+    if(sales.total === 0) { 
+        el.innerHTML = '<div style="text-align:center; color:#999; padding:10px;">데이터 없음</div>'; 
+        return; 
+    }
+
+    const renderBar = (l, v, c) => v > 0 ? 
+        `<div class="bar-row">
+            <div class="bar-label">${l}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.max((v/sales.total)*100,1)}%; background:${c};"></div></div>
+            <div class="bar-value">${v.toLocaleString()}</div>
+        </div>` : '';
+
+    el.innerHTML = `
+        ${renderBar('💳 카드', sales.card, '#42a5f5')}
+        ${renderBar('🛵 배달', sales.delivery, '#2ac1bc')}
+        ${renderBar('💵 현금', sales.cash, '#66bb6a')}
+        ${renderBar('🎫 기타', sales.gift, '#ffa726')}
+    `;
+}
+
+// [NEW] 예상 비용 리스트 렌더링 (계산된 값 그대로 출력)
+function renderPredictionCostList(containerId, costs, salesTotal, totalCost) {
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    
+    // 항목 정의 (값은 이미 계산되어 넘어옴)
+    const meatLabel = (currentStore === 'yangeun') ? '🍞 SPC유통' : '🥩 한강유통';
+    const items = [
+        { label: meatLabel, val: costs.meat, color: '#ef5350' },
+        { label: '🥬 삼시세끼', val: costs.food, color: '#8d6e63' },
+        { label: '🛵 배달수수료', val: costs.delivery, color: '#00bcd4' }, // 100%
+        { label: '🍶 주류/대출', val: costs.liquor, color: '#ce93d8' }, // 100%
+        { label: '👥 인건비(N)', val: costs.staff, color: '#ba68c8' },
+        { label: '🏠 임대료(N)', val: costs.rent, color: '#ab47bc' },
+        { label: '💡 관리/공과(N)', val: costs.utility, color: '#e1bee7' },
+        { label: '🎸 기타/잡비', val: costs.etc + costs.others, color: '#78909c' }
+    ].sort((a,b) => b.val - a.val);
+
+    let html = '';
+    items.forEach(item => {
+        if (item.val > 0) {
+            const widthPct = Math.max((item.val / totalCost) * 100, 1);
+            const textPct = salesTotal > 0 ? ((item.val / salesTotal) * 100).toFixed(1) : '0.0';
+            html += `
+            <div class="bar-row">
+                <div class="bar-label">${item.label}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${widthPct}%; background:${item.color};"></div></div>
+                <div class="bar-value">${item.val.toLocaleString()} <span style="font-size:11px; color:#999;">(${textPct}%)</span></div>
+            </div>`;
+        }
+    });
+    el.innerHTML = html;
+}
+
+/* renderDashboardStats (월간 분석) 함수도 그룹화된 차트를 쓰도록 수정 */
 function renderDashboardStats() {
     const monthStr = getMonthStr(currentDashboardDate);
     const mData = (accountingData.monthly && accountingData.monthly[monthStr]) ? accountingData.monthly[monthStr] : {};
     
-    let sales = { card:0, cash:0, transfer:0, gift:0, baemin:0, yogiyo:0, coupang:0, total:0 };
+    // 매출 집계 (그룹화)
+    let sales = { card:0, cash:0, delivery:0, gift:0, total:0 };
     let variableCostTotal = 0; 
 
     if (accountingData.daily) {
         Object.keys(accountingData.daily).forEach(date => {
             if (date.startsWith(monthStr)) {
                 const d = accountingData.daily[date];
-                sales.card += (d.card||0); sales.cash += (d.cash||0);
-                sales.transfer += (d.transfer||0); sales.gift += (d.gift||0);
-                sales.baemin += (d.baemin||0); sales.yogiyo += (d.yogiyo||0); sales.coupang += (d.coupang||0);
+                sales.card += (d.card||0); 
+                sales.cash += (d.cash||0);
+                sales.gift += (d.gift||0);
+                
+                // 배달 통합
+                const dayDelivery = (d.baemin||0) + (d.yogiyo||0) + (d.coupang||0);
+                sales.delivery += dayDelivery;
                 
                 variableCostTotal += (d.cost || 0);
             }
         });
     }
-
-    // [수정] 계좌이체(transfer)는 매출 합계(total)에서 제외
-    sales.total = sales.card + sales.cash + sales.gift + sales.baemin + sales.yogiyo + sales.coupang;
+    sales.total = sales.card + sales.cash + sales.delivery + sales.gift;
     
-    const deliverySalesTotal = sales.baemin + sales.yogiyo + sales.coupang;
-
     const staffCost = getEstimatedStaffCost(monthStr);
     const fixedTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.liquor||0) + (mData.makgeolli||0)
                      + (mData.beverage||0) + (mData.etc_fixed||0) + staffCost
@@ -1389,6 +1513,7 @@ function renderDashboardStats() {
     const netProfit = sales.total - totalCost;
     const margin = sales.total > 0 ? ((netProfit / sales.total) * 100).toFixed(1) : 0;
 
+    // UI 업데이트
     document.getElementById('dashTotalSales').textContent = sales.total.toLocaleString() + '원';
     document.getElementById('dashTotalCost').textContent = totalCost.toLocaleString() + '원';
     
@@ -1401,18 +1526,23 @@ function renderDashboardStats() {
     let bepMsg = netProfit > 0 ? `🎉 흑자 달성! (+${netProfit.toLocaleString()}원)` : `⚠️ 손익분기까지 ${Math.abs(netProfit).toLocaleString()}원 남음`;
     document.getElementById('dashBreakEven').textContent = bepMsg;
 
-    renderDashboardCharts(sales, totalCost, mData, staffCost, variableCostTotal, monthStr);
+    // 차트 렌더링 (공통 함수 사용)
+    renderGroupedSalesChart('salesBreakdownChart', sales);
+    
+    // 비용 리스트 (기존 함수 재사용 - Ratio 1.0)
+    renderCostList('costBreakdownList', mData, staffCost, 1.0, sales.total, totalCost, monthStr);
 
+    // 상세 분석 HTML
     const analysisContainer = document.getElementById('dashDetailAnalysis');
     if (analysisContainer) {
         const alcoholSales = mData.alcoholSales || 0;
         const beverageSales = mData.beverageSales || 0;
-        const liquorCost = mData.liquor || 0;
+        const liquorCost = (mData.liquor || 0) + (mData.makgeolli || 0) + (mData.liquorLoan || 0);
         const beverageCost = mData.beverage || 0;
         const deliveryFee = mData.deliveryFee || 0;
 
         analysisContainer.innerHTML = generateDetailAnalysisHtml(
-            sales.total, variableCostTotal, deliverySalesTotal,
+            sales.total, variableCostTotal, sales.delivery, // sales.delivery 전달
             alcoholSales, beverageSales, 
             liquorCost, beverageCost, deliveryFee
         );
