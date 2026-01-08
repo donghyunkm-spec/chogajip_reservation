@@ -308,9 +308,42 @@ function updateUnifiedView() {
     // [2] 월간 분석용 변수 (고정비 100%)
     let fullStats = { meat:0, food:0, rent:0, utility:0, liquor:0, loan:0, delivery:0, staff:0, etc:0 };
 
-    const currentDay = today.getDate();
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const ratio = currentDay / lastDay; 
+    // --- [수정됨] 날짜 비율(Ratio) 계산 로직 개선 ---
+    const realToday = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    
+    const lastDay = new Date(currentYear, currentMonth, 0).getDate();
+    let appliedDay = lastDay;
+
+    // 현재 보고 있는 달이 '이번 달'인 경우
+    if (realToday.getFullYear() === currentYear && (realToday.getMonth() + 1) === currentMonth) {
+        appliedDay = realToday.getDate();
+
+        // [핵심] 오늘 날짜의 '통합' 매출 확인
+        const todayKey = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(appliedDay).padStart(2,'0')}`;
+        
+        let todayTotalSales = 0;
+        // 초가짚 오늘 매출 확인
+        if (uniDataChoga && uniDataChoga.daily && uniDataChoga.daily[todayKey]) {
+            todayTotalSales += (uniDataChoga.daily[todayKey].sales || 0);
+        }
+        // 양은이네 오늘 매출 확인
+        if (uniDataYang && uniDataYang.daily && uniDataYang.daily[todayKey]) {
+            todayTotalSales += (uniDataYang.daily[todayKey].sales || 0);
+        }
+
+        // 오늘 매출 합계가 0원이면 어제 날짜로 계산
+        if (todayTotalSales === 0 && appliedDay > 1) {
+            appliedDay = appliedDay - 1;
+        }
+    } else if (new Date(currentYear, currentMonth - 1, 1) > realToday) {
+        // 미래의 달
+        appliedDay = 0;
+    }
+
+    const ratio = appliedDay / lastDay; 
+    // ------------------------------------------------
 
     datasets.forEach(ds => {
         const d = ds.acc;
@@ -320,13 +353,8 @@ function updateUnifiedView() {
             Object.keys(d.daily).forEach(date => {
                 if(date.startsWith(monthStr)) {
                     const day = d.daily[date];
-                    // [수정] 통합 뷰에서도 계좌이체는 매출에 포함되지 않음 (이미 저장된 sales 사용)
-                    // 기존에 저장된 데이터는 sales에 포함되어 있을 수 있으므로 재계산을 추천하지만,
-                    // 일단 저장된 daily.sales 값을 신뢰하거나, 필요 시 여기서도 재계산 로직을 넣을 수 있음.
-                    // (일관성을 위해 저장된 값 사용)
                     totalSales += (day.sales || 0);
                     
-                    // 변동비는 예상이나 현실이나 똑같음 (이미 쓴 돈)
                     const vMeat = (day.meat || 0);
                     const vFood = (day.food || 0);
                     const vEtc = (day.etc || 0);
@@ -350,17 +378,20 @@ function updateUnifiedView() {
             // 항목별 값 추출
             const vRent = (m.rent||0);
             const vUtil = (m.utility||0) + (m.gas||0) + (m.tableOrder||0) + (m.foodWaste||0);
-            const vLiq = (m.liquor||0) + (m.beverage||0);
+            const vLiq = (m.liquor||0) + (m.beverage||0) + (m.makgeolli||0); // 막걸리 포함
             const vLoan = (m.liquorLoan||0);
             const vDel = (m.deliveryFee||0);
             const vEtcFix = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
 
-            // [예상 탭] 일할 적용
+            // [예상 탭] 
+            // [수정됨] 주류, 대출, 배달은 ratio 곱하지 않고 100% 반영
+            predStats.liquor += vLiq;       // 100%
+            predStats.loan += vLoan;        // 100%
+            predStats.delivery += vDel;     // 100%
+            
+            // 나머지는 일할 적용
             predStats.rent += Math.floor(vRent * ratio);
             predStats.utility += Math.floor(vUtil * ratio);
-            predStats.liquor += Math.floor(vLiq * ratio);
-            predStats.loan += Math.floor(vLoan * ratio);
-            predStats.delivery += Math.floor(vDel * ratio);
             predStats.etc += Math.floor(vEtcFix * ratio);
 
             // [분석 탭] 100% 적용
@@ -383,7 +414,9 @@ function updateUnifiedView() {
     const predEl = document.getElementById('uniPredProfit');
     predEl.textContent = predProfit.toLocaleString() + '원';
     predEl.style.color = predProfit >= 0 ? '#fff' : '#ffab91';
-    document.getElementById('uniPredMargin').textContent = `마진율: ${predMargin}%`;
+    
+    // [UI 표시] 오늘 날짜 비율 텍스트 표시 (어제 날짜로 계산되었는지 확인용)
+    document.getElementById('uniPredMargin').innerHTML = `마진율: ${predMargin}% <span style="font-size:11px; opacity:0.7;">(${appliedDay}/${lastDay}일 기준)</span>`;
     
     renderDetailedCostChart('uniPredCostList', predStats, totalSales, predCostTotal);
 
@@ -393,25 +426,23 @@ function updateUnifiedView() {
     const fullMargin = totalSales > 0 ? ((fullProfit / totalSales) * 100).toFixed(1) : 0;
 
     document.getElementById('uniDashSales').textContent = totalSales.toLocaleString() + '원';
-    document.getElementById('uniDashCost').textContent = fullCostTotal.toLocaleString() + '원'; // 전체 비용
+    document.getElementById('uniDashCost').textContent = fullCostTotal.toLocaleString() + '원';
     const dashEl = document.getElementById('uniDashProfit');
     dashEl.textContent = fullProfit.toLocaleString() + '원';
-    dashEl.style.color = fullProfit >= 0 ? '#333' : 'red'; // 흑자면 검정, 적자면 빨강
+    dashEl.style.color = fullProfit >= 0 ? '#333' : 'red';
     document.getElementById('uniDashMargin').textContent = `실질마진: ${fullMargin}%`;
 
-    // [중요] 월간 분석 탭에도 차트를 그리기 위해 HTML에 컨테이너가 필요합니다.
+    // 차트 렌더링
     let dashListEl = document.getElementById('uniDashCostList');
     if (!dashListEl) {
-        // 차트 그릴 공간이 없으면 동적으로 salesChart 위에 생성
         const chartArea = document.getElementById('uniSalesChart');
         if(chartArea) {
             dashListEl = document.createElement('div');
             dashListEl.id = 'uniDashCostList';
             dashListEl.className = 'cost-list';
             dashListEl.style.marginBottom = '20px';
-            chartArea.parentNode.insertBefore(dashListEl, chartArea); // 차트 위에 삽입
+            chartArea.parentNode.insertBefore(dashListEl, chartArea);
             
-            // 제목도 하나 달아줌
             const title = document.createElement('h3');
             title.className = 'chart-title';
             title.textContent = '📉 전체 비용 구조 (고정비 100% 반영)';
@@ -419,7 +450,6 @@ function updateUnifiedView() {
         }
     }
     
-    // 차트 렌더링 (분석 탭용 데이터 사용)
     if(dashListEl) {
         renderDetailedCostChart('uniDashCostList', fullStats, totalSales, fullCostTotal);
     }
