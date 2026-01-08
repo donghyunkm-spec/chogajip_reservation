@@ -1282,9 +1282,23 @@ function renderPredictionStats() {
     let appliedDay = lastDayOfThisMonth;
     let ratio = 1.0;
 
-    // 현재 보고 있는 달이 '이번 달'인 경우에만 일할 비율 적용
+    // [수정됨] 현재 보고 있는 달이 '이번 달'인 경우에만 일할 비율 적용
     if (today.getFullYear() === currentYear && (today.getMonth() + 1) === currentMonth) {
         appliedDay = today.getDate();
+        
+        // --- [추가된 로직 시작] ---
+        // 오늘 날짜의 매출 데이터를 확인합니다.
+        const todayStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+        const todayData = (accountingData.daily && accountingData.daily[todayStr]) ? accountingData.daily[todayStr] : {};
+        const todaySales = todayData.sales || 0;
+
+        // 만약 오늘 매출이 0원(아직 입력 안 함)이라면, 일할 계산을 '어제' 기준으로 합니다.
+        // (단, 1일인 경우는 0일로 처리되어야 하므로 appliedDay > 0 조건만 체크)
+        if (todaySales === 0 && appliedDay > 0) {
+            appliedDay = appliedDay - 1;
+        }
+        // --- [추가된 로직 끝] ---
+
         ratio = appliedDay / lastDayOfThisMonth;
     } else if (new Date(currentYear, currentMonth - 1, 1) > today) {
         // 미래의 달

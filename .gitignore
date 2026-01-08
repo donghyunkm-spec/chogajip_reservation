@@ -20,3 +20,6 @@ Thumbs.db
 # IDE 설정
 .vscode/
 .idea/
+
+# 백업 제외
+backup/
