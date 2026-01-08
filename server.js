@@ -656,7 +656,15 @@ app.post('/api/kakao/send-briefing', async (req, res) => {
 function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) {
     // 1. 변동비 (일별 실비 합산)
     let meat = 0, food = 0, etcDaily = 0, sales = 0;
+    
+    // [NEW] 오늘 날짜 매출이 0원인지 확인하기 위해 오늘 날짜 키 생성
+    const today = new Date();
+    const todayKey = today.toISOString().slice(0, 10); // YYYY-MM-DD
+    let todaySales = 0;
+
     if (accData.daily) {
+        if(accData.daily[todayKey]) todaySales = accData.daily[todayKey].sales || 0;
+
         Object.keys(accData.daily).forEach(date => {
             if (date.startsWith(monthStr)) {
                 const d = accData.daily[date];
@@ -670,30 +678,41 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
 
     // 2. 고정비 (월별 데이터)
     const m = (accData.monthly && accData.monthly[monthStr]) ? accData.monthly[monthStr] : {};
+    
+    // [A] 일할 계산 대상 (시간이 지나면 나가는 돈)
     const rent = m.rent || 0;
     const utility = (m.utility||0) + (m.gas||0) + (m.foodWaste||0) + (m.tableOrder||0);
+    const etcFixed = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
+
+    // [B] 100% 반영 대상 (물건값, 수수료, 상환금 등) -> 화면 로직과 맞춤
     const makgeolli = m.makgeolli || 0;
     const liquor = (m.liquor||0) + (m.beverage||0) + makgeolli;
     const liquorLoan = m.liquorLoan || 0;
     const delivery = m.deliveryFee || 0;
-    const etcFixed = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
 
     // 3. 인건비 (예상 총액)
     const staffTotal = calculateServerStaffCost(staffData, monthStr);
 
-    // 4. [A] 예상 순익용 (일할 계산: 오늘 날짜까지만 쓴 걸로 침)
+    // 4. [A] 예상 순익용 (일할 계산 비율 설정)
     const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-    const ratio = currentDay / lastDay;
+    
+    // [NEW] 매출 0원이면 어제 날짜 기준으로 비율 조정 (화면 로직과 동일)
+    let appliedDay = currentDay;
+    if (todaySales === 0 && appliedDay > 1) {
+        appliedDay = appliedDay - 1;
+    }
+    const ratio = appliedDay / lastDay;
 
-    // 예상 비용 항목 (일할 적용)
+    // 예상 비용 항목 계산
+    // [수정됨] 주류, 대출, 배달은 ratio를 곱하지 않고 100% 반영합니다.
     const itemsPred = {
         rent: Math.floor(rent * ratio),
         utility: Math.floor(utility * ratio),
-        liquor: Math.floor(liquor * ratio),
-        loan: Math.floor(liquorLoan * ratio),
-        delivery: Math.floor(delivery * ratio),
+        liquor: liquor,             // 100% 반영 (수정됨)
+        loan: liquorLoan,           // 100% 반영 (수정됨)
+        delivery: delivery,         // 100% 반영 (수정됨)
         staff: Math.floor(staffTotal * ratio),
-        meat: meat, // 변동비는 실비
+        meat: meat,
         food: food,
         etc: etcDaily + Math.floor(etcFixed * ratio)
     };
@@ -701,17 +720,16 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
     const costPred = Object.values(itemsPred).reduce((a,b)=>a+b, 0);
     const profitPred = sales - costPred;
 
-    // 5. [B] 현실 점검용 (고정비 100% 반영: 월세/인건비 다 나갔다고 가정)
-    // 변동비(실비) + 고정비(전체) -> 현재 매출로 고정비를 얼마나 갚았는지 확인
+    // 5. [B] 현실 점검용 (고정비 100% 반영)
     const costFull = meat + food + etcDaily + rent + utility + liquor + liquorLoan + delivery + etcFixed + staffTotal;
-    const profitReal = sales - costFull; // 보통 월초에는 마이너스임
+    const profitReal = sales - costFull;
 
     return {
         sales, 
-        profitPred, // 예상 순익
-        profitReal, // 현실 순익(고정비 완납 기준)
-        costFull,   // 월 전체 예상 지출
-        items: itemsPred // 상세 표시는 '예상' 기준으로 (흐름 보기 위해)
+        profitPred, // 예상 순익 (화면과 동일해짐)
+        profitReal, // 현실 순익
+        costFull,   
+        items: itemsPred 
     };
 }
 
