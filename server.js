@@ -329,6 +329,79 @@ app.post('/api/accounting/crawler', (req, res) => {
     }
 });
 
+// [server.js] 기존 app.post('/api/accounting/crawler', ...) 아래에 추가하세요.
+
+app.post('/api/accounting/delivery-crawler', (req, res) => {
+    // 1. 데이터 수신
+    const { 
+        platform, // "배달의민족", "요기요", "쿠팡이츠"
+        store: storeKr, 
+        date, 
+        order_count, 
+        payment_amount,
+        crawled_at 
+    } = req.body;
+
+    // 2. 매장명 맵핑
+    let storeCode = 'chogazip';
+    if (storeKr === '양은이네') storeCode = 'yangeun';
+    else if (storeKr === '초가짚') storeCode = 'chogazip';
+    else return res.status(400).json({ success: false, message: 'Unknown store name' });
+
+    // 3. 플랫폼 키 맵핑
+    let platformKey = '';
+    if (platform === '배달의민족') platformKey = 'baemin';
+    else if (platform === '요기요') platformKey = 'yogiyo';
+    else if (platform === '쿠팡이츠') platformKey = 'coupang';
+    else return res.status(400).json({ success: false, message: 'Unknown platform' });
+
+    const file = getAccountingFile(storeCode);
+    
+    // 4. 기존 데이터 로드
+    let accData = readJson(file, { monthly: {}, daily: {} });
+    if (!accData.daily) accData.daily = {};
+    const existingData = accData.daily[date] || {};
+
+    // 5. 데이터 병합 (해당 플랫폼 매출 및 건수 업데이트)
+    const newData = {
+        ...existingData,
+        [platformKey]: payment_amount || 0,           // 예: baemin: 508000
+        [`${platformKey}Count`]: order_count || 0,    // 예: baeminCount: 11
+        [`${platformKey}CrawledAt`]: crawled_at       // 크롤링 시점
+    };
+
+    // 6. [중요] 총 매출 재계산 로직
+    // 양은이네: 카드 + 현금 + 배달3사 (계좌이체 제외 등 기존 로직 준수)
+    // 초가짚: 카드 + 현금 + 기타 (배달이 없지만 혹시 모르니 로직 포함)
+    const card = newData.card || 0;
+    const cash = newData.cash || 0;
+    const gift = newData.gift || 0;
+    const baemin = newData.baemin || 0;
+    const yogiyo = newData.yogiyo || 0;
+    const coupang = newData.coupang || 0;
+
+    let totalSales = 0;
+    if (storeCode === 'yangeun') {
+        // 양은이네는 배달 포함
+        totalSales = card + cash + baemin + yogiyo + coupang; 
+    } else {
+        // 초가짚은 기존대로
+        totalSales = card + cash + gift;
+    }
+    newData.sales = totalSales;
+
+    // 7. 저장
+    accData.daily[date] = newData;
+
+    if (writeJson(file, accData)) {
+        addLog(storeCode, 'Crawler', '배달매출입력', date, `${platform}(${order_count}건) 업데이트`);
+        console.log(`🛵 [Delivery] ${storeKr} ${date} ${platform} 업데이트 완료`);
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
 app.post('/api/accounting/monthly', (req, res) => {
     const { month, data, store, actor } = req.body;
     const file = getAccountingFile(store || 'chogazip');
