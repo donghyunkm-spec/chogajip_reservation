@@ -264,6 +264,71 @@ app.post('/api/accounting/daily', (req, res) => {
     } else res.status(500).json({ success: false });
 });
 
+app.post('/api/accounting/crawler', (req, res) => {
+    // 1. 크롤러 데이터 수신
+    const { 
+        date, 
+        store: storeKr, 
+        sales, 
+        deductions, 
+        max_receipt_no 
+    } = req.body;
+
+    // 2. 매장명 맵핑 (한글 -> 영문 코드)
+    let storeCode = 'chogazip';
+    if (storeKr === '양은이네') storeCode = 'yangeun';
+    else if (storeKr === '초가짚') storeCode = 'chogazip';
+    else {
+        return res.status(400).json({ success: false, message: 'Unknown store name' });
+    }
+
+    const file = getAccountingFile(storeCode);
+    
+    // 3. 기존 데이터 로드 (기존 지출 내역 등을 보존하기 위해)
+    let accData = readJson(file, { monthly: {}, daily: {} });
+    if (!accData.daily) accData.daily = {};
+
+    // 4. 데이터 병합
+    const existingData = accData.daily[date] || {};
+
+    // 카드 매출 = card + etc (기타 결제수단 포함)
+    const cardSales = (sales.card || 0) + (sales.etc || 0);
+    
+    // 현금 매출 (크롤러 값 사용)
+    const cashSales = sales.cash || 0; 
+
+    // 총 매출 (순매출 net_sales 사용)
+    const totalSales = req.body.net_sales || sales.total || 0;
+
+    const newData = {
+        ...existingData, // 기존에 입력한 지출(food, meat)이나 메모 등은 유지
+        
+        // [매출 자동 갱신]
+        card: cardSales,
+        cash: cashSales,
+        sales: totalSales, 
+        
+        // [신규 감사 데이터 - 수정불가 항목들]
+        receiptCount: max_receipt_no,       // 영수증 번호 (테이블 수)
+        discount: sales.discount || 0,      // 할인 합계
+        refund: deductions.refund_total || 0, // 반품 합계
+        void: deductions.void_total || 0,     // 전체 취소 합계
+
+        crawledAt: new Date().toISOString() // 크롤링 시점 기록
+    };
+
+    // 5. 저장
+    accData.daily[date] = newData;
+
+    if (writeJson(file, accData)) {
+        addLog(storeCode, 'Crawler', '매출자동입력', date, `POS데이터 반영(영수증:${max_receipt_no}, 반품:${newData.refund})`);
+        console.log(`🤖 [Crawler] ${storeKr} ${date} 매출 업데이트 완료`);
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
 app.post('/api/accounting/monthly', (req, res) => {
     const { month, data, store, actor } = req.body;
     const file = getAccountingFile(store || 'chogazip');

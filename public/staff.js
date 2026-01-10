@@ -873,6 +873,7 @@ function loadDailyAccounting() {
 
     const dayData = (accountingData.daily && accountingData.daily[datePicker]) ? accountingData.daily[datePicker] : {};
     
+    // 매출 관련
     if(document.getElementById('inpCard')) document.getElementById('inpCard').value = dayData.card || '';
     if(document.getElementById('inpTransfer')) document.getElementById('inpTransfer').value = dayData.transfer || '';
     
@@ -884,14 +885,22 @@ function loadDailyAccounting() {
         if(document.getElementById('inpGift')) document.getElementById('inpGift').value = dayData.gift || '';
     }
     
+    // 시재 관련
     document.getElementById('inpStartCash').value = (dayData.startCash !== undefined) ? dayData.startCash : 100000;
     document.getElementById('inpCash').value = dayData.cash || '';
     document.getElementById('inpDeposit').value = dayData.bankDeposit || ''; 
 
+    // 지출 및 메모
     document.getElementById('inpFood').value = dayData.food || '';
     document.getElementById('inpMeat').value = dayData.meat || ''; 
     document.getElementById('inpEtc').value = dayData.etc || ''; 
     document.getElementById('inpNote').value = dayData.note || '';
+
+    // [NEW] POS 데이터 로드 (수정불가 필드)
+    if(document.getElementById('inpReceiptCount')) document.getElementById('inpReceiptCount').value = dayData.receiptCount || 0;
+    if(document.getElementById('inpDiscount')) document.getElementById('inpDiscount').value = dayData.discount || 0;
+    if(document.getElementById('inpRefund')) document.getElementById('inpRefund').value = dayData.refund || 0;
+    if(document.getElementById('inpVoid')) document.getElementById('inpVoid').value = dayData.void || 0;
 
     calcDrawerTotal(); 
 }
@@ -946,6 +955,7 @@ async function sendKakaoBriefingManual() {
     }
 }
 
+// [staff.js] saveDailyAccounting 함수 전체 교체
 async function saveDailyAccounting() {
     if (!currentUser) { alert("로그인이 필요합니다."); openLoginModal(); return; }
     if (!['admin', 'manager'].includes(currentUser.role)) { alert("점장 또는 사장님만 매출을 입력/수정할 수 있습니다."); return; }
@@ -963,6 +973,12 @@ async function saveDailyAccounting() {
     const etc = parseInt(document.getElementById('inpEtc').value) || 0;
     const note = document.getElementById('inpNote').value || '';
 
+    // [NEW] POS 데이터 읽기 (수정은 안되지만 저장시 누락되지 않도록 포함)
+    const receiptCount = parseInt(document.getElementById('inpReceiptCount').value) || 0;
+    const discount = parseInt(document.getElementById('inpDiscount').value) || 0;
+    const refund = parseInt(document.getElementById('inpRefund').value) || 0;
+    const voidVal = parseInt(document.getElementById('inpVoid').value) || 0;
+
     let card = 0, gift = 0, baemin = 0, yogiyo = 0, coupang = 0;
     let totalSales = 0;
 
@@ -971,12 +987,12 @@ async function saveDailyAccounting() {
         baemin = parseInt(document.getElementById('inpBaemin').value) || 0;
         yogiyo = parseInt(document.getElementById('inpYogiyo').value) || 0;
         coupang = parseInt(document.getElementById('inpCoupang').value) || 0;
-        // [수정] 계좌이체(transfer)는 매출 합계에서 제외 (현금에 포함됨 or 관리용)
+        // 계좌이체는 매출 합계에서 제외
         totalSales = card + cash + baemin + yogiyo + coupang; 
     } else {
         card = parseInt(document.getElementById('inpCard').value) || 0;
         gift = parseInt(document.getElementById('inpGift').value) || 0;
-        // [수정] 계좌이체(transfer)는 매출 합계에서 제외
+        // 계좌이체는 매출 합계에서 제외
         totalSales = card + cash + gift;
     }
 
@@ -990,7 +1006,10 @@ async function saveDailyAccounting() {
         startCash, cash, bankDeposit, card, transfer, 
         gift: (currentStore === 'yangeun' ? 0 : gift),
         baemin, yogiyo, coupang,
-        sales: totalSales, food, meat, etc, cost: totalCost, note: note
+        sales: totalSales, food, meat, etc, cost: totalCost, note: note,
+        
+        // [NEW] 데이터 저장시 POS 정보 포함
+        receiptCount, discount, refund, void: voidVal
     };
 
     try {
