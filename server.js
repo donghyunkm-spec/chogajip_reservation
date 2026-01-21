@@ -297,8 +297,20 @@ app.post('/api/accounting/crawler', (req, res) => {
     // 현금 매출 (크롤러 값 사용)
     const cashSales = sales.cash || 0; 
 
-    // 총 매출 (순매출 net_sales 사용)
-    const totalSales = req.body.net_sales || sales.total || 0;
+    // [FIX] 기존 배달매출 데이터 가져오기 (덮어쓰지 않도록)
+    const baemin = existingData.baemin || 0;
+    const yogiyo = existingData.yogiyo || 0;
+    const coupang = existingData.coupang || 0;
+
+    // [FIX] 총 매출 재계산 (양은이네는 배달 포함)
+    let totalSales = 0;
+    if (storeCode === 'yangeun') {
+        // 양은이네: 카드 + 현금 + 배달3사
+        totalSales = cardSales + cashSales + baemin + yogiyo + coupang;
+    } else {
+        // 초가짚: POS 매출 그대로 사용
+        totalSales = req.body.net_sales || sales.total || 0;
+    }
 
     const newData = {
         ...existingData, // 기존에 입력한 지출(food, meat)이나 메모 등은 유지
@@ -306,7 +318,7 @@ app.post('/api/accounting/crawler', (req, res) => {
         // [매출 자동 갱신]
         card: cardSales,
         cash: cashSales,
-        sales: totalSales, 
+        sales: totalSales, // [FIX] 배달매출 포함된 총매출
         
         // [신규 감사 데이터 - 수정불가 항목들]
         receiptCount: max_receipt_no,       // 영수증 번호 (테이블 수)
