@@ -1445,7 +1445,7 @@ function renderPredictionStats() {
     sales.total = sales.card + sales.cash + sales.delivery + sales.gift;
     deliverySalesTotal = sales.delivery;
 
-    // 2. 비용 계산 (기존 로직 동일)
+    // 2. 비용 계산
     const timeBasedFixedRaw = (mData.rent||0) + (mData.utility||0) + (mData.gas||0)
                             + (mData.etc_fixed||0) + (mData.disposable||0) + (mData.businessCard||0) 
                             + (mData.taxAgent||0) + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0);
@@ -1484,12 +1484,15 @@ function renderPredictionStats() {
         others: Math.floor(((mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + (mData.tableOrder||0) + (mData.etc_fixed||0) + (mData.foodWaste||0) + (mData.disposable||0)) * ratio)
     }, sales.total, totalCurrentCost);
 
-    // [수정] 상세 분석 HTML 호출 (건수 데이터 전달)
+    // [수정] 상세 분석 HTML 호출 (주류대출 제외)
     const analysisContainer = document.getElementById('predDetailAnalysis');
     if (analysisContainer) {
         const alcoholSales = mData.alcoholSales || 0;
         const beverageSales = mData.beverageSales || 0;
-        const liquorCost = (mData.liquor||0) + (mData.makgeolli||0) + (mData.liquorLoan||0);
+        
+        // 🔴 여기서 주류대출(liquorLoan)을 뺐습니다.
+        const liquorCost = (mData.liquor||0) + (mData.makgeolli||0);
+        
         const beverageCost = mData.beverage || 0;
         const deliveryFee = mData.deliveryFee || 0;
 
@@ -1638,12 +1641,15 @@ function renderDashboardStats() {
     renderGroupedSalesChart('salesBreakdownChart', sales);
     renderCostList('costBreakdownList', mData, staffCost, 1.0, sales.total, totalCost, monthStr);
 
-    // [수정] 상세 분석 HTML 호출 (건수 데이터 전달)
+    // [수정] 상세 분석 HTML 호출 (주류대출 제외)
     const analysisContainer = document.getElementById('dashDetailAnalysis');
     if (analysisContainer) {
         const alcoholSales = mData.alcoholSales || 0;
         const beverageSales = mData.beverageSales || 0;
-        const liquorCost = (mData.liquor || 0) + (mData.makgeolli || 0) + (mData.liquorLoan || 0);
+        
+        // 🔴 여기서 주류대출(liquorLoan)을 뺐습니다.
+        const liquorCost = (mData.liquor || 0) + (mData.makgeolli || 0);
+        
         const beverageCost = mData.beverage || 0;
         const deliveryFee = mData.deliveryFee || 0;
 
