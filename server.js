@@ -803,6 +803,7 @@ app.post('/api/kakao/send-briefing', async (req, res) => {
 // [server.js] 수정된 로직
 
 // 1. (UPDATE) 비용 추출 헬퍼 함수 (비율 계산 및 100% 고정비 데이터 추가 반환)
+// 1. (UPDATE) 비용 추출 헬퍼 함수 (비율 계산 및 100% 고정비 데이터 추가 반환)
 function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) {
     // 1. 변동비 (일별 실비 합산)
     let meat = 0, food = 0, etcDaily = 0, sales = 0;
@@ -813,12 +814,41 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
     let todaySales = 0;
 
     if (accData.daily) {
-        if(accData.daily[todayKey]) todaySales = accData.daily[todayKey].sales || 0;
+        // [FIX] 오늘 매출 확인 (비율 계산용) - 저장된 sales가 아니라 실시간 합산으로 확인
+        if(accData.daily[todayKey]) {
+            const td = accData.daily[todayKey];
+            if (storeType === 'yang' || storeType === 'yangeun') {
+                 todaySales = Number(td.card||0) + Number(td.cash||0) + 
+                              Number(td.baemin||0) + Number(td.yogiyo||0) + Number(td.coupang||0);
+            } else {
+                 todaySales = Number(td.sales || 0);
+            }
+        }
 
         Object.keys(accData.daily).forEach(date => {
             if (date.startsWith(monthStr)) {
                 const d = accData.daily[date];
-                sales += (d.sales || 0);
+                
+                // [FIX] 저장된 총매출(d.sales)을 믿지 않고 실시간 재계산
+                // 크롤러 오류나 문자열 합쳐짐 방지를 위해 Number() 사용
+                let daySales = 0;
+                
+                if (storeType === 'yang' || storeType === 'yangeun') {
+                    // 양은이네: 카드 + 현금 + 배달3사 (계좌이체, 기타 제외)
+                    const card = Number(d.card || 0);
+                    const cash = Number(d.cash || 0);
+                    const baemin = Number(d.baemin || 0);
+                    const yogiyo = Number(d.yogiyo || 0);
+                    const coupang = Number(d.coupang || 0);
+                    
+                    daySales = card + cash + baemin + yogiyo + coupang;
+                } else {
+                    // 초가짚: POS 총매출 신뢰 (카드+현금+기타가 이미 net_sales에 포함됨)
+                    daySales = Number(d.sales || 0);
+                }
+
+                sales += daySales; // 재계산된 값으로 누적
+
                 meat += (d.meat || 0);
                 food += (d.food || 0);
                 etcDaily += (d.etc || 0);
@@ -834,7 +864,7 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
     const utility = (m.utility||0) + (m.gas||0) + (m.foodWaste||0) + (m.tableOrder||0);
     const etcFixed = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
 
-    // [B] 100% 반영 대상 (물건값, 수수료, 상환금 등) -> 화면 로직과 맞춤
+    // [B] 100% 반영 대상 (물건값, 수수료, 상환금 등)
     const makgeolli = m.makgeolli || 0;
     const liquor = (m.liquor||0) + (m.beverage||0) + makgeolli;
     const liquorLoan = m.liquorLoan || 0;
@@ -854,13 +884,13 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
     const ratio = appliedDay / lastDay;
 
     // 예상 비용 항목 계산
-    // [수정됨] 주류, 대출, 배달은 ratio를 곱하지 않고 100% 반영합니다.
+    // 주류, 대출, 배달은 ratio를 곱하지 않고 100% 반영
     const itemsPred = {
         rent: Math.floor(rent * ratio),
         utility: Math.floor(utility * ratio),
-        liquor: liquor,             // 100% 반영 (수정됨)
-        loan: liquorLoan,           // 100% 반영 (수정됨)
-        delivery: delivery,         // 100% 반영 (수정됨)
+        liquor: liquor,             // 100% 반영
+        loan: liquorLoan,           // 100% 반영
+        delivery: delivery,         // 100% 반영
         staff: Math.floor(staffTotal * ratio),
         meat: meat,
         food: food,
@@ -876,7 +906,7 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
 
     return {
         sales, 
-        profitPred, // 예상 순익 (화면과 동일해짐)
+        profitPred, // 예상 순익
         profitReal, // 현실 순익
         costFull,   
         items: itemsPred 
