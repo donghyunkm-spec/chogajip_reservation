@@ -1312,72 +1312,82 @@
         }
 
         // 예약현황(표) 업데이트
-        function updateReservationTable() {
-            const today = getCurrentDate();
-            
-            // 오늘부터 미래의 예약만 필터링
-            const futureReservations = reservations
-                .filter(r => (r.status === 'active' || !r.status) && r.date >= today)
-                .sort((a, b) => {
-                    // 날짜순, 시간순 정렬
-                    if (a.date !== b.date) {
-                        return a.date.localeCompare(b.date);
-                    }
-                    return a.time.localeCompare(b.time);
-                });
-            
-            const container = document.getElementById('reservation-table-container');
-            
-            if (futureReservations.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>예약이 없습니다.</p></div>';
-                return;
-            }
-            
-            let tableHTML = `
-                <table class="reservation-table">
-                    <thead>
-                        <tr>
-                            <th>날짜</th>
-                            <th>시간</th>
-                            <th>예약자명</th>
-                            <th>인원</th>
-                            <th>테이블명</th>
-                            <th>연락처</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            futureReservations.forEach(r => {
-                // 테이블명을 홀1,홀2 / 룸1,룸2 형식으로 변환
-                const tableNames = r.tables ? r.tables.map(t => {
-                    if (t.startsWith('hall-')) {
-                        return '홀' + t.split('-')[1];
-                    } else if (t.startsWith('room-')) {
-                        return '룸' + t.split('-')[1];
-                    }
-                    return t;
-                }).join(', ') : '미배정';
-                
-                tableHTML += `
-                    <tr>
-                        <td>${r.date}</td>
-                        <td>${r.time}</td>
-                        <td>${r.name}</td>
-                        <td>${r.people}명</td>
-                        <td>${tableNames}</td>
-                        <td>${r.phone || '-'}</td>
-                    </tr>
-                `;
+        // 예약현황(표) 업데이트
+    function updateReservationTable() {
+        const today = getCurrentDate();
+        
+        // 오늘부터 미래의 예약만 필터링
+        const futureReservations = reservations
+            .filter(r => (r.status === 'active' || !r.status) && r.date >= today)
+            .sort((a, b) => {
+                // 날짜순, 시간순 정렬
+                if (a.date !== b.date) {
+                    return a.date.localeCompare(b.date);
+                }
+                return a.time.localeCompare(b.time);
             });
+        
+        const container = document.getElementById('reservation-table-container');
+        
+        if (futureReservations.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p>예약이 없습니다.</p></div>';
+            return;
+        }
+        
+        // [추가] 요일 배열
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        
+        let tableHTML = `
+            <table class="reservation-table">
+                <thead>
+                    <tr>
+                        <th>날짜</th>
+                        <th>시간</th>
+                        <th>예약자명</th>
+                        <th>인원</th>
+                        <th>테이블명</th>
+                        <th>연락처</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        futureReservations.forEach(r => {
+            // [수정] 날짜에 요일 추가
+            const dateObj = new Date(r.date);
+            const dayOfWeek = dayNames[dateObj.getDay()];
+            const formattedDate = `${r.date}(${dayOfWeek})`;
+            
+            // 테이블명을 홀1,홀2 / 룸1,룸2 형식으로 변환
+            const tableNames = r.tables ? r.tables.map(t => {
+                if (t.startsWith('hall-')) {
+                    return '홀' + t.split('-')[1];
+                } else if (t.startsWith('room-')) {
+                    return '룸' + t.split('-')[1];
+                }
+                return t;
+            }).join(', ') : '미배정';
             
             tableHTML += `
-                    </tbody>
-                </table>
+                <tr>
+                    <td>${formattedDate}</td>
+                    <td>${r.time}</td>
+                    <td>${r.name}</td>
+                    <td>${r.people}명</td>
+                    <td>${tableNames}</td>
+                    <td>${r.phone || '-'}</td>
+                </tr>
             `;
-            
-            container.innerHTML = tableHTML;
-        }
+        });
+        
+        tableHTML += `
+                </tbody>
+            </table>
+        `;
+        
+        container.innerHTML = tableHTML;
+    }
+
 
         // 홀 테이블 렌더링 (수정됨 - 클릭 이벤트 추가)
         // 홀 테이블 렌더링 함수 (수정됨 - 예약별 색깔 구분)
