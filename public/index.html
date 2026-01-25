@@ -188,57 +188,63 @@
             margin-bottom: 5px;
         }
 
-        /* 테이블 선택 UI 스타일 */
+        /* 테이블 선택 UI 스타일 - 크게 수정됨 */
         .table-selection {
             margin-top: 15px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
         }
 
         .hall-table-layout {
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            margin-bottom: 20px;
-            max-width: 400px;
+            gap: 8px;
+            margin-bottom: 30px;
+            max-width: 100%;
             margin-left: auto;
             margin-right: auto;
         }
 
         .hall-row {
             display: flex;
-            gap: 4px;
+            gap: 8px;
             justify-content: center;
         }
 
         .room-table-layout {
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            margin-bottom: 15px;
-            max-width: 180px;
+            gap: 8px;
+            margin-bottom: 20px;
+            max-width: 100%;
             margin-left: auto;
             margin-right: auto;
         }
 
         .room-row {
             display: flex;
-            gap: 4px;
+            gap: 8px;
             justify-content: center;
         }
 
+        /* 테이블 선택 아이템 크기 대폭 증가 */
         .table-selection-item {
-            width: 35px;
-            height: 35px;
+            min-width: 70px;
+            min-height: 70px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 2px solid #ddd;
-            border-radius: 4px;
+            border: 3px solid #ddd;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
-            font-size: 10px;
+            font-size: 18px;
             transition: all 0.2s ease;
-            background: #f8f9fa;
+            background: #fff;
             color: #333;
+            flex: 1;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
         .table-selection-item.empty {
@@ -248,12 +254,15 @@
         .table-selection-item:hover:not(.disabled):not(.empty) {
             background: #e3f2fd;
             border-color: #2196F3;
+            transform: scale(1.05);
         }
 
         .table-selection-item.selected {
             background: #4CAF50;
             color: white;
             border-color: #388E3C;
+            transform: scale(1.08);
+            box-shadow: 0 4px 10px rgba(76, 175, 80, 0.4);
         }
 
         .table-selection-item.disabled {
@@ -266,10 +275,14 @@
 
         .table-section-title {
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 15px;
             color: #333;
-            font-size: 13px;
+            font-size: 18px;
             text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
 
         input, select {
@@ -640,18 +653,11 @@
                 justify-content: flex-end;
             }
 
-            .hall-table-layout {
-                max-width: 300px;
-            }
-            
-            .room-table-layout {
-                max-width: 150px;
-            }
-            
+            /* 모바일에서도 테이블 선택 UI 크게 유지 */
             .table-selection-item {
-                width: 30px;
-                height: 30px;
-                font-size: 9px;
+                min-width: 55px;
+                min-height: 55px;
+                font-size: 16px;
             }
 
             .reservation-table th,
@@ -668,22 +674,15 @@
                 font-size: 9px;
             }
             
-            .hall-table-layout {
-                max-width: 250px;
-            }
-            
-            .room-table-layout {
-                max-width: 120px;
-            }
-            
+            /* 작은 화면에서도 선택 UI는 적당한 크기 유지 */
             .table-selection-item {
-                width: 25px;
-                height: 25px;
-                font-size: 8px;
+                min-width: 45px;
+                min-height: 45px;
+                font-size: 14px;
             }
             
             .table-section-title {
-                font-size: 12px;
+                font-size: 16px;
             }
 
             .reservation-table {
@@ -861,24 +860,24 @@
                         </select>
                     </div>
 
-                    <!-- 테이블 선택 UI -->
+                    <!-- 테이블 선택 UI - 크게 수정됨 -->
                     <div class="form-group">
                         <label>테이블 선택 <span class="required">*</span></label>
                         <div class="table-selection">
-                            <div class="table-section-title">홀 테이블 (T1~T16)</div>
+                            <div class="table-section-title">🏠 홀 테이블 (T1~T16)</div>
                             <div class="hall-table-layout" id="hall-table-selection">
                                 <!-- 홀 테이블 버튼들이 실제 배치도에 맞춰 생성됩니다 -->
                             </div>
                             
-                            <div class="table-section-title">룸 테이블 (R1~R9)</div>
+                            <div class="table-section-title">🚪 룸 테이블 (R1~R9)</div>
                             <div class="room-table-layout" id="room-table-selection">
                                 <!-- 룸 테이블 버튼들이 실제 배치도에 맞춰 생성됩니다 -->
                             </div>
                             
-                            <div style="margin-top: 10px; font-size: 11px; color: #666;">
-                                <span style="color: #f44336;">■</span> 예약불가 &nbsp;
-                                <span style="color: #4CAF50;">■</span> 선택됨 &nbsp;
-                                <span style="color: #ddd;">■</span> 선택가능
+                            <div style="margin-top: 15px; font-size: 14px; color: #666; text-align: center; padding: 10px; background: white; border-radius: 8px;">
+                                <span style="color: #f44336; font-weight: bold;">■</span> 예약불가 &nbsp;&nbsp;
+                                <span style="color: #4CAF50; font-weight: bold;">■</span> 선택됨 &nbsp;&nbsp;
+                                <span style="color: #ddd; font-weight: bold;">■</span> 선택가능
                             </div>
                         </div>
                         <input type="hidden" id="selectedTables" required>
