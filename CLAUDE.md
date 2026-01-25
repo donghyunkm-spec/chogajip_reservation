@@ -39,9 +39,20 @@ Single Express.js server handling:
 | File | Purpose |
 |------|---------|
 | `index.html` + `app.js` | Customer reservation UI |
-| `staff.html` + `staff.js` | Admin dashboard (staff, accounting, prepayments) |
+| `staff.html` | Admin dashboard HTML |
 | `table-algorithm.js` | Table assignment logic |
 | `kakao-auth.html` | Kakao notification signup |
+
+**Admin Dashboard JS Modules** (`public/js/`):
+| File | Purpose |
+|------|---------|
+| `common.js` | Global vars, login, tab switching, store config |
+| `staff.js` | Employee management + attendance views |
+| `accounting.js` | Daily/monthly accounting, statistics |
+| `prepayment.js` | Customer prepayment ledger |
+| `unified.js` | Admin-only unified analysis (both stores) |
+
+Scripts load in order: common -> staff -> accounting -> prepayment -> unified. Cross-module functions exposed via `window` object (e.g., `window.getEstimatedStaffCost`).
 
 **Store switching**: `staff.html?store=yangeun` changes theme and data source.
 

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /b \"D:\\\\work\\\\chogajip_reservation\")",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd CLAUDE.md for Claude Code guidance\n\nProvides architectural overview, commands, and key business logic documentation for the reservation system.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(code --list-extensions:*)"
+    ]
+  }
+}
