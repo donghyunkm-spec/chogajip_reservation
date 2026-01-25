@@ -1373,7 +1373,10 @@
                 // 날짜에 요일 추가
                 const dateObj = new Date(r.date);
                 const dayOfWeek = dayNames[dateObj.getDay()];
-                const formattedDate = `${r.date}(${dayOfWeek})`;
+
+                // 년도 제외하고 월-일(요일) 형식으로 변경
+                const dateParts = r.date.split('-'); // ['2026', '01', '26']
+                const formattedDate = `${dateParts[1]}-${dateParts[2]}(${dayOfWeek})`; // '01-26(월)'
                 
                 // 테이블명을 홀1,홀2 / 룸1,룸2 형식으로 변환
                 const tableNames = r.tables ? r.tables.map(t => {
