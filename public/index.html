@@ -426,7 +426,7 @@
             visibility: hidden;
         }
 
-        /* 예약 목록 테이블 스타일 */
+        /* 예약 목록 테이블 스타일 - 수정됨 */
         .reservation-table {
             width: 100%;
             border-collapse: collapse;
@@ -435,6 +435,7 @@
             border-radius: 8px;
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 2px solid #ddd; /* 외곽 테두리 두껍게 */
         }
 
         .reservation-table th {
@@ -444,21 +445,18 @@
             text-align: center;
             font-weight: bold;
             font-size: 14px;
+            border: 2px solid #388E3C; /* 헤더 셀 구분선 */
         }
 
         .reservation-table td {
             padding: 10px 8px;
             text-align: center;
-            border-bottom: 1px solid #ddd;
+            border: 2px solid #ddd; /* 셀 구분선 두껍게 */
             font-size: 13px;
         }
 
         .reservation-table tr:hover {
             background: #f5f5f5;
-        }
-
-        .reservation-table tr:last-child td {
-            border-bottom: none;
         }
 
         /* 나머지 스타일들 */
@@ -993,6 +991,27 @@
             return new Date().toISOString().split('T')[0];
         }
 
+        // 전화번호 포맷팅 함수 (새로 추가)
+        function formatPhoneNumber(phone) {
+            if (!phone) return '-';
+            
+            // 숫자만 추출
+            const numbers = phone.replace(/[^0-9]/g, '');
+            
+            // 11자리인 경우 010-1234-5678 형식으로 변환
+            if (numbers.length === 11) {
+                return numbers.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+            }
+            
+            // 10자리인 경우 02-1234-5678 형식으로 변환
+            if (numbers.length === 10) {
+                return numbers.replace(/(\d{2})(\d{4})(\d{4})/, '$1-$2-$3');
+            }
+            
+            // 그 외의 경우 원본 반환
+            return phone;
+        }
+
         // 테이블 선택 UI 초기화
         function initializeTableSelection() {
             // 홀 테이블 배치 (실제 배치도에 맞춤)
@@ -1311,83 +1330,84 @@
             updateReservationList(dayReservations);
         }
 
-        // 예약현황(표) 업데이트
-        // 예약현황(표) 업데이트
-    function updateReservationTable() {
-        const today = getCurrentDate();
-        
-        // 오늘부터 미래의 예약만 필터링
-        const futureReservations = reservations
-            .filter(r => (r.status === 'active' || !r.status) && r.date >= today)
-            .sort((a, b) => {
-                // 날짜순, 시간순 정렬
-                if (a.date !== b.date) {
-                    return a.date.localeCompare(b.date);
-                }
-                return a.time.localeCompare(b.time);
-            });
-        
-        const container = document.getElementById('reservation-table-container');
-        
-        if (futureReservations.length === 0) {
-            container.innerHTML = '<div class="empty-state"><p>예약이 없습니다.</p></div>';
-            return;
-        }
-        
-        // [추가] 요일 배열
-        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-        
-        let tableHTML = `
-            <table class="reservation-table">
-                <thead>
-                    <tr>
-                        <th>날짜</th>
-                        <th>시간</th>
-                        <th>예약자명</th>
-                        <th>인원</th>
-                        <th>테이블명</th>
-                        <th>연락처</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        futureReservations.forEach(r => {
-            // [수정] 날짜에 요일 추가
-            const dateObj = new Date(r.date);
-            const dayOfWeek = dayNames[dateObj.getDay()];
-            const formattedDate = `${r.date}(${dayOfWeek})`;
+        // 예약현황(표) 업데이트 - 수정됨
+        function updateReservationTable() {
+            const today = getCurrentDate();
             
-            // 테이블명을 홀1,홀2 / 룸1,룸2 형식으로 변환
-            const tableNames = r.tables ? r.tables.map(t => {
-                if (t.startsWith('hall-')) {
-                    return '홀' + t.split('-')[1];
-                } else if (t.startsWith('room-')) {
-                    return '룸' + t.split('-')[1];
-                }
-                return t;
-            }).join(', ') : '미배정';
+            // 오늘부터 미래의 예약만 필터링
+            const futureReservations = reservations
+                .filter(r => (r.status === 'active' || !r.status) && r.date >= today)
+                .sort((a, b) => {
+                    // 날짜순, 시간순 정렬
+                    if (a.date !== b.date) {
+                        return a.date.localeCompare(b.date);
+                    }
+                    return a.time.localeCompare(b.time);
+                });
+            
+            const container = document.getElementById('reservation-table-container');
+            
+            if (futureReservations.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>예약이 없습니다.</p></div>';
+                return;
+            }
+            
+            // 요일 배열
+            const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+            
+            let tableHTML = `
+                <table class="reservation-table">
+                    <thead>
+                        <tr>
+                            <th>날짜</th>
+                            <th>시간</th>
+                            <th>예약자명</th>
+                            <th>인원</th>
+                            <th>테이블명</th>
+                            <th>연락처</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            futureReservations.forEach(r => {
+                // 날짜에 요일 추가
+                const dateObj = new Date(r.date);
+                const dayOfWeek = dayNames[dateObj.getDay()];
+                const formattedDate = `${r.date}(${dayOfWeek})`;
+                
+                // 테이블명을 홀1,홀2 / 룸1,룸2 형식으로 변환
+                const tableNames = r.tables ? r.tables.map(t => {
+                    if (t.startsWith('hall-')) {
+                        return '홀' + t.split('-')[1];
+                    } else if (t.startsWith('room-')) {
+                        return '룸' + t.split('-')[1];
+                    }
+                    return t;
+                }).join(', ') : '미배정';
+                
+                // 전화번호 포맷팅 적용
+                const formattedPhone = formatPhoneNumber(r.phone);
+                
+                tableHTML += `
+                    <tr>
+                        <td>${formattedDate}</td>
+                        <td>${r.time}</td>
+                        <td>${r.name}</td>
+                        <td>${r.people}명</td>
+                        <td>${tableNames}</td>
+                        <td>${formattedPhone}</td>
+                    </tr>
+                `;
+            });
             
             tableHTML += `
-                <tr>
-                    <td>${formattedDate}</td>
-                    <td>${r.time}</td>
-                    <td>${r.name}</td>
-                    <td>${r.people}명</td>
-                    <td>${tableNames}</td>
-                    <td>${r.phone || '-'}</td>
-                </tr>
+                    </tbody>
+                </table>
             `;
-        });
-        
-        tableHTML += `
-                </tbody>
-            </table>
-        `;
-        
-        container.innerHTML = tableHTML;
-    }
-
+            
+            container.innerHTML = tableHTML;
+        }
 
         // 홀 테이블 렌더링 (수정됨 - 클릭 이벤트 추가)
         // 홀 테이블 렌더링 함수 (수정됨 - 예약별 색깔 구분)
@@ -1507,7 +1527,7 @@
 			roomDiv.innerHTML = html;
 		}
 
-        // 예약 정보 모달 표시
+        // 예약 정보 모달 표시 - 수정됨
         function showReservationModal(reservationId) {
             const reservation = reservations.find(r => r.id == reservationId);
             if (!reservation) return;
@@ -1523,6 +1543,9 @@
             }).join(', ') : '미배정';
             
             const endTime = addHours(reservation.time, 3);
+            
+            // 전화번호 포맷팅 적용
+            const formattedPhone = formatPhoneNumber(reservation.phone);
             
             const modal = document.createElement('div');
             modal.className = 'reservation-modal';
@@ -1544,7 +1567,7 @@
                     <div class="reservation-detail">
                         <strong>좌석선호:</strong> ${getPreferenceText(reservation.preference)}
                     </div>
-                    ${reservation.phone ? `<div class="reservation-detail"><strong>연락처:</strong> ${reservation.phone}</div>` : ''}
+                    ${reservation.phone ? `<div class="reservation-detail"><strong>연락처:</strong> ${formattedPhone}</div>` : ''}
                     <button class="modal-close-btn" onclick="this.closest('.reservation-modal').remove()">확인</button>
                 </div>
             `;
@@ -1559,7 +1582,7 @@
             });
         }
 
-        // 예약 목록 업데이트
+        // 예약 목록 업데이트 - 수정됨
         function updateReservationList(dayReservations) {
             const reservationsDiv = document.getElementById('reservations');
             if (!reservationsDiv) return;
@@ -1586,6 +1609,9 @@
                     return t;
                 }).join(', ') : '미배정';
                 
+                // 전화번호 포맷팅 적용
+                const formattedPhone = formatPhoneNumber(r.phone);
+                
                 html += `
                     <div class="reservation-item">
                         <div class="reservation-content">
@@ -1595,7 +1621,7 @@
                                 <span class="reservation-people">${r.people}명</span>
                                 <div class="reservation-tables">테이블: ${displayTables}</div>
                                 <div style="font-size: 12px; color: #666; margin-top: 3px;">선호: ${preferenceText}</div>
-                                ${r.phone ? `<div style="font-size: 12px; color: #666;">📞 ${r.phone}</div>` : ''}
+                                ${r.phone ? `<div style="font-size: 12px; color: #666;">📞 ${formattedPhone}</div>` : ''}
                             </div>
                             <div class="reservation-actions">
                                 <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
