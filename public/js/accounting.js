@@ -299,7 +299,7 @@ function loadHistoryTable(filterKey = 'all') {
         const m = accountingData.monthly[monthStr];
         const fixedTotal = (m.rent||0) + (m.utility||0) + (m.gas||0) + (m.liquor||0) + (m.beverage||0) + (m.etc_fixed||0)
                          + (m.disposable||0) + (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.foodWaste||0) + (m.tableOrder||0) + (m.liquorLoan||0)
-                         + (m.deliveryFee||0);
+                         + (m.deliveryFee||0) + (m.insurance||0) + (m.advertising||0);
 
         if (fixedTotal > 0) {
             rows.push({
@@ -387,6 +387,8 @@ function loadMonthlyForm() {
     if(document.getElementById('fixTax')) document.getElementById('fixTax').value = mData.tax || '';
     if(document.getElementById('fixFoodWaste')) document.getElementById('fixFoodWaste').value = mData.foodWaste || '';
     if(document.getElementById('fixTableOrder')) document.getElementById('fixTableOrder').value = mData.tableOrder || '';
+    if(document.getElementById('fixInsurance')) document.getElementById('fixInsurance').value = mData.insurance || '';
+    if(document.getElementById('fixAdvertising')) document.getElementById('fixAdvertising').value = mData.advertising || '';
 
     if(document.getElementById('fixAlcoholSales')) document.getElementById('fixAlcoholSales').value = mData.alcoholSales || '';
     if(document.getElementById('fixBeverageSales')) document.getElementById('fixBeverageSales').value = mData.beverageSales || '';
@@ -414,6 +416,8 @@ async function saveFixedCost() {
     const tax = parseInt(document.getElementById('fixTax').value) || 0;
     const foodWaste = parseInt(document.getElementById('fixFoodWaste').value) || 0;
     const tableOrder = parseInt(document.getElementById('fixTableOrder').value) || 0;
+    const insurance = parseInt(document.getElementById('fixInsurance').value) || 0;
+    const advertising = parseInt(document.getElementById('fixAdvertising').value) || 0;
 
     const alcoholSales = parseInt(document.getElementById('fixAlcoholSales').value) || 0;
     const beverageSales = parseInt(document.getElementById('fixBeverageSales').value) || 0;
@@ -423,6 +427,7 @@ async function saveFixedCost() {
     const data = {
         rent, utility, gas, liquor, makgeolli, beverage, etc_fixed,
         disposable, businessCard, taxAgent, tax, foodWaste, tableOrder, liquorLoan, deliveryFee,
+        insurance, advertising,
         alcoholSales, beverageSales
     };
 
@@ -579,7 +584,8 @@ function renderPredictionStats() {
 
     const timeBasedFixedRaw = (mData.rent||0) + (mData.utility||0) + (mData.gas||0)
                             + (mData.etc_fixed||0) + (mData.disposable||0) + (mData.businessCard||0)
-                            + (mData.taxAgent||0) + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0);
+                            + (mData.taxAgent||0) + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0)
+                            + (mData.insurance||0) + (mData.advertising||0);
 
     const actualBasedFixed = (mData.liquor||0) + (mData.makgeolli||0) + (mData.beverage||0)
                            + (mData.liquorLoan||0) + (mData.deliveryFee||0);
@@ -610,6 +616,8 @@ function renderPredictionStats() {
         delivery: mData.deliveryFee || 0,
         liquor: (mData.liquor||0) + (mData.makgeolli||0) + (mData.beverage||0) + (mData.liquorLoan||0),
         utility: Math.floor(((mData.utility||0) + (mData.gas||0)) * ratio),
+        insurance: Math.floor((mData.insurance||0) * ratio),
+        advertising: Math.floor((mData.advertising||0) * ratio),
         others: Math.floor(((mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + (mData.tableOrder||0) + (mData.etc_fixed||0) + (mData.foodWaste||0) + (mData.disposable||0)) * ratio)
     }, sales.total, totalCurrentCost);
 
@@ -682,6 +690,8 @@ function renderPredictionCostList(containerId, costs, salesTotal, totalCost) {
         { label: '🍶 주류/대출', val: costs.liquor, color: '#ce93d8' },
         { label: '👥 인건비(N)', val: costs.staff, color: '#ba68c8' },
         { label: '🏠 임대료(N)', val: costs.rent, color: '#ab47bc' },
+        { label: '🛡️ 4대보험(N)', val: costs.insurance || 0, color: '#7e57c2' },
+        { label: '📢 광고비(N)', val: costs.advertising || 0, color: '#26a69a' },
         { label: '💡 관리/공과(N)', val: costs.utility, color: '#e1bee7' },
         { label: '🎸 기타/잡비', val: costs.etc + costs.others, color: '#78909c' }
     ].sort((a,b) => b.val - a.val);
@@ -737,7 +747,7 @@ function renderDashboardStats() {
                      + (mData.beverage||0) + (mData.etc_fixed||0) + staffCost
                      + (mData.disposable||0) + (mData.businessCard||0) + (mData.taxAgent||0)
                      + (mData.tax||0) + (mData.foodWaste||0) + (mData.tableOrder||0) + (mData.liquorLoan||0)
-                     + (mData.deliveryFee||0);
+                     + (mData.deliveryFee||0) + (mData.insurance||0) + (mData.advertising||0);
 
     const totalCost = fixedTotal + variableCostTotal;
     const netProfit = sales.total - totalCost;
@@ -802,6 +812,8 @@ function renderCostList(containerId, mData, staffCost, ratio, salesTotal, totalC
     const fUtility = Math.floor(((mData.utility||0) + (mData.gas||0)) * ratio);
     const fLoan = Math.floor((mData.liquorLoan||0) * ratio);
     const fDelivery = Math.floor((mData.deliveryFee||0) * ratio);
+    const fInsurance = Math.floor((mData.insurance||0) * ratio);
+    const fAdvertising = Math.floor((mData.advertising||0) * ratio);
     const fOthers = Math.floor(((mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + (mData.tableOrder||0) + (mData.etc_fixed||0) + (mData.disposable||0) + (mData.foodWaste||0)) * ratio);
 
     const meatLabel = (currentStore === 'yangeun') ? '🍞 SPC유통' : '🥩 한강유통';
@@ -813,6 +825,8 @@ function renderCostList(containerId, mData, staffCost, ratio, salesTotal, totalC
         { label: etcLabel, val: cEtc, color: '#78909c' },
         { label: '🏠 임대료', val: fRent, color: '#ab47bc' },
         { label: '👥 인건비', val: fStaff, color: '#ba68c8' },
+        { label: '🛡️ 4대보험', val: fInsurance, color: '#7e57c2' },
+        { label: '📢 광고비', val: fAdvertising, color: '#26a69a' },
         { label: '🛵 배달대행', val: fDelivery, color: '#00bcd4' },
         { label: '🍶 대출/주류/막걸리', val: fLoan + fLiquor, color: '#ce93d8' },
         { label: '💡 기타고정', val: fUtility + fOthers, color: '#e1bee7' }

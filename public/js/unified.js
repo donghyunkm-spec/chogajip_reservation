@@ -81,10 +81,10 @@ function updateUnifiedView() {
     if (mode === 'combined' || mode === 'chogazip') datasets.push({ acc: uniDataChoga, staff: uniStaffChoga, type: 'choga' });
     if (mode === 'combined' || mode === 'yangeun') datasets.push({ acc: uniDataYang, staff: uniStaffYang, type: 'yang' });
 
-    let predStats = { meat:0, food:0, rent:0, utility:0, liquor:0, loan:0, delivery:0, staff:0, etc:0 };
+    let predStats = { meat:0, food:0, rent:0, utility:0, liquor:0, loan:0, delivery:0, staff:0, etc:0, insurance:0, advertising:0 };
     let totalSales = 0;
 
-    let fullStats = { meat:0, food:0, rent:0, utility:0, liquor:0, loan:0, delivery:0, staff:0, etc:0 };
+    let fullStats = { meat:0, food:0, rent:0, utility:0, liquor:0, loan:0, delivery:0, staff:0, etc:0, insurance:0, advertising:0 };
 
     const realToday = new Date();
     const currentYear = today.getFullYear();
@@ -149,6 +149,8 @@ function updateUnifiedView() {
             const vLoan = (m.liquorLoan||0);
             const vDel = (m.deliveryFee||0);
             const vEtcFix = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
+            const vInsurance = (m.insurance||0);
+            const vAdvertising = (m.advertising||0);
 
             predStats.liquor += vLiq;
             predStats.loan += vLoan;
@@ -157,6 +159,8 @@ function updateUnifiedView() {
             predStats.rent += Math.floor(vRent * ratio);
             predStats.utility += Math.floor(vUtil * ratio);
             predStats.etc += Math.floor(vEtcFix * ratio);
+            predStats.insurance += Math.floor(vInsurance * ratio);
+            predStats.advertising += Math.floor(vAdvertising * ratio);
 
             fullStats.rent += vRent;
             fullStats.utility += vUtil;
@@ -164,6 +168,8 @@ function updateUnifiedView() {
             fullStats.loan += vLoan;
             fullStats.delivery += vDel;
             fullStats.etc += vEtcFix;
+            fullStats.insurance += vInsurance;
+            fullStats.advertising += vAdvertising;
         }
     });
 
@@ -228,6 +234,8 @@ function renderDetailedCostChart(containerId, stats, salesTotal, totalCost) {
         { label: '🥬 삼시세끼', val: stats.food, color: '#8d6e63' },
         { label: '🏠 임대료', val: stats.rent, color: '#ab47bc' },
         { label: '👥 인건비', val: stats.staff, color: '#ba68c8' },
+        { label: '🛡️ 4대보험', val: stats.insurance || 0, color: '#7e57c2' },
+        { label: '📢 광고비', val: stats.advertising || 0, color: '#26a69a' },
         { label: '💡 관리/공과', val: stats.utility, color: '#5c6bc0' },
         { label: '🍶 주류대출', val: stats.loan, color: '#ff9800' },
         { label: '🍺 주류/음료', val: stats.liquor, color: '#ce93d8' },

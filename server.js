@@ -863,6 +863,8 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
     const rent = m.rent || 0;
     const utility = (m.utility||0) + (m.gas||0) + (m.foodWaste||0) + (m.tableOrder||0);
     const etcFixed = (m.businessCard||0) + (m.taxAgent||0) + (m.tax||0) + (m.etc_fixed||0) + (m.disposable||0);
+    const insurance = m.insurance || 0;
+    const advertising = m.advertising || 0;
 
     // [B] 100% 반영 대상 (물건값, 수수료, 상환금 등)
     const makgeolli = m.makgeolli || 0;
@@ -892,6 +894,8 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
         loan: liquorLoan,           // 100% 반영
         delivery: delivery,         // 100% 반영
         staff: Math.floor(staffTotal * ratio),
+        insurance: Math.floor(insurance * ratio),
+        advertising: Math.floor(advertising * ratio),
         meat: meat,
         food: food,
         etc: etcDaily + Math.floor(etcFixed * ratio)
@@ -901,7 +905,7 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
     const profitPred = sales - costPred;
 
     // 5. [B] 현실 점검용 (고정비 100% 반영)
-    const costFull = meat + food + etcDaily + rent + utility + liquor + liquorLoan + delivery + etcFixed + staffTotal;
+    const costFull = meat + food + etcDaily + rent + utility + liquor + liquorLoan + delivery + etcFixed + staffTotal + insurance + advertising;
     const profitReal = sales - costFull;
 
     return {
@@ -960,6 +964,8 @@ async function generateAndSendBriefing() {
                 { key: 'loan', label: '주류대출' },
                 { key: 'staff', label: '인건비(예상)' },
                 { key: 'rent', label: '임대료(일할)' },
+                { key: 'insurance', label: '4대보험' },
+                { key: 'advertising', label: '광고비' },
                 { key: 'delivery', label: '배달수수료' },
                 { key: 'utility', label: '관리/공과' }
             ];
@@ -1205,10 +1211,11 @@ function calculateMonthStats(accountingData, staffData, monthStr, currentDay) {
 
     // 고정비 합계 (인건비 제외한 순수 고정비)
     const fixedItemsTotal = (mData.rent||0) + (mData.utility||0) + (mData.gas||0) + (mData.makgeolli||0) +
-                            (mData.liquor||0) + (mData.beverage||0) + (mData.etc_fixed||0) + 
-                            (mData.liquorLoan||0) + (mData.deliveryFee||0) + (mData.disposable||0) + 
-                            (mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) + 
-                            (mData.foodWaste||0) + (mData.tableOrder||0);
+                            (mData.liquor||0) + (mData.beverage||0) + (mData.etc_fixed||0) +
+                            (mData.liquorLoan||0) + (mData.deliveryFee||0) + (mData.disposable||0) +
+                            (mData.businessCard||0) + (mData.taxAgent||0) + (mData.tax||0) +
+                            (mData.foodWaste||0) + (mData.tableOrder||0) +
+                            (mData.insurance||0) + (mData.advertising||0);
 
     // 일할 계산 비율 (오늘 날짜 기준 예상치)
     const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
