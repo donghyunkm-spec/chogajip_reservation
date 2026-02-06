@@ -173,6 +173,7 @@ async function saveDailyAccounting() {
     const voidVal = parseInt(document.getElementById('inpVoid').value) || 0;
 
     let card = 0, gift = 0, baemin = 0, yogiyo = 0, coupang = 0;
+    let baeminCount = 0, yogiyoCount = 0, coupangCount = 0;
     let totalSales = 0;
 
     if (currentStore === 'yangeun') {
@@ -180,6 +181,9 @@ async function saveDailyAccounting() {
         baemin = parseInt(document.getElementById('inpBaemin').value) || 0;
         yogiyo = parseInt(document.getElementById('inpYogiyo').value) || 0;
         coupang = parseInt(document.getElementById('inpCoupang').value) || 0;
+        baeminCount = parseInt(document.getElementById('cntBaemin').value) || 0;
+        yogiyoCount = parseInt(document.getElementById('cntYogiyo').value) || 0;
+        coupangCount = parseInt(document.getElementById('cntCoupang').value) || 0;
         totalSales = card + cash + baemin + yogiyo + coupang;
     } else {
         card = parseInt(document.getElementById('inpCard').value) || 0;
@@ -197,6 +201,7 @@ async function saveDailyAccounting() {
         startCash, cash, bankDeposit, card, transfer,
         gift: (currentStore === 'yangeun' ? 0 : gift),
         baemin, yogiyo, coupang,
+        baeminCount, yogiyoCount, coupangCount,
         sales: totalSales, food, meat, etc, cost: totalCost, note: note,
         receiptCount, discount, refund, void: voidVal
     };
