@@ -58,7 +58,7 @@ function initStoreSettings() {
                 </div>
                 <div>
                     <span class="category-label" style="color:#00796b;">🔢 배민 건수</span>
-                    <input type="number" id="cntBaemin" class="money-input" placeholder="0" readonly style="background:#e0f2f1; color:#004d40; border:1px solid #b2dfdb;">
+                    <input type="number" id="cntBaemin" class="money-input" placeholder="0" style="background:#e0f2f1; color:#004d40; border:1px solid #b2dfdb;">
                 </div>
 
                 <div>
@@ -67,7 +67,7 @@ function initStoreSettings() {
                 </div>
                 <div>
                     <span class="category-label" style="color:#d32f2f;">🔢 요기요 건수</span>
-                    <input type="number" id="cntYogiyo" class="money-input" placeholder="0" readonly style="background:#ffebee; color:#b71c1c; border:1px solid #ffcdd2;">
+                    <input type="number" id="cntYogiyo" class="money-input" placeholder="0" style="background:#ffebee; color:#b71c1c; border:1px solid #ffcdd2;">
                 </div>
 
                 <div>
@@ -76,7 +76,7 @@ function initStoreSettings() {
                 </div>
                 <div>
                     <span class="category-label" style="color:#1565c0;">🔢 쿠팡 건수</span>
-                    <input type="number" id="cntCoupang" class="money-input" placeholder="0" readonly style="background:#e3f2fd; color:#0d47a1; border:1px solid #bbdefb;">
+                    <input type="number" id="cntCoupang" class="money-input" placeholder="0" style="background:#e3f2fd; color:#0d47a1; border:1px solid #bbdefb;">
                 </div>
                 `;
             salesGrid.style.gridTemplateColumns = "1fr 1fr";
