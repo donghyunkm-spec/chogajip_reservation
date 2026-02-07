@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>매장 관리 시스템</title>
     <link rel="stylesheet" href="style.css">
+    <!-- SheetJS for Excel parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         /* [공통] 뱃지 스타일 */
         .count-badge {
@@ -609,9 +613,11 @@
                     </select>
                 </div>
 
-                <div class="tabs" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 15px;">
+                <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 15px;">
                     <button class="tab active" onclick="switchUnifiedSubTab('uni-prediction', this)">🔮 예상 순익</button>
                     <button class="tab" onclick="switchUnifiedSubTab('uni-dashboard', this)">📊 월간 분석</button>
+                    <button class="tab" onclick="switchUnifiedSubTab('uni-pos', this)" style="background:#e1f5fe; color:#0277bd;">📈 POS 분석</button>
+                    <button class="tab" onclick="switchUnifiedSubTab('uni-notes', this); loadOperationNotes();" style="background:#fff3e0; color:#e65100;">📝 운영노트</button>
                 </div>
 
                 <div id="uni-prediction" class="uni-sub-content active" style="animation: fadeIn 0.3s;">
@@ -654,6 +660,134 @@
                     </div>
                     <h3 class="chart-title" style="margin-top:20px;">📊 매출 유형 분석</h3>
                     <div id="uniSalesChart"></div>
+                </div>
+
+                <!-- POS 분석 서브탭 -->
+                <div id="uni-pos" class="uni-sub-content" style="display:none; animation: fadeIn 0.3s;">
+                    <!-- 매장 선택 탭 -->
+                    <div class="pos-store-tabs">
+                        <button class="pos-store-tab active" onclick="switchPosStore('chogazip', this)">🏠 초가짚</button>
+                        <button class="pos-store-tab" onclick="switchPosStore('yangeun', this)">🥘 양은이네</button>
+                    </div>
+
+                    <!-- 파일 업로드 영역 -->
+                    <div class="pos-upload-area">
+                        <div class="upload-box" id="productsUploadBox">
+                            <div class="upload-icon">📦</div>
+                            <div class="upload-title">상품별 매출 파일</div>
+                            <div class="upload-desc">products_*.xlsx</div>
+                            <input type="file" id="posProductsFile" accept=".xlsx,.xls" onchange="handlePosFileUpload('products', this)" style="display:none;">
+                            <button class="upload-btn" onclick="document.getElementById('posProductsFile').click()">파일 선택</button>
+                            <div class="file-status" id="productsFileStatus"></div>
+                        </div>
+                        <div class="upload-box" id="receiptsUploadBox">
+                            <div class="upload-icon">🧾</div>
+                            <div class="upload-title">영수증별 매출 파일</div>
+                            <div class="upload-desc">receipts_*.xlsx</div>
+                            <input type="file" id="posReceiptsFile" accept=".xlsx,.xls" onchange="handlePosFileUpload('receipts', this)" style="display:none;">
+                            <button class="upload-btn" onclick="document.getElementById('posReceiptsFile').click()">파일 선택</button>
+                            <div class="file-status" id="receiptsFileStatus"></div>
+                        </div>
+                    </div>
+
+                    <button id="posAnalyzeBtn" class="pos-analyze-btn" onclick="analyzePosData()" disabled>
+                        📊 분석 시작
+                    </button>
+
+                    <!-- 분석 결과 영역 -->
+                    <div id="posResultArea" style="display:none;">
+                        <!-- KPI 카드 -->
+                        <div class="pos-kpi-grid">
+                            <div class="pos-kpi-card">
+                                <div class="kpi-icon">💰</div>
+                                <div class="kpi-label">총 매출</div>
+                                <div class="kpi-value" id="posTotalSales">0원</div>
+                            </div>
+                            <div class="pos-kpi-card">
+                                <div class="kpi-icon">🧾</div>
+                                <div class="kpi-label">영수증 수</div>
+                                <div class="kpi-value" id="posReceiptCount">0건</div>
+                            </div>
+                            <div class="pos-kpi-card">
+                                <div class="kpi-icon">👤</div>
+                                <div class="kpi-label">객단가</div>
+                                <div class="kpi-value" id="posAvgTicket">0원</div>
+                            </div>
+                            <div class="pos-kpi-card">
+                                <div class="kpi-icon">⏰</div>
+                                <div class="kpi-label">피크 타임</div>
+                                <div class="kpi-value" id="posPeakTime">-</div>
+                            </div>
+                        </div>
+
+                        <!-- 차트 영역 -->
+                        <div class="pos-charts-grid">
+                            <div class="pos-chart-box">
+                                <h4 class="chart-title">⏰ 시간대별 매출</h4>
+                                <canvas id="posHourlyChart"></canvas>
+                            </div>
+                            <div class="pos-chart-box">
+                                <h4 class="chart-title">🏆 TOP 10 상품</h4>
+                                <canvas id="posTopProductsChart"></canvas>
+                            </div>
+                            <div class="pos-chart-box">
+                                <h4 class="chart-title">📂 카테고리별 매출</h4>
+                                <canvas id="posCategoryChart"></canvas>
+                            </div>
+                            <div class="pos-chart-box">
+                                <h4 class="chart-title">💳 결제수단별 비율</h4>
+                                <canvas id="posPaymentChart"></canvas>
+                            </div>
+                            <div class="pos-chart-box" style="grid-column: span 2;">
+                                <h4 class="chart-title">📅 요일별 매출 패턴</h4>
+                                <canvas id="posWeekdayChart"></canvas>
+                            </div>
+                            <div class="pos-chart-box" style="grid-column: span 2;">
+                                <h4 class="chart-title">📈 월별 매출 추이</h4>
+                                <canvas id="posMonthlyTrendChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 인사이트 영역 -->
+                        <div class="pos-insights">
+                            <h4 class="chart-title">💡 운영 인사이트</h4>
+                            <div id="posInsightsContent"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 운영노트 서브탭 -->
+                <div id="uni-notes" class="uni-sub-content" style="display:none; animation: fadeIn 0.3s;">
+                    <!-- 새 노트 작성 -->
+                    <div class="note-form-card">
+                        <h4>✏️ 새 아이디어 / 개선사항 등록</h4>
+                        <div class="note-form-row">
+                            <select id="noteCategory" class="note-category-select">
+                                <option value="메뉴개선">🍽️ 메뉴개선</option>
+                                <option value="마케팅">📢 마케팅</option>
+                                <option value="서비스">💁 서비스</option>
+                                <option value="비용절감">💰 비용절감</option>
+                                <option value="인력관리">👥 인력관리</option>
+                                <option value="기타">📌 기타</option>
+                            </select>
+                            <input type="text" id="noteTitle" placeholder="제목을 입력하세요" class="note-title-input">
+                        </div>
+                        <textarea id="noteContent" placeholder="내용을 입력하세요. 예: 점심특선 가격 조정 필요, SNS 이벤트 제안 등" class="note-content-input"></textarea>
+                        <button onclick="submitNote()" class="note-submit-btn">💾 등록하기</button>
+                    </div>
+
+                    <!-- 노트 목록 -->
+                    <div class="notes-filter">
+                        <span style="font-weight:bold; color:#666;">📋 카테고리 필터:</span>
+                        <button class="filter-btn active" onclick="filterNotes('all', this)">전체</button>
+                        <button class="filter-btn" onclick="filterNotes('메뉴개선', this)">🍽️</button>
+                        <button class="filter-btn" onclick="filterNotes('마케팅', this)">📢</button>
+                        <button class="filter-btn" onclick="filterNotes('서비스', this)">💁</button>
+                        <button class="filter-btn" onclick="filterNotes('비용절감', this)">💰</button>
+                        <button class="filter-btn" onclick="filterNotes('인력관리', this)">👥</button>
+                    </div>
+
+                    <div id="notesListContainer"></div>
                 </div>
             </div>
         </div>

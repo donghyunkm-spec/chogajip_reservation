@@ -4,7 +4,10 @@
       "Bash(dir /b \"D:\\\\work\\\\chogajip_reservation\")",
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd CLAUDE.md for Claude Code guidance\n\nProvides architectural overview, commands, and key business logic documentation for the reservation system.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(code --list-extensions:*)"
+      "Bash(code --list-extensions:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\n배민/요기요/쿠팡 건수 입력 필드 수정 가능하게 변경\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

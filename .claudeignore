@@ -1,0 +1,17 @@
+# 특정 폴더 제외
+node_modules/
+.git/
+dist/
+build/
+__pycache__/
+
+# 특정 파일 패턴 제외
+*.log
+*.pyc
+.env
+.DS_Store
+
+# 특정 경로 제외
+tests/
+docs/
+backup/

@@ -82,7 +82,8 @@ function addLog(store, actor, action, target, details) {
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));  // POS 데이터 등 대용량 요청 허용
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // =======================
@@ -523,6 +524,137 @@ app.delete('/api/prepayments/:id', (req, res) => {
 app.get('/api/logs', (req, res) => {
     const file = getLogFile(req.query.store || 'chogazip');
     res.json({ success: true, data: readJson(file, []) });
+});
+
+// =======================
+// [API] 운영노트 (아이디어/개선사항 공유)
+// =======================
+const NOTES_FILE = path.join(actualDataPath, 'operation_notes.json');
+
+// 조회
+app.get('/api/notes', (req, res) => {
+    if (!fs.existsSync(NOTES_FILE)) {
+        fs.writeFileSync(NOTES_FILE, JSON.stringify([], null, 2));
+    }
+    const notes = readJson(NOTES_FILE, []);
+    res.json({ success: true, data: notes });
+});
+
+// 추가
+app.post('/api/notes', (req, res) => {
+    const { title, content, category, author } = req.body;
+
+    let notes = readJson(NOTES_FILE, []);
+    if (!Array.isArray(notes)) notes = [];
+
+    const newNote = {
+        id: Date.now(),
+        title: title || '',
+        content: content || '',
+        category: category || '기타',
+        author: author || '익명',
+        createdAt: new Date().toISOString(),
+        comments: []
+    };
+
+    notes.unshift(newNote);
+
+    if (writeJson(NOTES_FILE, notes)) {
+        console.log(`📝 운영노트 추가: ${title} (${author})`);
+        res.json({ success: true, data: newNote });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// 댓글 추가
+app.post('/api/notes/:id/comment', (req, res) => {
+    const noteId = parseInt(req.params.id);
+    const { content, author } = req.body;
+
+    let notes = readJson(NOTES_FILE, []);
+    const note = notes.find(n => n.id === noteId);
+
+    if (!note) {
+        return res.status(404).json({ success: false, error: 'Note not found' });
+    }
+
+    if (!note.comments) note.comments = [];
+    note.comments.push({
+        id: Date.now(),
+        content: content || '',
+        author: author || '익명',
+        createdAt: new Date().toISOString()
+    });
+
+    if (writeJson(NOTES_FILE, notes)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// 삭제
+app.delete('/api/notes/:id', (req, res) => {
+    const noteId = parseInt(req.params.id);
+
+    let notes = readJson(NOTES_FILE, []);
+    notes = notes.filter(n => n.id !== noteId);
+
+    if (writeJson(NOTES_FILE, notes)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// =======================
+// [API] POS 데이터 저장/조회 (매장별 분리)
+// =======================
+function getPosDataFile(store) {
+    const fileName = store === 'yangeun' ? 'pos_data_yangeun.json' : 'pos_data_chogazip.json';
+    return path.join(actualDataPath, fileName);
+}
+
+// 조회
+app.get('/api/pos-data', (req, res) => {
+    const store = req.query.store || 'chogazip';
+    const file = getPosDataFile(store);
+
+    if (!fs.existsSync(file)) {
+        return res.json({ success: true, data: null });
+    }
+    const data = readJson(file, null);
+    res.json({ success: true, data });
+});
+
+// 저장 (전달된 필드만 업데이트)
+app.post('/api/pos-data', (req, res) => {
+    const { store } = req.body;
+    const file = getPosDataFile(store || 'chogazip');
+
+    // 기존 데이터 로드
+    let existingData = { products: null, receipts: null, updatedAt: null };
+    if (fs.existsSync(file)) {
+        existingData = readJson(file, existingData) || existingData;
+    }
+
+    // 전달된 필드만 업데이트 (키가 존재하는 경우에만)
+    const data = { ...existingData };
+    if ('products' in req.body) {
+        data.products = req.body.products;
+    }
+    if ('receipts' in req.body) {
+        data.receipts = req.body.receipts;
+    }
+    data.updatedAt = new Date().toISOString();
+
+    if (writeJson(file, data)) {
+        console.log(`📊 POS 데이터 저장 완료 [${store}] (상품: ${data.products?.length || 0}개, 영수증: ${data.receipts?.length || 0}건)`);
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
 });
 
 // =======================
