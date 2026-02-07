@@ -327,6 +327,9 @@ function renderUnifiedSalesChart(types, total) {
 
 // 매장 전환 함수
 function switchPosStore(store, btn) {
+    // 같은 매장이면 무시
+    if (currentPosStore === store) return;
+
     currentPosStore = store;
 
     // 탭 활성화 스타일
@@ -336,10 +339,11 @@ function switchPosStore(store, btn) {
     btn.classList.add('active');
     if (store === 'yangeun') btn.classList.add('yangeun');
 
-    // UI 초기화
+    // UI 및 데이터 초기화
     resetPosUI();
 
-    // 해당 매장 데이터 로드
+    // 해당 매장 데이터 로드 (강제 새로고침)
+    posDataLoaded[store] = false;
     loadPosDataFromServer(store);
 }
 
@@ -375,9 +379,17 @@ function resetPosUI() {
 // 서버에서 저장된 POS 데이터 불러오기
 async function loadPosDataFromServer(store) {
     const targetStore = store || currentPosStore;
+    const requestedStore = targetStore; // 요청 시점의 매장 저장
 
     try {
         const res = await fetch(`/api/pos-data?store=${targetStore}`);
+
+        // 응답 처리 전에 매장이 변경되었는지 확인 (race condition 방지)
+        if (currentPosStore !== requestedStore) {
+            console.log(`[POS] 매장 변경됨 (${requestedStore} → ${currentPosStore}), 응답 무시`);
+            return;
+        }
+
         const result = await res.json();
 
         if (result.success && result.data) {
