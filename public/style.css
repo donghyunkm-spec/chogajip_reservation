@@ -391,6 +391,15 @@ input:focus, select:focus {
     box-shadow: 0 0 0 3px var(--primary-light);
 }
 
+/* checkbox는 기본 appearance 유지 */
+input[type="checkbox"] {
+    width: auto;
+    padding: 0;
+    -webkit-appearance: checkbox;
+    -moz-appearance: checkbox;
+    appearance: checkbox;
+}
+
 .btn {
     background: var(--primary-color);
     color: white;
