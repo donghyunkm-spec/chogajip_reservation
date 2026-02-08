@@ -143,6 +143,15 @@ function openEditModal(id) {
     document.getElementById('editStartDate').value = target.startDate || '';
     document.getElementById('editEndDate').value = target.endDate || '';
 
+    // 근무 요일 체크박스 초기화
+    const allDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    allDays.forEach(day => {
+        const checkbox = document.getElementById(`editDay_${day}`);
+        if (checkbox) {
+            checkbox.checked = target.workDays && target.workDays.includes(day);
+        }
+    });
+
     const isAdmin = currentUser.role === 'admin';
     const salarySection = document.getElementById('modalSalarySection');
     if (isAdmin) {
@@ -169,7 +178,19 @@ async function saveStaffEdit() {
     const salaryType = document.getElementById('editSalaryType').value;
     const salary = parseInt(document.getElementById('editSalary').value) || 0;
 
-    const updates = { time, startDate, endDate };
+    // 근무 요일 수집
+    const allDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const workDays = allDays.filter(day => {
+        const checkbox = document.getElementById(`editDay_${day}`);
+        return checkbox && checkbox.checked;
+    });
+
+    if (workDays.length === 0) {
+        alert('최소 1개 이상의 근무 요일을 선택해주세요.');
+        return;
+    }
+
+    const updates = { time, startDate, endDate, workDays };
 
     if (currentUser && currentUser.role === 'admin') {
         updates.salaryType = salaryType;
@@ -197,6 +218,13 @@ async function deleteStaff(id) {
     }
 
     if (!confirm('정말로 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.')) return;
+
+    // 삭제 비밀번호 확인
+    const deletePassword = prompt('삭제 비밀번호를 입력하세요:');
+    if (deletePassword !== '1234') {
+        alert('비밀번호가 틀렸습니다.');
+        return;
+    }
 
     try {
         await fetch(`/api/staff/${id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });

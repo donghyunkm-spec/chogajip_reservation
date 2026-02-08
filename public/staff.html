@@ -324,7 +324,34 @@
                 <label>근무 시간 (예: 18:00~23:00)</label>
                 <input type="text" id="editTime">
             </div>
-            
+
+            <div style="background:#e8f5e9; padding:10px; border-radius:5px; margin-bottom:15px; margin-top:10px;">
+                <label style="font-weight:bold; font-size:13px; color:#2e7d32; margin-bottom:8px; display:block;">📅 근무 요일 변경</label>
+                <div id="editWorkDaysContainer" style="display:flex; flex-wrap:wrap; gap:5px;">
+                    <label style="display:flex; align-items:center; background:white; padding:5px 10px; border-radius:5px; border:1px solid #ddd; cursor:pointer;">
+                        <input type="checkbox" id="editDay_Sun" value="Sun" style="margin-right:5px;"> 일
+                    </label>
+                    <label style="display:flex; align-items:center; background:white; padding:5px 10px; border-radius:5px; border:1px solid #ddd; cursor:pointer;">
+                        <input type="checkbox" id="editDay_Mon" value="Mon" style="margin-right:5px;"> 월
+                    </label>
+                    <label style="display:flex; align-items:center; background:white; padding:5px 10px; border-radius:5px; border:1px solid #ddd; cursor:pointer;">
+                        <input type="checkbox" id="editDay_Tue" value="Tue" style="margin-right:5px;"> 화
+                    </label>
+                    <label style="display:flex; align-items:center; background:white; padding:5px 10px; border-radius:5px; border:1px solid #ddd; cursor:pointer;">
+                        <input type="checkbox" id="editDay_Wed" value="Wed" style="margin-right:5px;"> 수
+                    </label>
+                    <label style="display:flex; align-items:center; background:white; padding:5px 10px; border-radius:5px; border:1px solid #ddd; cursor:pointer;">
+                        <input type="checkbox" id="editDay_Thu" value="Thu" style="margin-right:5px;"> 목
+                    </label>
+                    <label style="display:flex; align-items:center; background:white; padding:5px 10px; border-radius:5px; border:1px solid #ddd; cursor:pointer;">
+                        <input type="checkbox" id="editDay_Fri" value="Fri" style="margin-right:5px;"> 금
+                    </label>
+                    <label style="display:flex; align-items:center; background:white; padding:5px 10px; border-radius:5px; border:1px solid #ddd; cursor:pointer;">
+                        <input type="checkbox" id="editDay_Sat" value="Sat" style="margin-right:5px;"> 토
+                    </label>
+                </div>
+            </div>
+
             <div style="background:#fff3e0; padding:10px; border-radius:5px; margin-bottom:15px; margin-top:10px;">
                 <h4 style="margin:0 0 10px 0; font-size:13px; color:#ef6c00;">📅 입/퇴사 관리 (급여 계산용)</h4>
                 <div class="input-group-row"> 
