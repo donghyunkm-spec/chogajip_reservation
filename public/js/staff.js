@@ -140,20 +140,16 @@ function openEditModal(id) {
     document.getElementById('editName').value = target.name;
     document.getElementById('editTime').value = target.time;
     
-    // === [추가된 로직] 요일 체크박스 상태 세팅 ===
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    days.forEach(day => {
-        const cb = document.getElementById(`editDay_${day}`);
-        if (cb) {
-            // 직원의 workDays 배열에 해당 요일이 포함되어 있으면 체크
-            cb.checked = target.workDays && target.workDays.includes(day);
-        }
+    // [추가] 기존 요일 체크박스 세팅
+    const dayCBs = document.querySelectorAll('.edit-day-cb');
+    dayCBs.forEach(cb => {
+        // 직원의 workDays 배열에 해당 요일이 들어있는지 확인하여 체크
+        cb.checked = target.workDays && target.workDays.includes(cb.value);
     });
 
     document.getElementById('editStartDate').value = target.startDate || '';
     document.getElementById('editEndDate').value = target.endDate || '';
     
-    // (기존 권한 체크 로직 유지...)
     const isAdmin = currentUser.role === 'admin';
     const salarySection = document.getElementById('modalSalarySection');
     if (isAdmin) {
@@ -174,23 +170,23 @@ async function saveStaffEdit() {
     const id = parseInt(document.getElementById('editId').value);
     const time = document.getElementById('editTime').value;
     
-    // === [추가된 로직] 체크된 요일들 수집 ===
-    const workDays = [];
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    days.forEach(day => {
-        const cb = document.getElementById(`editDay_${day}`);
-        if (cb && cb.checked) {
-            workDays.push(day);
-        }
-    });
+    // [추가] 체크된 모든 요일을 배열로 수집
+    const checkedWorkDays = Array.from(document.querySelectorAll('.edit-day-cb:checked'))
+                                 .map(cb => cb.value);
 
     const startDate = document.getElementById('editStartDate').value || null;
     const endDate = document.getElementById('editEndDate').value || null;
+
     const salaryType = document.getElementById('editSalaryType').value;
     const salary = parseInt(document.getElementById('editSalary').value) || 0;
 
-    // updates 객체에 workDays 배열을 포함시킵니다.
-    const updates = { time, workDays, startDate, endDate };
+    // [중요] updates 객체에 workDays를 반드시 포함시켜야 함
+    const updates = { 
+        time, 
+        workDays: checkedWorkDays, 
+        startDate, 
+        endDate 
+    };
     
     if (currentUser && currentUser.role === 'admin') {
         updates.salaryType = salaryType;
@@ -198,16 +194,23 @@ async function saveStaffEdit() {
     }
 
     try {
-        await fetch(`/api/staff/${id}`, {
+        const res = await fetch(`/api/staff/${id}`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ updates: updates, actor: currentUser.name, store: currentStore })
         });
-        closeEditModal();
-        loadStaffData();
-        if(currentUser.role === 'admin') loadLogs();
+        
+        if (res.ok) {
+            alert('수정되었습니다.');
+            closeEditModal();
+            loadStaffData();
+            if(currentUser.role === 'admin') loadLogs();
+        } else {
+            alert('수정 실패');
+        }
     } catch(e) { 
-        alert('수정 실패'); 
+        console.error(e);
+        alert('서버 통신 오류');
     }
 }
 
