@@ -143,6 +143,10 @@ function switchTab(tabName) {
         if (activeAccSub && activeAccSub.id === 'acc-prepayment') loadPrepaymentData();
     }
     if(tabName === 'unified') loadUnifiedData();
+    if(tabName === 'reservation-stats' && typeof loadReservationStats === 'function') {
+        loadReservationStats();
+        if (typeof loadAllTimeStats === 'function') loadAllTimeStats();
+    }
 }
 
 // 근무관리 내부 서브탭 전환

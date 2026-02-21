@@ -255,6 +255,85 @@
         .att-sub-content.active {
             display: block;
         }
+
+        /* 예약 통계 스타일 */
+        .stats-sub-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .stats-sub-content.active {
+            display: block;
+        }
+        .stats-bar-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .stats-bar-label {
+            width: 60px;
+            text-align: right;
+            margin-right: 10px;
+            color: #555;
+            font-weight: bold;
+        }
+        .stats-bar-track {
+            flex: 1;
+            background: #f1f3f5;
+            height: 24px;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        .stats-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            transition: width 0.5s ease;
+        }
+        .stats-bar-value {
+            margin-left: 10px;
+            font-weight: bold;
+            width: 80px;
+            text-align: right;
+            color: #333;
+        }
+        .vip-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffd700, #ffb300);
+            color: #5d4037;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        .regular-row {
+            transition: background 0.2s;
+        }
+        .regular-row:hover {
+            background: #fff3e0 !important;
+        }
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .rank-1 { background: linear-gradient(135deg, #ffd700, #ffb300); color: #5d4037; }
+        .rank-2 { background: linear-gradient(135deg, #e0e0e0, #bdbdbd); color: #424242; }
+        .rank-3 { background: linear-gradient(135deg, #cd7f32, #a0522d); color: white; }
+        .rank-other { background: #f5f5f5; color: #666; }
     </style>
 </head>
 <body>
@@ -467,9 +546,10 @@
             </div>
         </div>
 
-        <div class="tabs">
+        <div class="tabs" style="grid-template-columns: repeat(5, 1fr);">
             <button class="tab active" onclick="switchTab('attendance')">근무/직원관리</button>
             <button class="tab" onclick="switchTab('accounting')" style="background:#e3f2fd; color:#0d47a1;">매입/매출</button>
+            <button class="tab" onclick="switchTab('reservation-stats')" style="background:#fce4ec; color:#c2185b;">예약분석</button>
             <button class="tab" id="unifiedTabBtn" onclick="switchTab('unified')" style="display:none; background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9;">통합분석</button>
             <button class="tab" id="switchStoreBtn" onclick="moveToOtherStore()" style="display:none; background:#f4f4f4; color:#333; border:1px solid #bbb; font-weight:bold;">🔄매장전환</button>
         </div>
@@ -818,7 +898,167 @@
                 </div>
             </div>
         </div>
-           
+
+        <!-- 예약 통계 분석 탭 -->
+        <div id="reservation-stats-content" class="tab-content">
+            <div class="accounting-header-nav">
+                <button onclick="changeStatsMonth(-1)" class="nav-btn">◀ 전월</button>
+                <div class="current-month-display">
+                    <h2 id="statsMonthTitle" style="margin:0;">2024년 12월</h2>
+                    <button onclick="resetStatsMonth()" class="reset-btn-mini">이번 달로 이동</button>
+                </div>
+                <button onclick="changeStatsMonth(1)" class="nav-btn">익월 ▶</button>
+            </div>
+
+            <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 15px;">
+                <button class="tab active" onclick="switchStatsSubTab('stats-overview', this)">📊 총괄현황</button>
+                <button class="tab" onclick="switchStatsSubTab('stats-time', this)">⏰ 시간/요일</button>
+                <button class="tab" onclick="switchStatsSubTab('stats-customers', this)" style="background:#fff3e0; color:#e65100;">👑 단골분석</button>
+                <button class="tab" onclick="switchStatsSubTab('stats-trends', this)">📈 월별추이</button>
+            </div>
+
+            <!-- 총괄 현황 -->
+            <div id="stats-overview" class="stats-sub-content active">
+                <div class="dashboard-summary">
+                    <div class="summary-card total-sales">
+                        <div class="lbl">총 예약 건수</div>
+                        <div class="val" id="statsTotalCount">0건</div>
+                    </div>
+                    <div class="summary-card total-cost">
+                        <div class="lbl">총 예약 인원</div>
+                        <div class="val" id="statsTotalPeople" style="color:#1976D2;">0명</div>
+                    </div>
+                    <div class="summary-card net-profit" style="background: linear-gradient(135deg, #c2185b, #e91e63);">
+                        <div class="lbl">평균 예약 인원</div>
+                        <div class="val" id="statsAvgPeople">0명</div>
+                    </div>
+                </div>
+
+                <div class="accounting-card">
+                    <h3 class="chart-title">📅 일자별 예약 현황</h3>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="acc-table" id="statsDailyTable">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">날짜</th>
+                                    <th>요일</th>
+                                    <th style="text-align:right;">예약 건수</th>
+                                    <th style="text-align:right;">예약 인원</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statsDailyBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="accounting-card" style="margin-top:15px;">
+                    <h3 class="chart-title">🪑 좌석 선호도</h3>
+                    <div id="statsSeatPrefChart"></div>
+                </div>
+
+                <div class="accounting-card" style="margin-top:15px;">
+                    <h3 class="chart-title">👥 인원수별 분포</h3>
+                    <div id="statsPartySizeChart"></div>
+                </div>
+
+                <div class="accounting-card" style="margin-top:15px;">
+                    <h3 class="chart-title">📞 예약 방법</h3>
+                    <div id="statsMethodChart"></div>
+                </div>
+            </div>
+
+            <!-- 시간/요일 분석 -->
+            <div id="stats-time" class="stats-sub-content" style="display:none;">
+                <div class="accounting-card">
+                    <h3 class="chart-title">⏰ 시간대별 예약 분포</h3>
+                    <p style="font-size:12px; color:#666; margin-bottom:15px;">어떤 시간대에 예약이 많은지 확인하세요</p>
+                    <div id="statsHourlyChart"></div>
+                </div>
+
+                <div class="accounting-card" style="margin-top:15px;">
+                    <h3 class="chart-title">📆 요일별 예약 분포</h3>
+                    <div id="statsDayOfWeekChart"></div>
+                </div>
+
+                <div class="accounting-card" style="margin-top:15px;">
+                    <h3 class="chart-title">🔥 피크 타임 분석</h3>
+                    <div id="statsPeakAnalysis"></div>
+                </div>
+            </div>
+
+            <!-- 단골 분석 -->
+            <div id="stats-customers" class="stats-sub-content" style="display:none;">
+                <div class="accounting-card" style="background:#fff8e1; border:2px solid #ffb74d;">
+                    <h3 class="chart-title" style="color:#e65100;">👑 VIP 단골 고객 TOP 20</h3>
+                    <p style="font-size:12px; color:#666; margin-bottom:15px;">2회 이상 예약한 고객을 자동으로 분석합니다</p>
+                    <div style="overflow-x:auto;">
+                        <table class="acc-table">
+                            <thead>
+                                <tr style="background:#ffe0b2;">
+                                    <th style="text-align:center; width:40px;">순위</th>
+                                    <th style="text-align:left;">고객명</th>
+                                    <th style="text-align:center;">연락처</th>
+                                    <th style="text-align:right;">방문 횟수</th>
+                                    <th style="text-align:right;">총 인원</th>
+                                    <th style="text-align:center;">최근 방문</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statsRegularsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="accounting-card" style="margin-top:15px;">
+                    <h3 class="chart-title">📋 전체 고객 목록</h3>
+                    <div style="margin-bottom:10px;">
+                        <input type="text" id="customerSearchInput" placeholder="고객명 검색..."
+                            oninput="filterCustomerList()"
+                            style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    </div>
+                    <div style="max-height:400px; overflow-y:auto;">
+                        <table class="acc-table">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">고객명</th>
+                                    <th style="text-align:center;">연락처</th>
+                                    <th style="text-align:right;">방문 횟수</th>
+                                    <th style="text-align:right;">총 인원</th>
+                                    <th style="text-align:center;">최근 방문</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statsAllCustomersBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 월별 추이 -->
+            <div id="stats-trends" class="stats-sub-content" style="display:none;">
+                <div class="accounting-card">
+                    <h3 class="chart-title">📈 월별 예약 추이</h3>
+                    <canvas id="statsMonthlyTrendChart" style="max-height:300px;"></canvas>
+                </div>
+
+                <div class="accounting-card" style="margin-top:15px;">
+                    <h3 class="chart-title">📊 월별 상세 데이터</h3>
+                    <div style="overflow-x:auto;">
+                        <table class="acc-table">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">월</th>
+                                    <th style="text-align:right;">예약 건수</th>
+                                    <th style="text-align:right;">총 인원</th>
+                                    <th style="text-align:right;">평균 인원</th>
+                                    <th style="text-align:right;">전월 대비</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statsMonthlyBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="accounting-content" class="tab-content">
             <div class="accounting-header-nav">
                 <button onclick="changeAccMonth(-1)" class="nav-btn">◀ 전월</button>
@@ -1304,11 +1544,12 @@
         </div>
     </div>
 
-    <!-- JS 모듈 분리: common -> staff -> accounting -> prepayment -> unified -->
+    <!-- JS 모듈 분리: common -> staff -> accounting -> prepayment -> unified -> reservation-stats -->
     <script src="js/common.js"></script>
     <script src="js/staff.js"></script>
     <script src="js/accounting.js"></script>
     <script src="js/prepayment.js"></script>
     <script src="js/unified.js"></script>
+    <script src="js/reservation-stats.js"></script>
 </body>
 </html>

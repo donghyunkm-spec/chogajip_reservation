@@ -7,7 +7,8 @@
       "Bash(code --list-extensions:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\n배민/요기요/쿠팡 건수 입력 필드 수정 가능하게 변경\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ncheckbox appearance 스타일 수정\n\n- input[type=\"checkbox\"]에 기본 appearance 유지하도록 예외 처리 추가\n- 기존 appearance: none 설정이 checkbox에도 적용되어 복수 선택 안 되던 버그 수정\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
