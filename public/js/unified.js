@@ -663,7 +663,7 @@ function analyzePosData() {
         renderHourlySalesChart();
         renderPaymentMethodChart();
         renderWeekdaySalesChart();
-        renderMonthlyTrendChart(); // 월별 매출 추이
+        renderPosMonthlyTrendChart(); // 월별 매출 추이
     }
 
     if (posProductsData) {
@@ -1072,7 +1072,7 @@ function renderWeekdaySalesChart() {
 }
 
 // 월별 매출 추이 차트
-function renderMonthlyTrendChart() {
+function renderPosMonthlyTrendChart() {
     const ctx = document.getElementById('posMonthlyTrendChart');
     if (!ctx) return;
 
