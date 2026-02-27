@@ -56,17 +56,19 @@ function renderMarketingDashboard() {
         lastUpdateEl.textContent = `마지막: ${date.toLocaleDateString('ko-KR')} ${date.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}`;
     }
 
-    // 필터링
+    // 필터링 (category가 없으면 chogazip으로 취급)
     const filteredStores = stores.filter(s => {
         if (currentStoreFilter === 'all') return true;
-        return s.category === currentStoreFilter;
+        const cat = s.category || 'chogazip';
+        return cat === currentStoreFilter;
     });
 
     const filteredSummary = summary.filter(item => {
         const storeConfig = stores.find(s => s.name === item.store);
         if (!storeConfig) return false;
         if (currentStoreFilter === 'all') return true;
-        return storeConfig.category === currentStoreFilter;
+        const cat = storeConfig.category || 'chogazip';
+        return cat === currentStoreFilter;
     });
 
     if (filteredStores.length === 0) {
@@ -91,8 +93,9 @@ function renderMarketingDashboard() {
         html += '<div class="mkt-summary-grid">';
         myStores.forEach(store => {
             const storeData = filteredSummary.filter(s => s.store === store.name);
-            const cardClass = store.category === 'chogazip' ? 'chogazip-card' : 'yangeun-card';
-            const categoryLabel = store.category === 'chogazip' ? '고기집' : '탕/보쌈';
+            const cat = store.category || 'chogazip'; // 기본값: chogazip
+            const cardClass = cat === 'chogazip' ? 'chogazip-card' : 'yangeun-card';
+            const categoryLabel = cat === 'chogazip' ? '고기집' : '탕/보쌈';
 
             html += `
                 <div class="mkt-my-store-card ${cardClass}">
@@ -236,11 +239,12 @@ function renderMarketingTrendChart() {
     const { summary, config } = marketingData;
     const stores = config.stores || [];
 
-    // 필터에 맞는 내 가게 데이터만
+    // 필터에 맞는 내 가게 데이터만 (category 없으면 chogazip)
     const filteredStores = stores.filter(s => {
         if (!s.is_mine) return false;
         if (currentStoreFilter === 'all') return true;
-        return s.category === currentStoreFilter;
+        const cat = s.category || 'chogazip';
+        return cat === currentStoreFilter;
     });
 
     const myStoreNames = filteredStores.map(s => s.name);
