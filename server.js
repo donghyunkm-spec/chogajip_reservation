@@ -28,6 +28,21 @@ console.log(`📁 데이터 저장 경로: ${actualDataPath}`);
 const FINAL_DATA_FILE = path.join(actualDataPath, 'reservations.json');
 const PREPAYMENT_FILE = path.join(actualDataPath, 'prepayments.json');
 const KAKAO_TOKEN_FILE = path.join(actualDataPath, 'kakao_token.json'); // [NEW] 토큰 저장 파일
+const MARKETING_FILE = path.join(actualDataPath, 'marketing_ranking.json'); // [NEW] 마케팅 순위 데이터
+
+// === 마케팅 크롤러 상태 변수 ===
+let marketingStatus = {
+    running: false,
+    lastRun: null,
+    lastResult: null,
+    progress: { current: 0, total: 0, keyword: '' }
+};
+
+// 마케팅 디버그 로그 (로컬에서만 상세 출력)
+const MARKETING_DEBUG = !process.env.RAILWAY_VOLUME_MOUNT_PATH;
+function mktLog(msg, force = false) {
+    if (force || MARKETING_DEBUG) console.log(msg);
+}
 
 // 파일 초기화 확인
 if (!fs.existsSync(FINAL_DATA_FILE)) fs.writeFileSync(FINAL_DATA_FILE, JSON.stringify([], null, 2));
@@ -1494,6 +1509,529 @@ function calculateMonthStats(accountingData, staffData, monthStr, currentDay) {
         appliedFixed 
     };
 }
+
+// =======================
+// [API] 마케팅 - 네이버 플레이스 순위 체커
+// =======================
+
+// 마케팅 데이터 초기화 함수
+function initMarketingData() {
+    if (!fs.existsSync(MARKETING_FILE)) {
+        const defaultData = {
+            config: {
+                stores: [
+                    { name: '초가짚', is_mine: true, keywords: ['오창 맛집', '오창 삼겹살', '오창 고기집'] },
+                    { name: '양은이네', is_mine: true, keywords: ['오창 맛집', '오창 동태탕', '오창 보쌈'] }
+                ],
+                settings: {
+                    headless: true,
+                    max_items_to_check: 50,
+                    notify_on_change: true
+                }
+            },
+            stores: {},
+            history: [],
+            last_updated: null
+        };
+        writeJson(MARKETING_FILE, defaultData);
+    }
+}
+initMarketingData();
+
+// 네이버 플레이스 검색 함수
+async function searchNaverPlace(page, keyword, storeNames, maxItems = 50) {
+    const results = {};
+    storeNames.forEach(name => {
+        results[name] = { rank: null, found: false };
+    });
+
+    try {
+        const url = `https://map.naver.com/p/search/${encodeURIComponent(keyword)}`;
+        mktLog(`  [검색] URL: ${url}`);
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+        await page.waitForTimeout(3000);
+
+        // iframe 로딩 대기
+        try {
+            await page.waitForSelector('iframe#searchIframe', { timeout: 10000 });
+            mktLog('  [OK] searchIframe 발견');
+        } catch (e) {
+            mktLog('  [WARN] searchIframe을 찾을 수 없음', true);
+            return results;
+        }
+
+        const iframe = page.frameLocator('iframe#searchIframe');
+        await page.waitForTimeout(2000);
+
+        // [DEBUG] iframe 내부 HTML 일부 출력
+        if (MARKETING_DEBUG) {
+            try {
+                const iframeEl = await page.locator('iframe#searchIframe').elementHandle();
+                const frame = await iframeEl.contentFrame();
+                const bodyHTML = await frame.evaluate(() => document.body.innerHTML.substring(0, 3000));
+                console.log('  [DEBUG] iframe 내부 HTML (처음 3000자):');
+                console.log(bodyHTML);
+            } catch (e) {
+                console.log('  [DEBUG] HTML 추출 실패:', e.message);
+            }
+        }
+
+        // 검색 결과 리스트 대기 (여러 selector 시도)
+        const listSelectors = ['ul.Ryr1F', 'div.Ryr1F', 'ul[class*="list"]', 'div[class*="search"]'];
+        let listFound = false;
+
+        for (const sel of listSelectors) {
+            try {
+                await iframe.locator(sel).first().waitFor({ timeout: 3000 });
+                mktLog(`  [OK] 검색 결과 리스트 발견 (${sel})`);
+                listFound = true;
+                break;
+            } catch (e) {
+                mktLog(`  [TRY] ${sel} - 없음`);
+            }
+        }
+
+        if (!listFound) {
+            mktLog('  [WARN] 검색 결과 리스트를 찾을 수 없음', true);
+            return results;
+        }
+
+        // 스크롤하여 더 많은 결과 로드 (div.Ryr1F 스크롤)
+        mktLog('  [INFO] 스크롤 중...');
+        for (let i = 0; i < 5; i++) {
+            try {
+                await iframe.locator('div.Ryr1F').evaluate(el => el.scrollTop = el.scrollHeight);
+                await page.waitForTimeout(800);
+            } catch (e) {
+                break;
+            }
+        }
+        await page.waitForTimeout(1500);
+
+        // 검색 결과 아이템 가져오기
+        const items = await iframe.locator('li.UEzoS').all();
+        mktLog(`  [INFO] 검색 결과 ${items.length}개 발견`);
+
+        let rank = 0;
+
+        for (let i = 0; i < Math.min(items.length, maxItems); i++) {
+            const item = items[i];
+
+            // 광고 제외 체크 (Python과 동일한 로직)
+            let isAd = false;
+            try {
+                // 광고 아이콘 링크 체크
+                const adLink = await item.locator('a[href*="help.naver.com/support/alias/NSP"]').count();
+                if (adLink > 0) isAd = true;
+
+                // place_blind 텍스트 체크
+                if (!isAd) {
+                    const adText = await item.locator('span.place_blind').filter({ hasText: '광고' }).count();
+                    if (adText > 0) isAd = true;
+                }
+            } catch (e) {}
+
+            if (isAd) {
+                mktLog(`    [${i + 1}] 광고 - 스킵`);
+                continue;
+            }
+
+            rank++;
+
+            // 가게명 추출 (여러 selector 시도 - Python과 동일)
+            let storeName = '';
+            const nameSelectors = [
+                'span.place_bluelink.TYaxT',
+                'span.place_bluelink',
+                'a.place_bluelink span',
+                'span.TYaxT',
+            ];
+
+            for (const selector of nameSelectors) {
+                try {
+                    const nameEl = item.locator(selector).first();
+                    const count = await nameEl.count();
+                    if (count > 0) {
+                        storeName = await nameEl.innerText();
+                        storeName = storeName.trim();
+                        if (storeName) break;
+                    }
+                } catch (e) {}
+            }
+
+            mktLog(`    [${rank}위] ${storeName || '(이름 추출 실패)'}`);
+
+            // 각 가게명과 매칭
+            for (const targetName of storeNames) {
+                if (storeName && storeName.includes(targetName)) {
+                    if (!results[targetName].found) {
+                        mktLog(`    *** ${targetName} 발견! ${rank}위 ***`);
+                        results[targetName] = { rank, found: true };
+                    }
+                }
+            }
+        }
+
+        mktLog(`  [완료] 총 ${rank}개 업체 확인`);
+
+    } catch (e) {
+        console.error(`  [ERROR] 검색 오류 (${keyword}):`, e.message);
+    }
+
+    return results;
+}
+
+// 순위 체크 실행 함수
+async function runNaverPlaceCheck() {
+    if (marketingStatus.running) {
+        console.log('⚠️ 마케팅 크롤러가 이미 실행 중입니다.');
+        return { success: false, message: '이미 실행 중' };
+    }
+
+    let browser = null;
+
+    try {
+        marketingStatus.running = true;
+        marketingStatus.progress = { current: 0, total: 0, keyword: '' };
+
+        const data = readJson(MARKETING_FILE, { config: { stores: [], settings: {} }, stores: {} });
+        const { stores, settings } = data.config;
+
+        if (!stores || stores.length === 0) {
+            throw new Error('모니터링할 가게가 설정되지 않았습니다.');
+        }
+
+        // 키워드별로 어떤 가게를 찾아야 하는지 맵핑 (중복 키워드는 한 번만 검색)
+        const keywordToStores = {};
+        stores.forEach(store => {
+            if (store.keywords && store.keywords.length > 0) {
+                store.keywords.forEach(kw => {
+                    if (!keywordToStores[kw]) keywordToStores[kw] = [];
+                    keywordToStores[kw].push(store.name);
+                });
+            }
+        });
+
+        const allKeywords = Object.keys(keywordToStores);
+        if (allKeywords.length === 0) {
+            throw new Error('검색 키워드가 설정되지 않았습니다.');
+        }
+
+        marketingStatus.progress.total = allKeywords.length;
+
+        // 시작 로그 (프로덕션에서도 출력)
+        console.log(`🚀 [마케팅] 순위 체크 시작 - ${allKeywords.length}개 키워드`);
+        mktLog('========================================');
+        stores.forEach(s => {
+            mktLog(`📍 ${s.name}: ${(s.keywords || []).join(', ')}`);
+        });
+        mktLog('========================================');
+
+        // Playwright 브라우저 실행 (Python과 동일한 설정)
+        const { chromium } = require('playwright');
+        browser = await chromium.launch({
+            headless: settings.headless !== false,
+            args: [
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage'
+            ]
+        });
+
+        // Context 생성 (User-Agent 및 뷰포트 설정)
+        const context = await browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            viewport: { width: 1920, height: 1080 },
+            locale: 'ko-KR'
+        });
+
+        // 자동화 감지 우회
+        await context.addInitScript(() => {
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        });
+
+        const page = await context.newPage();
+
+        const today = new Date().toISOString().split('T')[0];
+        const changedRanks = [];
+
+        // 각 키워드별 검색 (해당 키워드를 사용하는 가게만 찾음)
+        for (let i = 0; i < allKeywords.length; i++) {
+            const keyword = allKeywords[i];
+            const targetStores = keywordToStores[keyword]; // 이 키워드로 찾아야 할 가게들
+
+            marketingStatus.progress.current = i + 1;
+            marketingStatus.progress.keyword = keyword;
+
+            mktLog(`🔍 검색 중: "${keyword}" (${i + 1}/${allKeywords.length}) - 대상: ${targetStores.join(', ')}`);
+
+            const results = await searchNaverPlace(page, keyword, targetStores, settings.max_items_to_check || 50);
+
+            // 결과 저장 및 로그
+            mktLog(`  [결과] "${keyword}" 검색 결과:`);
+            for (const storeName of targetStores) {
+                if (!data.stores[storeName]) {
+                    data.stores[storeName] = { keywords: {} };
+                }
+                if (!data.stores[storeName].keywords[keyword]) {
+                    data.stores[storeName].keywords[keyword] = [];
+                }
+
+                const result = results[storeName];
+                const prevRecords = data.stores[storeName].keywords[keyword];
+                const prevRank = prevRecords.length > 0 ? prevRecords[prevRecords.length - 1].rank : null;
+
+                // 결과 로그
+                if (result.found) {
+                    mktLog(`    - ${storeName}: ${result.rank}위`);
+                } else {
+                    mktLog(`    - ${storeName}: 순위권 밖`);
+                }
+
+                // 새 기록 추가
+                data.stores[storeName].keywords[keyword].push({
+                    date: today,
+                    rank: result.found ? result.rank : null,
+                    found: result.found
+                });
+
+                // 변동 감지
+                if (result.found && prevRank !== null && prevRank !== result.rank) {
+                    const change = prevRank - result.rank;
+                    changedRanks.push({
+                        store: storeName,
+                        keyword,
+                        prev: prevRank,
+                        current: result.rank,
+                        change: change > 0 ? `+${change}` : `${change}`
+                    });
+                }
+            }
+
+            // 요청 간격 (3~5초 랜덤)
+            const delay = 3000 + Math.random() * 2000;
+            await page.waitForTimeout(delay);
+        }
+
+        data.last_updated = new Date().toISOString();
+        writeJson(MARKETING_FILE, data);
+
+        // 순위 변동 알림
+        if (settings.notify_on_change && changedRanks.length > 0) {
+            let msg = '📊 [네이버 플레이스 순위 변동 알림]\n\n';
+            changedRanks.forEach(c => {
+                const emoji = c.change.startsWith('+') ? '📈' : '📉';
+                msg += `${emoji} ${c.store} - "${c.keyword}"\n`;
+                msg += `   ${c.prev}위 → ${c.current}위 (${c.change})\n\n`;
+            });
+            await sendToKakao(msg);
+        }
+
+        marketingStatus.lastRun = new Date().toISOString();
+        marketingStatus.lastResult = { success: true, checked: allKeywords.length, changes: changedRanks.length };
+
+        console.log(`✅ 마케팅 순위 체크 완료: ${allKeywords.length}개 키워드, ${changedRanks.length}개 변동`);
+        return { success: true, data };
+
+    } catch (e) {
+        console.error('❌ 마케팅 크롤러 오류:', e.message);
+        marketingStatus.lastResult = { success: false, error: e.message };
+        return { success: false, error: e.message };
+    } finally {
+        if (browser) await browser.close();
+        marketingStatus.running = false;
+    }
+}
+
+// 마케팅 API 엔드포인트
+
+// 상태 조회
+app.get('/api/marketing/status', (req, res) => {
+    res.json({ success: true, data: marketingStatus });
+});
+
+// 수동 실행
+app.post('/api/marketing/run', async (req, res) => {
+    if (marketingStatus.running) {
+        return res.json({ success: false, message: '이미 실행 중입니다.' });
+    }
+
+    // 비동기로 실행 (응답은 즉시 반환)
+    runNaverPlaceCheck().then(result => {
+        console.log('마케팅 크롤러 실행 완료:', result.success);
+    });
+
+    res.json({ success: true, message: '크롤러 실행을 시작했습니다.' });
+});
+
+// 대시보드 요약 데이터
+app.get('/api/marketing/summary', (req, res) => {
+    const data = readJson(MARKETING_FILE, { config: { stores: [] }, stores: {} });
+
+    // 최신 순위 요약 생성 (가게별 키워드)
+    const summary = [];
+    const { stores: storeConfigs } = data.config;
+
+    if (storeConfigs) {
+        storeConfigs.forEach(storeConfig => {
+            const storeName = storeConfig.name;
+            const storeKeywords = storeConfig.keywords || [];
+            const storeData = data.stores[storeName];
+
+            storeKeywords.forEach(keyword => {
+                const records = (storeData && storeData.keywords && storeData.keywords[keyword]) || [];
+                const latest = records.length > 0 ? records[records.length - 1] : null;
+                const previous = records.length > 1 ? records[records.length - 2] : null;
+
+                summary.push({
+                    store: storeName,
+                    is_mine: storeConfig.is_mine,
+                    keyword,
+                    rank: latest ? latest.rank : null,
+                    found: latest ? latest.found : false,
+                    date: latest ? latest.date : null,
+                    change: (latest && previous && latest.rank && previous.rank)
+                        ? previous.rank - latest.rank
+                        : null,
+                    history: records.slice(-30) // 최근 30개 기록
+                });
+            });
+        });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            summary,
+            last_updated: data.last_updated,
+            config: data.config
+        }
+    });
+});
+
+// 설정 조회
+app.get('/api/marketing/config', (req, res) => {
+    const data = readJson(MARKETING_FILE, { config: { stores: [], keywords: [], settings: {} } });
+    res.json({ success: true, data: data.config });
+});
+
+// 설정 저장
+app.post('/api/marketing/config', (req, res) => {
+    const { config } = req.body;
+    const data = readJson(MARKETING_FILE, { config: {}, stores: {}, history: [] });
+    data.config = { ...data.config, ...config };
+
+    if (writeJson(MARKETING_FILE, data)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// 가게 추가
+app.post('/api/marketing/config/store', (req, res) => {
+    const { name, is_mine } = req.body;
+    const data = readJson(MARKETING_FILE, { config: { stores: [], keywords: [], settings: {} }, stores: {} });
+
+    if (!data.config.stores) data.config.stores = [];
+
+    // 중복 체크
+    if (data.config.stores.some(s => s.name === name)) {
+        return res.json({ success: false, message: '이미 등록된 가게입니다.' });
+    }
+
+    data.config.stores.push({ name, is_mine: is_mine !== false, keywords: [] });
+    data.stores[name] = { keywords: {} };
+
+    if (writeJson(MARKETING_FILE, data)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// 가게 삭제
+app.delete('/api/marketing/config/store', (req, res) => {
+    const { name } = req.body;
+    const data = readJson(MARKETING_FILE, { config: { stores: [], keywords: [], settings: {} }, stores: {} });
+
+    data.config.stores = data.config.stores.filter(s => s.name !== name);
+    delete data.stores[name];
+
+    if (writeJson(MARKETING_FILE, data)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// 키워드 추가 (가게별)
+app.post('/api/marketing/config/keyword', (req, res) => {
+    const { keyword, storeName } = req.body;
+    const data = readJson(MARKETING_FILE, { config: { stores: [], settings: {} }, stores: {} });
+
+    if (!storeName || !keyword) {
+        return res.json({ success: false, message: '가게명과 키워드를 모두 입력하세요.' });
+    }
+
+    // 해당 가게 찾기
+    const storeConfig = data.config.stores.find(s => s.name === storeName);
+    if (!storeConfig) {
+        return res.json({ success: false, message: '등록되지 않은 가게입니다.' });
+    }
+
+    // 키워드 배열 초기화
+    if (!storeConfig.keywords) storeConfig.keywords = [];
+
+    // 중복 체크
+    if (storeConfig.keywords.includes(keyword)) {
+        return res.json({ success: false, message: '이미 등록된 키워드입니다.' });
+    }
+
+    storeConfig.keywords.push(keyword);
+
+    if (writeJson(MARKETING_FILE, data)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// 키워드 삭제 (가게별)
+app.delete('/api/marketing/config/keyword', (req, res) => {
+    const { keyword, storeName } = req.body;
+    const data = readJson(MARKETING_FILE, { config: { stores: [], settings: {} }, stores: {} });
+
+    if (!storeName || !keyword) {
+        return res.json({ success: false, message: '가게명과 키워드를 모두 입력하세요.' });
+    }
+
+    // 해당 가게 찾기
+    const storeConfig = data.config.stores.find(s => s.name === storeName);
+    if (storeConfig && storeConfig.keywords) {
+        storeConfig.keywords = storeConfig.keywords.filter(k => k !== keyword);
+    }
+
+    // 해당 키워드의 기록도 삭제
+    if (data.stores[storeName] && data.stores[storeName].keywords) {
+        delete data.stores[storeName].keywords[keyword];
+    }
+
+    if (writeJson(MARKETING_FILE, data)) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+// 마케팅 순위 체크 스케줄 (매일 오전 10시)
+cron.schedule('0 10 * * *', async () => {
+    console.log('🔔 [스케줄] 오전 10시 네이버 플레이스 순위 체크 시작...');
+    await runNaverPlaceCheck();
+}, {
+    timezone: "Asia/Seoul"
+});
 
 // 서버 시작
 app.listen(PORT, '0.0.0.0', () => {

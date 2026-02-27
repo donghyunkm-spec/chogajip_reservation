@@ -334,6 +334,195 @@
         .rank-2 { background: linear-gradient(135deg, #e0e0e0, #bdbdbd); color: #424242; }
         .rank-3 { background: linear-gradient(135deg, #cd7f32, #a0522d); color: white; }
         .rank-other { background: #f5f5f5; color: #666; }
+
+        /* [마케팅] 네이버 플레이스 순위 체커 스타일 */
+        .mkt-sub-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .mkt-sub-content.active {
+            display: block;
+        }
+        .marketing-keyword-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .keyword-title {
+            font-size: 14px;
+            color: #1976D2;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e3f2fd;
+        }
+        .store-ranks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .store-rank-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .store-rank-item.my-store {
+            background: #e8f5e9;
+            border: 2px solid #4CAF50;
+        }
+        .store-name {
+            font-weight: bold;
+            color: #333;
+        }
+        .mkt-rank-badge {
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .rank-top3 { background: linear-gradient(135deg, #ffd700, #ffb300); color: #5d4037; }
+        .rank-top10 { background: #e3f2fd; color: #1565c0; }
+        .rank-top20 { background: #f3e5f5; color: #7b1fa2; }
+        .rank-none { background: #f5f5f5; color: #999; }
+        .rank-change .change-up { color: #4CAF50; font-weight: bold; }
+        .rank-change .change-down { color: #f44336; font-weight: bold; }
+        .rank-change .change-same { color: #999; }
+        .marketing-empty {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .status-running {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: #fff3e0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ff9800;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .config-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            margin-bottom: 8px;
+        }
+        .config-item .my-store-badge { color: #2e7d32; font-weight: bold; }
+        .config-item .mine-label {
+            font-size: 10px;
+            background: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        .config-item .remove-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .config-input-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .config-input-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .config-input-row button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .chart-container-marketing {
+            height: 300px;
+            margin-top: 15px;
+        }
+        /* 가게별 키워드 섹션 */
+        .store-keyword-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-left: 3px solid #ddd;
+        }
+        .store-keyword-section.my-store-section {
+            background: #e8f5e9;
+            border-left-color: #4CAF50;
+        }
+        .store-keyword-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        .store-keyword-header strong {
+            font-size: 14px;
+            color: #333;
+        }
+        .mine-badge-small {
+            font-size: 10px;
+            background: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        .store-keyword-list {
+            margin-bottom: 10px;
+        }
+        .keyword-item {
+            background: white !important;
+            margin-bottom: 6px !important;
+            padding: 8px 10px !important;
+        }
+        .no-keywords {
+            color: #999;
+            font-size: 12px;
+            padding: 8px;
+            text-align: center;
+        }
+        .keyword-add-row {
+            margin-top: 8px !important;
+        }
+        .keyword-add-row input {
+            font-size: 13px;
+        }
+        .keyword-add-row button {
+            font-size: 12px;
+            padding: 6px 12px !important;
+        }
     </style>
 </head>
 <body>
@@ -546,10 +735,11 @@
             </div>
         </div>
 
-        <div class="tabs" style="grid-template-columns: repeat(5, 1fr);">
+        <div class="tabs" style="grid-template-columns: repeat(6, 1fr);">
             <button class="tab active" onclick="switchTab('attendance')">근무/직원관리</button>
             <button class="tab" onclick="switchTab('accounting')" style="background:#e3f2fd; color:#0d47a1;">매입/매출</button>
             <button class="tab" onclick="switchTab('reservation-stats')" style="background:#fce4ec; color:#c2185b;">예약분석</button>
+            <button class="tab" id="marketingTabBtn" onclick="switchTab('marketing')" style="display:none; background:#e1f5fe; color:#0277bd; border:1px solid #b3e5fc;">마케팅</button>
             <button class="tab" id="unifiedTabBtn" onclick="switchTab('unified')" style="display:none; background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9;">통합분석</button>
             <button class="tab" id="switchStoreBtn" onclick="moveToOtherStore()" style="display:none; background:#f4f4f4; color:#333; border:1px solid #bbb; font-weight:bold;">🔄매장전환</button>
         </div>
@@ -696,6 +886,80 @@
             </div>
         </div>
 
+        <!-- 마케팅 탭 (네이버 플레이스 순위 체커) -->
+        <div id="marketing-content" class="tab-content">
+            <div class="accounting-card" style="border-top: 4px solid #0277bd;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2 style="color:#01579b; margin:0;">📍 네이버 플레이스 순위</h2>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <span id="marketingLastUpdate" style="font-size:11px; color:#666;"></span>
+                        <button id="runCrawlerBtn" onclick="runMarketingCrawler()" style="background:#0277bd; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;">
+                            순위 체크 실행
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 상태 표시 영역 -->
+                <div id="marketingStatus"></div>
+
+                <!-- 서브탭 -->
+                <div class="tabs" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 15px;">
+                    <button class="tab active" onclick="switchMarketingSubTab('mkt-dashboard', this)">대시보드</button>
+                    <button class="tab" onclick="switchMarketingSubTab('mkt-trend', this)">순위 추이</button>
+                    <button class="tab" onclick="switchMarketingSubTab('mkt-config', this)">설정</button>
+                </div>
+
+                <!-- 대시보드 서브탭 -->
+                <div id="mkt-dashboard" class="mkt-sub-content active">
+                    <div id="marketingDashboard"></div>
+                </div>
+
+                <!-- 순위 추이 서브탭 -->
+                <div id="mkt-trend" class="mkt-sub-content">
+                    <div class="accounting-card">
+                        <h3 class="chart-title">📈 순위 변동 추이 (최근 14일)</h3>
+                        <p style="font-size:12px; color:#666; margin-bottom:10px;">* 순위가 낮을수록(위쪽) 좋습니다. 점선은 데이터가 없는 구간입니다.</p>
+                        <div class="chart-container-marketing">
+                            <canvas id="marketingTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 설정 서브탭 -->
+                <div id="mkt-config" class="mkt-sub-content">
+                    <div class="accounting-card" style="margin-bottom:15px;">
+                        <h3 class="chart-title">🏪 모니터링 가게</h3>
+                        <p style="font-size:12px; color:#666; margin-bottom:10px;">순위를 추적할 가게를 등록하세요. "내 가게"로 표시하면 대시보드에서 강조됩니다.</p>
+                        <div id="marketingStoreList"></div>
+                        <div class="config-input-row">
+                            <input type="text" id="newStoreName" placeholder="가게 이름">
+                            <label style="display:flex; align-items:center; gap:5px; white-space:nowrap;">
+                                <input type="checkbox" id="newStoreIsMine"> 내 가게
+                            </label>
+                            <button onclick="addMarketingStore()">추가</button>
+                        </div>
+                    </div>
+
+                    <div class="accounting-card">
+                        <h3 class="chart-title">🔍 가게별 검색 키워드</h3>
+                        <p style="font-size:12px; color:#666; margin-bottom:10px;">각 가게별로 네이버 지도에서 검색할 키워드를 등록하세요.</p>
+                        <div id="marketingKeywordList"></div>
+                    </div>
+
+                    <div class="accounting-card" style="background:#fff3e0;">
+                        <h4 style="color:#e65100; margin-bottom:10px;">💡 사용 안내</h4>
+                        <ul style="font-size:12px; color:#555; line-height:1.8; padding-left:20px;">
+                            <li>매일 <strong>오전 10시</strong>에 자동으로 순위를 체크합니다.</li>
+                            <li>순위가 변동되면 <strong>카카오톡 알림</strong>이 발송됩니다.</li>
+                            <li>"순위 체크 실행" 버튼으로 수동 실행도 가능합니다.</li>
+                            <li>광고 결과는 제외하고 <strong>순수 검색 순위</strong>만 측정합니다.</li>
+                            <li>최대 50위까지 체크하며, 50위 밖이면 "순위권 밖"으로 표시됩니다.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="unified-content" class="tab-content">
             <!-- 월 이동 네비게이션 추가 -->
             <div class="accounting-header-nav">
@@ -706,7 +970,7 @@
                 </div>
                 <button onclick="changeUnifiedMonth(1)" class="nav-btn">익월 ▶</button>
             </div>
-            
+
             <div class="accounting-card" style="border-top: 4px solid #2e7d32;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
                     <h2 style="color:#1b5e20; margin:0;">📊 통합 현황판</h2>
@@ -1544,12 +1808,13 @@
         </div>
     </div>
 
-    <!-- JS 모듈 분리: common -> staff -> accounting -> prepayment -> unified -> reservation-stats -->
+    <!-- JS 모듈 분리: common -> staff -> accounting -> prepayment -> unified -> reservation-stats -> marketing -->
     <script src="js/common.js"></script>
     <script src="js/staff.js"></script>
     <script src="js/accounting.js"></script>
     <script src="js/prepayment.js"></script>
     <script src="js/unified.js"></script>
     <script src="js/reservation-stats.js"></script>
+    <script src="js/marketing.js"></script>
 </body>
 </html>

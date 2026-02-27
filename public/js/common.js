@@ -147,6 +147,9 @@ function switchTab(tabName) {
         loadReservationStats();
         if (typeof loadAllTimeStats === 'function') loadAllTimeStats();
     }
+    if(tabName === 'marketing' && typeof loadMarketingData === 'function') {
+        loadMarketingData();
+    }
 }
 
 // 근무관리 내부 서브탭 전환
@@ -286,6 +289,9 @@ async function onLoginSuccess(user) {
 
         const unifiedBtn = document.getElementById('unifiedTabBtn');
         if(unifiedBtn) unifiedBtn.style.display = 'inline-block';
+
+        const marketingBtn = document.getElementById('marketingTabBtn');
+        if(marketingBtn) marketingBtn.style.display = 'inline-block';
 
         try { await loadLogs(); } catch(e) {}
     }

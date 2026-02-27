@@ -23,3 +23,7 @@ Thumbs.db
 
 # 백업 제외
 backup/
+
+#스크린샷 제외
+image.png
+
