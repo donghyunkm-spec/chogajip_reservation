@@ -6,6 +6,8 @@
 let marketingData = null;
 let marketingChart = null;
 let statusPollInterval = null;
+let currentStoreFilter = 'all'; // 'all', 'chogazip', 'yangeun'
+let selectedChartKeywords = new Set();
 
 // ==========================================
 // 2. 데이터 로드 및 렌더링
@@ -26,73 +28,171 @@ async function loadMarketingData() {
     }
 }
 
-// 대시보드 렌더링
+// 가게 필터 전환
+function filterMarketingByStore(filter, btn) {
+    currentStoreFilter = filter;
+
+    // 탭 활성화 상태 변경
+    document.querySelectorAll('.mkt-store-tab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    // 대시보드 및 차트 다시 렌더링
+    renderMarketingDashboard();
+    renderMarketingTrendChart();
+}
+
+// 대시보드 렌더링 (새로운 디자인)
 function renderMarketingDashboard() {
     const container = document.getElementById('marketingDashboard');
     if (!container || !marketingData) return;
 
-    const { summary, last_updated } = marketingData;
+    const { summary, last_updated, config } = marketingData;
+    const stores = config.stores || [];
 
     // 마지막 업데이트 시간 표시
     const lastUpdateEl = document.getElementById('marketingLastUpdate');
     if (lastUpdateEl && last_updated) {
         const date = new Date(last_updated);
-        lastUpdateEl.textContent = `마지막 업데이트: ${date.toLocaleDateString('ko-KR')} ${date.toLocaleTimeString('ko-KR')}`;
+        lastUpdateEl.textContent = `마지막: ${date.toLocaleDateString('ko-KR')} ${date.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}`;
     }
 
-    // 키워드별 그룹화
-    const keywordGroups = {};
-    summary.forEach(item => {
-        if (!keywordGroups[item.keyword]) {
-            keywordGroups[item.keyword] = [];
-        }
-        keywordGroups[item.keyword].push(item);
+    // 필터링
+    const filteredStores = stores.filter(s => {
+        if (currentStoreFilter === 'all') return true;
+        return s.category === currentStoreFilter;
     });
+
+    const filteredSummary = summary.filter(item => {
+        const storeConfig = stores.find(s => s.name === item.store);
+        if (!storeConfig) return false;
+        if (currentStoreFilter === 'all') return true;
+        return storeConfig.category === currentStoreFilter;
+    });
+
+    if (filteredStores.length === 0) {
+        container.innerHTML = `
+            <div class="marketing-empty">
+                <div class="marketing-empty-icon">📊</div>
+                <p>아직 등록된 가게가 없습니다.</p>
+                <p style="font-size:13px; color:#999;">설정 탭에서 모니터링할 가게를 추가하세요.</p>
+            </div>
+        `;
+        return;
+    }
+
+    // 내 가게와 경쟁업체 분리
+    const myStores = filteredStores.filter(s => s.is_mine);
+    const competitors = filteredStores.filter(s => !s.is_mine);
 
     let html = '';
 
-    Object.keys(keywordGroups).forEach(keyword => {
-        const items = keywordGroups[keyword];
+    // 내 가게 요약 카드
+    if (myStores.length > 0) {
+        html += '<div class="mkt-summary-grid">';
+        myStores.forEach(store => {
+            const storeData = filteredSummary.filter(s => s.store === store.name);
+            const cardClass = store.category === 'chogazip' ? 'chogazip-card' : 'yangeun-card';
+            const categoryLabel = store.category === 'chogazip' ? '고기집' : '탕/보쌈';
 
-        html += `
-            <div class="marketing-keyword-card">
-                <h4 class="keyword-title">"${keyword}"</h4>
-                <div class="store-ranks">
-        `;
+            html += `
+                <div class="mkt-my-store-card ${cardClass}">
+                    <div class="mkt-my-store-header">
+                        <div class="mkt-my-store-name">${store.name}</div>
+                        <div class="mkt-my-store-badge">${categoryLabel}</div>
+                    </div>
+                    <div class="mkt-keyword-ranks">
+            `;
 
-        // 순위순 정렬
-        items.sort((a, b) => {
+            if (storeData.length === 0) {
+                html += `<div class="mkt-keyword-row"><span style="opacity:0.7;">등록된 키워드 없음</span></div>`;
+            } else {
+                storeData.forEach(item => {
+                    const rankDisplay = item.rank ? item.rank : '-';
+                    const changeHtml = getChangeHtml(item.change);
+                    html += `
+                        <div class="mkt-keyword-row">
+                            <div class="mkt-keyword-name">"${item.keyword}"</div>
+                            <div class="mkt-rank-display">
+                                ${changeHtml}
+                                <span class="mkt-rank-num">${rankDisplay}</span>
+                                <span class="mkt-rank-suffix">${item.rank ? '위' : ''}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+
+    // 키워드별 경쟁업체 비교 테이블
+    const keywordSet = new Set();
+    filteredSummary.forEach(item => keywordSet.add(item.keyword));
+
+    keywordSet.forEach(keyword => {
+        const keywordData = filteredSummary.filter(s => s.keyword === keyword);
+
+        // 순위순 정렬 (순위 없는 것은 마지막)
+        keywordData.sort((a, b) => {
+            if (!a.rank && !b.rank) return 0;
             if (!a.rank) return 1;
             if (!b.rank) return -1;
             return a.rank - b.rank;
         });
 
-        items.forEach(item => {
-            const rankDisplay = item.rank ? `${item.rank}위` : '순위권 밖';
-            const rankClass = getRankClass(item.rank);
-            const changeDisplay = getChangeDisplay(item.change);
-            const isMine = item.is_mine ? 'my-store' : '';
+        html += `
+            <div class="mkt-competitor-section">
+                <div class="mkt-competitor-header">
+                    <div class="mkt-competitor-title">
+                        <span>순위 비교</span>
+                        <span class="mkt-keyword-tag">${keyword}</span>
+                    </div>
+                </div>
+                <table class="mkt-rank-table">
+                    <thead>
+                        <tr>
+                            <th style="width:40%">가게명</th>
+                            <th style="width:30%">순위</th>
+                            <th style="width:30%">변동</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        keywordData.forEach((item, idx) => {
+            const isMyStore = item.is_mine;
+            const rowClass = isMyStore ? 'my-store-row' : '';
+            const rankClass = getRankPositionClass(item.rank, idx);
+            const rankDisplay = item.rank ? item.rank : '-';
+            const changeHtml = getChangeBadge(item.change);
 
             html += `
-                <div class="store-rank-item ${isMine}">
-                    <div class="store-name">${item.store}</div>
-                    <div class="rank-badge ${rankClass}">${rankDisplay}</div>
-                    <div class="rank-change">${changeDisplay}</div>
-                </div>
+                <tr class="${rowClass}">
+                    <td>${item.store}${isMyStore ? ' ⭐' : ''}</td>
+                    <td><span class="mkt-rank-position ${rankClass}">${rankDisplay}</span></td>
+                    <td>${changeHtml}</td>
+                </tr>
             `;
         });
 
         html += `
-                </div>
+                    </tbody>
+                </table>
             </div>
         `;
     });
 
-    if (summary.length === 0) {
+    if (keywordSet.size === 0 && myStores.length === 0) {
         html = `
             <div class="marketing-empty">
+                <div class="marketing-empty-icon">📊</div>
                 <p>아직 순위 데이터가 없습니다.</p>
-                <p>아래 "순위 체크 실행" 버튼을 클릭하여 첫 번째 체크를 실행하세요.</p>
+                <p style="font-size:13px; color:#999;">"순위 체크 실행" 버튼을 클릭하여 첫 번째 체크를 실행하세요.</p>
             </div>
         `;
     }
@@ -101,40 +201,72 @@ function renderMarketingDashboard() {
 }
 
 // 순위에 따른 클래스
-function getRankClass(rank) {
-    if (!rank) return 'rank-none';
-    if (rank <= 3) return 'rank-top3';
+function getRankPositionClass(rank, idx) {
+    if (!rank) return 'rank-other';
+    if (rank === 1) return 'rank-1';
+    if (rank === 2) return 'rank-2';
+    if (rank === 3) return 'rank-3';
     if (rank <= 10) return 'rank-top10';
     if (rank <= 20) return 'rank-top20';
     return 'rank-other';
 }
 
-// 변동 표시
-function getChangeDisplay(change) {
+// 변동 표시 (카드용)
+function getChangeHtml(change) {
     if (change === null || change === undefined) return '';
-    if (change > 0) return `<span class="change-up">+${change}</span>`;
-    if (change < 0) return `<span class="change-down">${change}</span>`;
-    return '<span class="change-same">-</span>';
+    if (change > 0) return `<span class="mkt-rank-change up">+${change}</span>`;
+    if (change < 0) return `<span class="mkt-rank-change down">${change}</span>`;
+    return '';
+}
+
+// 변동 배지 (테이블용)
+function getChangeBadge(change) {
+    if (change === null || change === undefined) return '<span class="mkt-change-badge same">-</span>';
+    if (change > 0) return `<span class="mkt-change-badge up">▲ ${change}</span>`;
+    if (change < 0) return `<span class="mkt-change-badge down">▼ ${Math.abs(change)}</span>`;
+    return '<span class="mkt-change-badge same">-</span>';
 }
 
 // 추이 차트 렌더링
 function renderMarketingTrendChart() {
     const canvas = document.getElementById('marketingTrendChart');
+    const filterContainer = document.getElementById('mktChartFilters');
     if (!canvas || !marketingData) return;
 
     const { summary, config } = marketingData;
+    const stores = config.stores || [];
 
-    // 내 가게 데이터만 필터링
-    const myStores = config.stores.filter(s => s.is_mine).map(s => s.name);
-    const myData = summary.filter(s => myStores.includes(s.store));
+    // 필터에 맞는 내 가게 데이터만
+    const filteredStores = stores.filter(s => {
+        if (!s.is_mine) return false;
+        if (currentStoreFilter === 'all') return true;
+        return s.category === currentStoreFilter;
+    });
 
-    // 키워드별 데이터셋 생성
-    const datasets = [];
-    const colors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4'];
-    let colorIndex = 0;
+    const myStoreNames = filteredStores.map(s => s.name);
+    const myData = summary.filter(s => myStoreNames.includes(s.store));
 
-    const keywordSet = new Set();
-    myData.forEach(item => keywordSet.add(item.keyword));
+    // 키워드 필터 버튼 생성
+    if (filterContainer) {
+        const uniqueKeywords = [...new Set(myData.map(d => d.keyword))];
+
+        // 초기화: 모든 키워드 선택
+        if (selectedChartKeywords.size === 0) {
+            uniqueKeywords.forEach(k => selectedChartKeywords.add(k));
+        }
+
+        let filterHtml = '';
+        uniqueKeywords.forEach(keyword => {
+            const isActive = selectedChartKeywords.has(keyword);
+            filterHtml += `
+                <button class="mkt-chart-filter-btn ${isActive ? 'active' : ''}"
+                        onclick="toggleChartKeyword('${keyword}', this)">
+                    ${keyword}
+                </button>
+            `;
+        });
+        filterContainer.innerHTML = filterHtml;
+    }
 
     // 날짜 레이블 생성 (최근 14일)
     const labels = [];
@@ -144,28 +276,42 @@ function renderMarketingTrendChart() {
         labels.push(d.toISOString().split('T')[0]);
     }
 
-    myStores.forEach(storeName => {
-        keywordSet.forEach(keyword => {
-            const item = myData.find(d => d.store === storeName && d.keyword === keyword);
-            if (!item || !item.history) return;
+    // 데이터셋 생성
+    const datasets = [];
+    const colorPalettes = {
+        chogazip: ['#d32f2f', '#e91e63', '#ff5722', '#ff9800'],
+        yangeun: ['#388e3c', '#00897b', '#00acc1', '#1e88e5']
+    };
+    let colorIndexes = { chogazip: 0, yangeun: 0 };
 
-            // 날짜별 순위 매핑
+    filteredStores.forEach(storeConfig => {
+        const storeName = storeConfig.name;
+        const category = storeConfig.category || 'chogazip';
+        const palette = colorPalettes[category];
+
+        myData.filter(d => d.store === storeName && selectedChartKeywords.has(d.keyword)).forEach(item => {
+            if (!item.history) return;
+
             const dataPoints = labels.map(date => {
                 const record = item.history.find(h => h.date === date);
                 return record && record.rank ? record.rank : null;
             });
 
-            const color = colors[colorIndex % colors.length];
-            colorIndex++;
+            const colorIdx = colorIndexes[category] % palette.length;
+            const color = palette[colorIdx];
+            colorIndexes[category]++;
 
             datasets.push({
-                label: `${storeName} - "${keyword}"`,
+                label: `${storeName} - "${item.keyword}"`,
                 data: dataPoints,
                 borderColor: color,
                 backgroundColor: color + '20',
                 fill: false,
                 tension: 0.3,
-                spanGaps: true
+                spanGaps: true,
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6
             });
         });
     });
@@ -185,20 +331,34 @@ function renderMarketingTrendChart() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             scales: {
                 y: {
-                    reverse: true, // 순위는 작을수록 좋으므로 역순
+                    reverse: true,
                     min: 1,
-                    max: 50,
-                    title: { display: true, text: '순위' }
+                    max: Math.max(30, ...datasets.flatMap(d => d.data.filter(v => v !== null))),
+                    title: { display: true, text: '순위', font: { size: 12 } },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                x: {
+                    grid: { display: false }
                 }
             },
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { boxWidth: 12, font: { size: 11 } }
+                    labels: {
+                        boxWidth: 12,
+                        font: { size: 11 },
+                        padding: 15
+                    }
                 },
                 tooltip: {
+                    backgroundColor: 'rgba(0,0,0,0.8)',
+                    padding: 12,
                     callbacks: {
                         label: function(context) {
                             return context.dataset.label + ': ' + (context.raw ? context.raw + '위' : '순위권 밖');
@@ -210,6 +370,18 @@ function renderMarketingTrendChart() {
     });
 }
 
+// 차트 키워드 필터 토글
+function toggleChartKeyword(keyword, btn) {
+    if (selectedChartKeywords.has(keyword)) {
+        selectedChartKeywords.delete(keyword);
+        btn.classList.remove('active');
+    } else {
+        selectedChartKeywords.add(keyword);
+        btn.classList.add('active');
+    }
+    renderMarketingTrendChart();
+}
+
 // 설정 렌더링
 function renderMarketingConfig() {
     const storeList = document.getElementById('marketingStoreList');
@@ -219,52 +391,110 @@ function renderMarketingConfig() {
 
     const { stores } = marketingData.config;
 
-    // 가게 목록
+    // 가게 목록 (카테고리별 그룹화)
     if (storeList) {
-        storeList.innerHTML = stores.map(s => `
-            <div class="config-item">
-                <span class="${s.is_mine ? 'my-store-badge' : ''}">${s.name}</span>
-                ${s.is_mine ? '<span class="mine-label">내 가게</span>' : ''}
-                <button onclick="removeMarketingStore('${s.name}')" class="remove-btn">X</button>
-            </div>
-        `).join('');
+        const chogazipStores = stores.filter(s => s.category === 'chogazip' || !s.category);
+        const yangeunStores = stores.filter(s => s.category === 'yangeun');
+
+        let html = '';
+
+        if (chogazipStores.length > 0) {
+            html += '<div style="margin-bottom:10px;font-weight:bold;color:#c62828;">🥩 초가짚 (고기)</div>';
+            html += chogazipStores.map(s => renderStoreConfigItem(s, 'chogazip')).join('');
+        }
+
+        if (yangeunStores.length > 0) {
+            html += '<div style="margin-bottom:10px;margin-top:15px;font-weight:bold;color:#2e7d32;">🍲 양은이네 (탕/보쌈)</div>';
+            html += yangeunStores.map(s => renderStoreConfigItem(s, 'yangeun')).join('');
+        }
+
+        if (stores.length === 0) {
+            html = '<div style="color:#999;text-align:center;padding:20px;">등록된 가게가 없습니다.</div>';
+        }
+
+        storeList.innerHTML = html;
     }
 
     // 가게별 키워드 목록
     if (keywordList) {
         let html = '';
-        stores.forEach(store => {
-            const keywords = store.keywords || [];
-            const isMine = store.is_mine ? 'my-store-section' : '';
-            html += `
-                <div class="store-keyword-section ${isMine}">
-                    <div class="store-keyword-header">
-                        <strong>${store.name}</strong>
-                        ${store.is_mine ? '<span class="mine-badge-small">내 가게</span>' : ''}
-                    </div>
-                    <div class="store-keyword-list">
-                        ${keywords.length > 0 ? keywords.map(k => `
-                            <div class="config-item keyword-item">
-                                <span>${k}</span>
-                                <button onclick="removeMarketingKeyword('${store.name}', '${k}')" class="remove-btn">X</button>
-                            </div>
-                        `).join('') : '<div class="no-keywords">등록된 키워드 없음</div>'}
-                    </div>
-                    <div class="config-input-row keyword-add-row">
-                        <input type="text" id="newKeyword_${store.name.replace(/\s/g, '_')}" placeholder="새 키워드 입력">
-                        <button onclick="addMarketingKeyword('${store.name}')">추가</button>
-                    </div>
-                </div>
-            `;
-        });
+
+        // 카테고리별 그룹화
+        const chogazipStores = stores.filter(s => s.category === 'chogazip' || !s.category);
+        const yangeunStores = stores.filter(s => s.category === 'yangeun');
+
+        if (chogazipStores.length > 0) {
+            html += '<div style="margin-bottom:10px;font-weight:bold;color:#c62828;">🥩 초가짚 계열</div>';
+            chogazipStores.forEach(store => {
+                html += renderStoreKeywordSection(store, 'chogazip');
+            });
+        }
+
+        if (yangeunStores.length > 0) {
+            html += '<div style="margin-bottom:10px;margin-top:20px;font-weight:bold;color:#2e7d32;">🍲 양은이네 계열</div>';
+            yangeunStores.forEach(store => {
+                html += renderStoreKeywordSection(store, 'yangeun');
+            });
+        }
+
         keywordList.innerHTML = html;
     }
+}
+
+function renderStoreConfigItem(store, category) {
+    const categoryClass = `category-${category}`;
+    const categoryLabel = category === 'chogazip' ? '고기' : '탕/보쌈';
+
+    return `
+        <div class="config-item">
+            <span class="${store.is_mine ? 'my-store-badge' : ''}">${store.name}</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+                ${store.is_mine ? '<span class="mine-label">내 가게</span>' : ''}
+                <span class="category-label ${categoryClass}">${categoryLabel}</span>
+                <button onclick="removeMarketingStore('${store.name}')" class="remove-btn">X</button>
+            </div>
+        </div>
+    `;
+}
+
+function renderStoreKeywordSection(store, category) {
+    const keywords = store.keywords || [];
+    const isMine = store.is_mine ? 'my-store-section' : '';
+    const categorySection = `${category}-section`;
+
+    return `
+        <div class="store-keyword-section ${isMine} ${categorySection}">
+            <div class="store-keyword-header">
+                <strong>${store.name}</strong>
+                ${store.is_mine ? '<span class="mine-badge-small" style="background:#4CAF50;color:white;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:5px;">내 가게</span>' : '<span style="font-size:10px;color:#999;margin-left:5px;">경쟁업체</span>'}
+            </div>
+            <div class="store-keyword-list">
+                ${keywords.length > 0 ? keywords.map(k => `
+                    <div class="config-item keyword-item">
+                        <span>${k}</span>
+                        <button onclick="removeMarketingKeyword('${store.name}', '${k}')" class="remove-btn">X</button>
+                    </div>
+                `).join('') : '<div style="color:#999;font-size:12px;padding:8px;">등록된 키워드 없음</div>'}
+            </div>
+            <div class="config-input-row keyword-add-row">
+                <input type="text" id="newKeyword_${store.name.replace(/\s/g, '_')}" placeholder="새 키워드 입력">
+                <button onclick="addMarketingKeyword('${store.name}')">추가</button>
+            </div>
+        </div>
+    `;
 }
 
 // ==========================================
 // 3. 크롤러 제어
 // ==========================================
 async function runMarketingCrawler() {
+    // 비밀번호 확인
+    const password = prompt('순위 체크 실행을 위한 비밀번호를 입력하세요:');
+    if (password !== '1234') {
+        alert('비밀번호가 일치하지 않습니다.');
+        return;
+    }
+
     const btn = document.getElementById('runCrawlerBtn');
     if (btn) {
         btn.disabled = true;
@@ -347,6 +577,7 @@ function startStatusPolling() {
 // ==========================================
 async function addMarketingStore() {
     const nameInput = document.getElementById('newStoreName');
+    const categorySelect = document.getElementById('newStoreCategory');
     const isMineCheckbox = document.getElementById('newStoreIsMine');
 
     if (!nameInput) return;
@@ -357,13 +588,16 @@ async function addMarketingStore() {
         return;
     }
 
+    const category = categorySelect ? categorySelect.value : 'chogazip';
+
     try {
         const res = await fetch('/api/marketing/config/store', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name,
-                is_mine: isMineCheckbox ? isMineCheckbox.checked : false
+                is_mine: isMineCheckbox ? isMineCheckbox.checked : false,
+                category
             })
         });
         const result = await res.json();

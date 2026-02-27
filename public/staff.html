@@ -343,68 +343,212 @@
         .mkt-sub-content.active {
             display: block;
         }
-        .marketing-keyword-card {
-            background: white;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .keyword-title {
-            font-size: 14px;
-            color: #1976D2;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #e3f2fd;
-        }
-        .store-ranks {
+
+        /* 가게 필터 탭 */
+        .mkt-store-tabs {
             display: flex;
-            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+            padding: 4px;
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+        .mkt-store-tab {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #666;
+        }
+        .mkt-store-tab:hover { background: rgba(255,255,255,0.5); }
+        .mkt-store-tab.active { background: white; color: #1976D2; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .mkt-store-tab.tab-chogazip.active { color: #c62828; }
+        .mkt-store-tab.tab-yangeun.active { color: #2e7d32; }
+
+        /* 순위 요약 카드 (내 가게 중심) */
+        .mkt-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .mkt-my-store-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 20px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        .mkt-my-store-card.chogazip-card {
+            background: linear-gradient(135deg, #d32f2f 0%, #c2185b 100%);
+            box-shadow: 0 4px 15px rgba(211, 47, 47, 0.3);
+        }
+        .mkt-my-store-card.yangeun-card {
+            background: linear-gradient(135deg, #388e3c 0%, #1976d2 100%);
+            box-shadow: 0 4px 15px rgba(56, 142, 60, 0.3);
+        }
+        .mkt-my-store-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .mkt-my-store-name {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .mkt-my-store-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+        }
+        .mkt-keyword-ranks {
+            display: flex;
+            flex-direction: column;
             gap: 10px;
         }
-        .store-rank-item {
+        .mkt-keyword-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+        }
+        .mkt-keyword-name {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        .mkt-rank-display {
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 8px 12px;
-            background: #f8f9fa;
-            border-radius: 8px;
+        }
+        .mkt-rank-num {
+            font-size: 22px;
+            font-weight: 800;
+        }
+        .mkt-rank-suffix {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        .mkt-rank-change {
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.2);
+        }
+        .mkt-rank-change.up { background: rgba(76, 175, 80, 0.3); }
+        .mkt-rank-change.down { background: rgba(244, 67, 54, 0.3); }
+
+        /* 경쟁업체 비교 테이블 */
+        .mkt-competitor-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .mkt-competitor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .mkt-competitor-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .mkt-keyword-tag {
+            font-size: 12px;
+            color: #1976D2;
+            background: #e3f2fd;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+        .mkt-rank-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .mkt-rank-table th {
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 11px;
+            color: #888;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-bottom: 1px solid #eee;
+        }
+        .mkt-rank-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f5f5f5;
             font-size: 13px;
         }
-        .store-rank-item.my-store {
-            background: #e8f5e9;
-            border: 2px solid #4CAF50;
+        .mkt-rank-table tr:last-child td { border-bottom: none; }
+        .mkt-rank-table tr.my-store-row {
+            background: linear-gradient(90deg, #e8f5e9 0%, #f1f8e9 100%);
         }
-        .store-name {
-            font-weight: bold;
-            color: #333;
+        .mkt-rank-table tr.my-store-row td:first-child {
+            font-weight: 700;
+            color: #2e7d32;
         }
-        .mkt-rank-badge {
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-weight: bold;
-            font-size: 12px;
+        .mkt-rank-position {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-weight: 700;
+            font-size: 14px;
         }
-        .rank-top3 { background: linear-gradient(135deg, #ffd700, #ffb300); color: #5d4037; }
-        .rank-top10 { background: #e3f2fd; color: #1565c0; }
-        .rank-top20 { background: #f3e5f5; color: #7b1fa2; }
-        .rank-none { background: #f5f5f5; color: #999; }
-        .rank-change .change-up { color: #4CAF50; font-weight: bold; }
-        .rank-change .change-down { color: #f44336; font-weight: bold; }
-        .rank-change .change-same { color: #999; }
+        .mkt-rank-position.rank-1 { background: linear-gradient(135deg, #ffd700, #ffb300); color: #5d4037; }
+        .mkt-rank-position.rank-2 { background: linear-gradient(135deg, #e0e0e0, #bdbdbd); color: #424242; }
+        .mkt-rank-position.rank-3 { background: linear-gradient(135deg, #ffcc80, #ff9800); color: #5d4037; }
+        .mkt-rank-position.rank-top10 { background: #e3f2fd; color: #1565c0; }
+        .mkt-rank-position.rank-top20 { background: #f3e5f5; color: #7b1fa2; }
+        .mkt-rank-position.rank-other { background: #f5f5f5; color: #999; }
+        .mkt-change-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .mkt-change-badge.up { background: #e8f5e9; color: #2e7d32; }
+        .mkt-change-badge.down { background: #ffebee; color: #c62828; }
+        .mkt-change-badge.same { background: #f5f5f5; color: #999; }
+
         .marketing-empty {
             text-align: center;
-            padding: 40px;
+            padding: 60px 20px;
             color: #666;
+        }
+        .marketing-empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
         }
         .status-running {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 15px;
-            background: #fff3e0;
-            border-radius: 8px;
+            padding: 12px 16px;
+            background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
+            border-radius: 10px;
             margin-bottom: 15px;
+            border-left: 4px solid #ff9800;
         }
         .spinner {
             width: 20px;
@@ -434,6 +578,14 @@
             padding: 2px 6px;
             border-radius: 10px;
         }
+        .config-item .category-label {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 5px;
+        }
+        .config-item .category-chogazip { background: #ffcdd2; color: #c62828; }
+        .config-item .category-yangeun { background: #c8e6c9; color: #2e7d32; }
         .config-item .remove-btn {
             background: #f44336;
             color: white;
@@ -448,12 +600,20 @@
             display: flex;
             gap: 10px;
             margin-top: 10px;
+            flex-wrap: wrap;
         }
         .config-input-row input {
             flex: 1;
+            min-width: 120px;
             padding: 8px 12px;
             border: 1px solid #ddd;
             border-radius: 5px;
+        }
+        .config-input-row select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
         }
         .config-input-row button {
             background: #4CAF50;
@@ -465,9 +625,28 @@
             font-weight: bold;
         }
         .chart-container-marketing {
-            height: 300px;
+            height: 350px;
             margin-top: 15px;
         }
+        /* 차트 필터 */
+        .mkt-chart-filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .mkt-chart-filter-btn {
+            padding: 6px 14px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mkt-chart-filter-btn:hover { border-color: #1976D2; }
+        .mkt-chart-filter-btn.active { background: #1976D2; color: white; border-color: #1976D2; }
+
         /* 가게별 키워드 섹션 */
         .store-keyword-section {
             background: #f8f9fa;
@@ -479,6 +658,12 @@
         .store-keyword-section.my-store-section {
             background: #e8f5e9;
             border-left-color: #4CAF50;
+        }
+        .store-keyword-section.chogazip-section {
+            border-left-color: #c62828;
+        }
+        .store-keyword-section.yangeun-section {
+            border-left-color: #2e7d32;
         }
         .store-keyword-header {
             display: flex;
@@ -889,7 +1074,7 @@
         <!-- 마케팅 탭 (네이버 플레이스 순위 체커) -->
         <div id="marketing-content" class="tab-content">
             <div class="accounting-card" style="border-top: 4px solid #0277bd;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
                     <h2 style="color:#01579b; margin:0;">📍 네이버 플레이스 순위</h2>
                     <div style="display:flex; gap:10px; align-items:center;">
                         <span id="marketingLastUpdate" style="font-size:11px; color:#666;"></span>
@@ -901,6 +1086,13 @@
 
                 <!-- 상태 표시 영역 -->
                 <div id="marketingStatus"></div>
+
+                <!-- 가게 필터 탭 -->
+                <div class="mkt-store-tabs">
+                    <button class="mkt-store-tab active" onclick="filterMarketingByStore('all', this)">전체</button>
+                    <button class="mkt-store-tab tab-chogazip" onclick="filterMarketingByStore('chogazip', this)">🥩 초가짚</button>
+                    <button class="mkt-store-tab tab-yangeun" onclick="filterMarketingByStore('yangeun', this)">🍲 양은이네</button>
+                </div>
 
                 <!-- 서브탭 -->
                 <div class="tabs" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 15px;">
@@ -918,7 +1110,8 @@
                 <div id="mkt-trend" class="mkt-sub-content">
                     <div class="accounting-card">
                         <h3 class="chart-title">📈 순위 변동 추이 (최근 14일)</h3>
-                        <p style="font-size:12px; color:#666; margin-bottom:10px;">* 순위가 낮을수록(위쪽) 좋습니다. 점선은 데이터가 없는 구간입니다.</p>
+                        <p style="font-size:12px; color:#666; margin-bottom:10px;">* 순위가 낮을수록(위쪽) 좋습니다</p>
+                        <div id="mktChartFilters" class="mkt-chart-filters"></div>
                         <div class="chart-container-marketing">
                             <canvas id="marketingTrendChart"></canvas>
                         </div>
@@ -929,10 +1122,16 @@
                 <div id="mkt-config" class="mkt-sub-content">
                     <div class="accounting-card" style="margin-bottom:15px;">
                         <h3 class="chart-title">🏪 모니터링 가게</h3>
-                        <p style="font-size:12px; color:#666; margin-bottom:10px;">순위를 추적할 가게를 등록하세요. "내 가게"로 표시하면 대시보드에서 강조됩니다.</p>
+                        <p style="font-size:12px; color:#666; margin-bottom:10px;">
+                            순위를 추적할 가게를 등록하세요. 카테고리를 선택하면 해당 가게의 경쟁업체로 분류됩니다.
+                        </p>
                         <div id="marketingStoreList"></div>
                         <div class="config-input-row">
                             <input type="text" id="newStoreName" placeholder="가게 이름">
+                            <select id="newStoreCategory">
+                                <option value="chogazip">초가짚 (고기)</option>
+                                <option value="yangeun">양은이네 (탕/보쌈)</option>
+                            </select>
                             <label style="display:flex; align-items:center; gap:5px; white-space:nowrap;">
                                 <input type="checkbox" id="newStoreIsMine"> 내 가게
                             </label>
@@ -949,9 +1148,9 @@
                     <div class="accounting-card" style="background:#fff3e0;">
                         <h4 style="color:#e65100; margin-bottom:10px;">💡 사용 안내</h4>
                         <ul style="font-size:12px; color:#555; line-height:1.8; padding-left:20px;">
-                            <li>매일 <strong>오전 10시</strong>에 자동으로 순위를 체크합니다.</li>
+                            <li>매일 <strong>오전 4~8시 사이</strong> 랜덤 시간에 자동으로 순위를 체크합니다.</li>
                             <li>순위가 변동되면 <strong>카카오톡 알림</strong>이 발송됩니다.</li>
-                            <li>"순위 체크 실행" 버튼으로 수동 실행도 가능합니다.</li>
+                            <li>"순위 체크 실행" 버튼으로 수동 실행도 가능합니다 (비밀번호 필요).</li>
                             <li>광고 결과는 제외하고 <strong>순수 검색 순위</strong>만 측정합니다.</li>
                             <li>최대 50위까지 체크하며, 50위 밖이면 "순위권 밖"으로 표시됩니다.</li>
                         </ul>

@@ -25,12 +25,14 @@ Single Express.js server handling:
 - **Accounting** (`/api/accounting`) - Daily sales and monthly fixed costs per store
 - **Prepayment Ledger** (`/api/prepayments`) - Customer prepayment tracking
 - **Kakao Integration** (`/oauth/kakao`, `/api/kakao/*`) - KakaoTalk notifications
+- **Marketing** (`/api/marketing/*`) - Naver Place ranking tracker with Playwright crawler
 
 **Multi-store pattern**: Functions like `getStaffFile(store)`, `getAccountingFile(store)` route to store-specific JSON files (`staff.json` vs `staff_yangeun.json`).
 
 **Data persistence**: JSON files in `/data` directory (local) or Railway volume mount path.
 
 **Scheduled tasks** (node-cron):
+- 10:00 KST - Naver Place ranking check (marketing)
 - 11:00 KST - Daily business briefing
 - 11:30 KST - Daily staff schedule notification
 
@@ -51,8 +53,9 @@ Single Express.js server handling:
 | `accounting.js` | Daily/monthly accounting, statistics |
 | `prepayment.js` | Customer prepayment ledger |
 | `unified.js` | Admin-only unified analysis (both stores) |
+| `marketing.js` | Naver Place ranking tracker UI |
 
-Scripts load in order: common -> staff -> accounting -> prepayment -> unified. Cross-module functions exposed via `window` object (e.g., `window.getEstimatedStaffCost`).
+Scripts load in order: common -> staff -> accounting -> prepayment -> unified -> marketing. Cross-module functions exposed via `window` object (e.g., `window.getEstimatedStaffCost`).
 
 **Store switching**: `staff.html?store=yangeun` changes theme and data source.
 
@@ -80,11 +83,23 @@ When adding reservations, the algorithm attempts to reassign existing reservatio
 { id, name, position, workDays: ['Mon','Wed'...], salaryType, salary, time, startDate, endDate, exceptions: { '2025-01-25': { type: 'work'|'off', time } } }
 ```
 
+## Marketing (Naver Place Ranking)
+
+Playwright-based crawler checks store rankings on Naver Maps:
+- **Store-specific keywords**: Each store (초가짚, 양은이네) has its own keyword list
+- **Data structure**: `data/marketing_ranking.json` stores config and historical rankings
+- **Conditional logging**: `MARKETING_DEBUG` flag (true in local, false in Railway) controls verbose logs
+- **Crawler flow**: Navigate to `map.naver.com/p/search/{keyword}` → find `#searchIframe` → scroll results → extract rankings excluding ads
+
 ## Environment Variables
 
 - `PORT` - Server port (default: 3000)
 - `RAILWAY_VOLUME_MOUNT_PATH` - Persistent storage path on Railway
 - Kakao API credentials are hardcoded (consider moving to env vars)
+
+## Deployment
+
+Railway deployment uses Dockerfile with Playwright pre-installed (`mcr.microsoft.com/playwright:v1.40.0-jammy`).
 
 ## Korean Language Context
 

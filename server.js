@@ -1931,7 +1931,7 @@ app.post('/api/marketing/config', (req, res) => {
 
 // 가게 추가
 app.post('/api/marketing/config/store', (req, res) => {
-    const { name, is_mine } = req.body;
+    const { name, is_mine, category } = req.body;
     const data = readJson(MARKETING_FILE, { config: { stores: [], keywords: [], settings: {} }, stores: {} });
 
     if (!data.config.stores) data.config.stores = [];
@@ -1941,7 +1941,8 @@ app.post('/api/marketing/config/store', (req, res) => {
         return res.json({ success: false, message: '이미 등록된 가게입니다.' });
     }
 
-    data.config.stores.push({ name, is_mine: is_mine !== false, keywords: [] });
+    // category: 'chogazip' | 'yangeun' - 어느 가게의 경쟁업체인지
+    data.config.stores.push({ name, is_mine: is_mine !== false, category: category || 'chogazip', keywords: [] });
     data.stores[name] = { keywords: {} };
 
     if (writeJson(MARKETING_FILE, data)) {
@@ -2025,10 +2026,185 @@ app.delete('/api/marketing/config/keyword', (req, res) => {
     }
 });
 
-// 마케팅 순위 체크 스케줄 (매일 오전 10시)
-cron.schedule('0 10 * * *', async () => {
-    console.log('🔔 [스케줄] 오전 10시 네이버 플레이스 순위 체크 시작...');
-    await runNaverPlaceCheck();
+// ==========================================
+// 마케팅 브리핑 생성 및 전송
+// ==========================================
+async function generateMarketingBriefing() {
+    try {
+        const data = readJson(MARKETING_FILE, { config: { stores: [] }, stores: {} });
+        const { stores: storeConfigs } = data.config;
+
+        if (!storeConfigs || storeConfigs.length === 0) {
+            console.log('⚠️ 마케팅 브리핑 스킵: 등록된 가게 없음');
+            return;
+        }
+
+        const myStores = storeConfigs.filter(s => s.is_mine);
+        if (myStores.length === 0) {
+            console.log('⚠️ 마케팅 브리핑 스킵: 내 가게 등록 없음');
+            return;
+        }
+
+        const today = new Date();
+        const dateStr = `${today.getMonth() + 1}/${today.getDate()}`;
+
+        let message = `📊 [마케팅 브리핑] ${dateStr}\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n\n`;
+
+        // 카테고리별 그룹화
+        const categories = {
+            chogazip: { name: '🥩 초가짚', stores: [] },
+            yangeun: { name: '🍲 양은이네', stores: [] }
+        };
+
+        myStores.forEach(store => {
+            const cat = store.category || 'chogazip';
+            if (categories[cat]) {
+                categories[cat].stores.push(store);
+            }
+        });
+
+        let hasData = false;
+
+        for (const [catKey, catInfo] of Object.entries(categories)) {
+            if (catInfo.stores.length === 0) continue;
+
+            message += `${catInfo.name}\n`;
+            message += `──────────────\n`;
+
+            catInfo.stores.forEach(store => {
+                const storeName = store.name;
+                const storeData = data.stores[storeName];
+                const keywords = store.keywords || [];
+
+                if (keywords.length === 0) {
+                    message += `${storeName}: 키워드 미등록\n`;
+                    return;
+                }
+
+                keywords.forEach(keyword => {
+                    const records = (storeData && storeData.keywords && storeData.keywords[keyword]) || [];
+
+                    if (records.length === 0) {
+                        message += `"${keyword}": 데이터 없음\n`;
+                        return;
+                    }
+
+                    hasData = true;
+                    const latest = records[records.length - 1];
+                    const rankDisplay = latest.rank ? `${latest.rank}위` : '순위권 밖';
+
+                    // 7일 전과 비교 (추이)
+                    let trendMsg = '';
+                    if (records.length >= 2) {
+                        const prev = records[records.length - 2];
+                        if (latest.rank && prev.rank) {
+                            const diff = prev.rank - latest.rank;
+                            if (diff > 0) trendMsg = ` (▲${diff})`;
+                            else if (diff < 0) trendMsg = ` (▼${Math.abs(diff)})`;
+                            else trendMsg = ' (-)';
+                        }
+                    }
+
+                    // 7일 평균 계산
+                    const recent7 = records.slice(-7).filter(r => r.rank);
+                    let avgMsg = '';
+                    if (recent7.length >= 3) {
+                        const avg = recent7.reduce((sum, r) => sum + r.rank, 0) / recent7.length;
+                        avgMsg = ` [7일평균: ${avg.toFixed(1)}위]`;
+                    }
+
+                    message += `"${keyword}": ${rankDisplay}${trendMsg}${avgMsg}\n`;
+                });
+            });
+
+            message += `\n`;
+        }
+
+        if (!hasData) {
+            console.log('⚠️ 마케팅 브리핑 스킵: 순위 데이터 없음');
+            return;
+        }
+
+        // 경쟁업체 비교 (키워드별 TOP 3)
+        const allKeywords = new Set();
+        myStores.forEach(s => (s.keywords || []).forEach(k => allKeywords.add(k)));
+
+        if (allKeywords.size > 0) {
+            message += `📈 경쟁 현황 (TOP 3)\n`;
+            message += `──────────────\n`;
+
+            allKeywords.forEach(keyword => {
+                // 해당 키워드를 사용하는 모든 가게의 순위 수집
+                const rankings = [];
+                storeConfigs.forEach(store => {
+                    if (!store.keywords || !store.keywords.includes(keyword)) return;
+                    const storeData = data.stores[store.name];
+                    const records = (storeData && storeData.keywords && storeData.keywords[keyword]) || [];
+                    if (records.length > 0) {
+                        const latest = records[records.length - 1];
+                        if (latest.rank) {
+                            rankings.push({
+                                name: store.name,
+                                rank: latest.rank,
+                                isMine: store.is_mine
+                            });
+                        }
+                    }
+                });
+
+                if (rankings.length > 0) {
+                    rankings.sort((a, b) => a.rank - b.rank);
+                    const top3 = rankings.slice(0, 3);
+                    const top3Str = top3.map((r, i) => {
+                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+                        const mine = r.isMine ? '⭐' : '';
+                        return `${medal}${r.name}${mine}`;
+                    }).join(' ');
+                    message += `"${keyword}": ${top3Str}\n`;
+                }
+            });
+        }
+
+        message += `\n💡 상세 분석은 관리자 페이지에서 확인하세요.`;
+
+        await sendToKakao(message);
+        console.log('✅ 마케팅 브리핑 전송 완료');
+
+    } catch (e) {
+        console.error('❌ 마케팅 브리핑 생성 실패:', e);
+    }
+}
+
+// 마케팅 브리핑 스케줄 (11:00~11:30 사이 랜덤)
+cron.schedule('0 11 * * *', () => {
+    // 0~30분 사이 랜덤 딜레이
+    const randomDelayMs = Math.floor(Math.random() * 30 * 60 * 1000);
+    const delayMinutes = Math.floor(randomDelayMs / 60000);
+
+    console.log(`🔔 [스케줄] 마케팅 브리핑 예약됨 - ${delayMinutes}분 후 실행 예정`);
+
+    setTimeout(async () => {
+        console.log('🔔 [스케줄] 마케팅 브리핑 시작...');
+        await generateMarketingBriefing();
+    }, randomDelayMs);
+}, {
+    timezone: "Asia/Seoul"
+});
+
+// 마케팅 순위 체크 스케줄 (매일 오전 4시에 스케줄링, 4~8시 사이 랜덤 실행)
+cron.schedule('0 4 * * *', () => {
+    // 0~4시간 사이 랜덤 딜레이 (밀리초)
+    const randomDelayMs = Math.floor(Math.random() * 4 * 60 * 60 * 1000);
+    const delayMinutes = Math.floor(randomDelayMs / 60000);
+    const scheduledTime = new Date(Date.now() + randomDelayMs);
+
+    console.log(`🔔 [스케줄] 순위 체크 예약됨 - ${delayMinutes}분 후 (${scheduledTime.toLocaleTimeString('ko-KR')}) 실행 예정`);
+
+    setTimeout(async () => {
+        console.log('🔔 [스케줄] 네이버 플레이스 순위 체크 시작...');
+        await runNaverPlaceCheck();
+    }, randomDelayMs);
 }, {
     timezone: "Asia/Seoul"
 });
