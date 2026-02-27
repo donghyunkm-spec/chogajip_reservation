@@ -1596,17 +1596,53 @@ async function searchNaverPlace(page, keyword, storeNames, maxItems = 50) {
             return results;
         }
 
-        // 스크롤하여 더 많은 결과 로드 (div.Ryr1F 스크롤)
+        // 스크롤하여 더 많은 결과 로드 (점진적 스크롤로 lazy loading 트리거)
         mktLog('  [INFO] 스크롤 중...');
-        for (let i = 0; i < 5; i++) {
+        let prevItemCount = 0;
+        let noChangeCount = 0;
+        const maxScrollAttempts = 25;
+
+        for (let i = 0; i < maxScrollAttempts; i++) {
             try {
-                await iframe.locator('div.Ryr1F').evaluate(el => el.scrollTop = el.scrollHeight);
-                await page.waitForTimeout(800);
+                // 점진적 스크롤 (1200px씩) + 스크롤 위치 확인
+                const scrollInfo = await iframe.locator('div.Ryr1F').evaluate(el => {
+                    const before = el.scrollTop;
+                    el.scrollTop += 1200;
+                    return {
+                        before,
+                        after: el.scrollTop,
+                        max: el.scrollHeight - el.clientHeight
+                    };
+                });
+
+                // lazy loading 대기 (2초)
+                await page.waitForTimeout(2000);
+
+                // 현재 항목 개수 확인
+                const currentItemCount = await iframe.locator('li.UEzoS').count();
+
+                // 스크롤이 끝에 도달했는지 확인
+                const atBottom = scrollInfo.after >= scrollInfo.max - 10;
+
+                if (currentItemCount === prevItemCount) {
+                    noChangeCount++;
+                    mktLog(`  [INFO] 스크롤 ${i + 1}회 - 항목 ${currentItemCount}개 (변화 없음 ${noChangeCount}/5) [스크롤: ${scrollInfo.after}/${scrollInfo.max}]`);
+                    if (noChangeCount >= 5 || atBottom) {
+                        mktLog(`  [INFO] 스크롤 완료 - 총 ${currentItemCount}개 ${atBottom ? '(끝 도달)' : '(새 항목 없음)'}`);
+                        break;
+                    }
+                } else {
+                    noChangeCount = 0;
+                    mktLog(`  [INFO] 스크롤 ${i + 1}회 - 항목 ${prevItemCount} → ${currentItemCount}개 [스크롤: ${scrollInfo.after}/${scrollInfo.max}]`);
+                }
+                prevItemCount = currentItemCount;
+
             } catch (e) {
+                mktLog(`  [WARN] 스크롤 오류: ${e.message}`);
                 break;
             }
         }
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1000);
 
         // 검색 결과 아이템 가져오기
         const items = await iframe.locator('li.UEzoS').all();
