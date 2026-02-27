@@ -1977,18 +1977,13 @@ app.post('/api/marketing/config', (req, res) => {
     }
 });
 
-// 가게 추가 (키워드는 카테고리별로 관리되므로 가게에는 이름과 카테고리만)
+// 가게 추가/수정 (upsert - 존재하면 업데이트, 없으면 추가)
 app.post('/api/marketing/config/store', (req, res) => {
     const { name, is_mine, category } = req.body;
     const data = readJson(MARKETING_FILE, { config: { stores: [], categories: {}, settings: {} }, stores: {} });
 
     if (!data.config.stores) data.config.stores = [];
     if (!data.config.categories) data.config.categories = {};
-
-    // 중복 체크
-    if (data.config.stores.some(s => s.name === name)) {
-        return res.json({ success: false, message: '이미 등록된 가게입니다.' });
-    }
 
     const cat = category || 'chogazip';
 
@@ -1997,9 +1992,21 @@ app.post('/api/marketing/config/store', (req, res) => {
         data.config.categories[cat] = { keywords: [] };
     }
 
-    // 가게 추가 (키워드 없이 - 키워드는 카테고리에서 관리)
-    data.config.stores.push({ name, is_mine: is_mine !== false, category: cat });
-    data.stores[name] = { keywords: {} };
+    // 기존 가게 찾기
+    const existingIndex = data.config.stores.findIndex(s => s.name === name);
+
+    if (existingIndex >= 0) {
+        // 업데이트
+        data.config.stores[existingIndex] = {
+            ...data.config.stores[existingIndex],
+            is_mine: is_mine !== false,
+            category: cat
+        };
+    } else {
+        // 새로 추가
+        data.config.stores.push({ name, is_mine: is_mine !== false, category: cat });
+        data.stores[name] = { keywords: {} };
+    }
 
     if (writeJson(MARKETING_FILE, data)) {
         res.json({ success: true });
