@@ -389,7 +389,7 @@ function renderMarketingConfig() {
 
     if (!marketingData || !marketingData.config) return;
 
-    const { stores } = marketingData.config;
+    const { stores, categories } = marketingData.config;
 
     // 가게 목록 (카테고리별 그룹화)
     if (storeList) {
@@ -415,27 +415,17 @@ function renderMarketingConfig() {
         storeList.innerHTML = html;
     }
 
-    // 가게별 키워드 목록
+    // 카테고리별 키워드 목록 (가게별이 아닌 카테고리별)
     if (keywordList) {
         let html = '';
 
-        // 카테고리별 그룹화
-        const chogazipStores = stores.filter(s => s.category === 'chogazip' || !s.category);
-        const yangeunStores = stores.filter(s => s.category === 'yangeun');
+        // 초가짚 카테고리 키워드
+        const chogazipKeywords = (categories && categories.chogazip && categories.chogazip.keywords) || [];
+        html += renderCategoryKeywordSection('chogazip', '🥩 초가짚 계열', chogazipKeywords, '#c62828');
 
-        if (chogazipStores.length > 0) {
-            html += '<div style="margin-bottom:10px;font-weight:bold;color:#c62828;">🥩 초가짚 계열</div>';
-            chogazipStores.forEach(store => {
-                html += renderStoreKeywordSection(store, 'chogazip');
-            });
-        }
-
-        if (yangeunStores.length > 0) {
-            html += '<div style="margin-bottom:10px;margin-top:20px;font-weight:bold;color:#2e7d32;">🍲 양은이네 계열</div>';
-            yangeunStores.forEach(store => {
-                html += renderStoreKeywordSection(store, 'yangeun');
-            });
-        }
+        // 양은이네 카테고리 키워드
+        const yangeunKeywords = (categories && categories.yangeun && categories.yangeun.keywords) || [];
+        html += renderCategoryKeywordSection('yangeun', '🍲 양은이네 계열', yangeunKeywords, '#2e7d32');
 
         keywordList.innerHTML = html;
     }
@@ -457,28 +447,29 @@ function renderStoreConfigItem(store, category) {
     `;
 }
 
-function renderStoreKeywordSection(store, category) {
-    const keywords = store.keywords || [];
-    const isMine = store.is_mine ? 'my-store-section' : '';
-    const categorySection = `${category}-section`;
+// 카테고리별 키워드 섹션 렌더링
+function renderCategoryKeywordSection(category, title, keywords, color) {
+    const categoryStores = marketingData.config.stores
+        .filter(s => s.category === category || (!s.category && category === 'chogazip'))
+        .map(s => s.name);
 
     return `
-        <div class="store-keyword-section ${isMine} ${categorySection}">
-            <div class="store-keyword-header">
-                <strong>${store.name}</strong>
-                ${store.is_mine ? '<span class="mine-badge-small" style="background:#4CAF50;color:white;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:5px;">내 가게</span>' : '<span style="font-size:10px;color:#999;margin-left:5px;">경쟁업체</span>'}
+        <div class="category-keyword-section" style="border-left: 3px solid ${color}; padding-left: 15px; margin-bottom: 20px;">
+            <div style="font-weight:bold;color:${color};margin-bottom:12px;">${title}</div>
+            <div style="font-size:11px;color:#666;margin-bottom:10px;">
+                등록된 가게: ${categoryStores.length > 0 ? categoryStores.join(', ') : '없음'}
             </div>
             <div class="store-keyword-list">
                 ${keywords.length > 0 ? keywords.map(k => `
                     <div class="config-item keyword-item">
                         <span>${k}</span>
-                        <button onclick="removeMarketingKeyword('${store.name}', '${k}')" class="remove-btn">X</button>
+                        <button onclick="removeMarketingKeyword('${category}', '${k}')" class="remove-btn">X</button>
                     </div>
                 `).join('') : '<div style="color:#999;font-size:12px;padding:8px;">등록된 키워드 없음</div>'}
             </div>
             <div class="config-input-row keyword-add-row">
-                <input type="text" id="newKeyword_${store.name.replace(/\s/g, '_')}" placeholder="새 키워드 입력">
-                <button onclick="addMarketingKeyword('${store.name}')">추가</button>
+                <input type="text" id="newKeyword_${category}" placeholder="새 키워드 입력">
+                <button onclick="addMarketingKeyword('${category}')">추가</button>
             </div>
         </div>
     `;
@@ -636,8 +627,9 @@ async function removeMarketingStore(name) {
     }
 }
 
-async function addMarketingKeyword(storeName) {
-    const inputId = `newKeyword_${storeName.replace(/\s/g, '_')}`;
+// 키워드 추가 (카테고리별)
+async function addMarketingKeyword(category) {
+    const inputId = `newKeyword_${category}`;
     const input = document.getElementById(inputId);
     if (!input) return;
 
@@ -651,7 +643,7 @@ async function addMarketingKeyword(storeName) {
         const res = await fetch('/api/marketing/config/keyword', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keyword, storeName })
+            body: JSON.stringify({ keyword, category })
         });
         const result = await res.json();
 
@@ -667,14 +659,16 @@ async function addMarketingKeyword(storeName) {
     }
 }
 
-async function removeMarketingKeyword(storeName, keyword) {
-    if (!confirm(`"${storeName}"의 "${keyword}" 키워드를 삭제하시겠습니까?`)) return;
+// 키워드 삭제 (카테고리별)
+async function removeMarketingKeyword(category, keyword) {
+    const categoryName = category === 'chogazip' ? '초가짚 계열' : '양은이네 계열';
+    if (!confirm(`"${categoryName}"의 "${keyword}" 키워드를 삭제하시겠습니까?\n(해당 카테고리의 모든 가게 순위 기록도 삭제됩니다)`)) return;
 
     try {
         const res = await fetch('/api/marketing/config/keyword', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keyword, storeName })
+            body: JSON.stringify({ keyword, category })
         });
         const result = await res.json();
 

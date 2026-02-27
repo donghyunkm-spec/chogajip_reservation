@@ -1694,22 +1694,29 @@ async function runNaverPlaceCheck() {
         marketingStatus.running = true;
         marketingStatus.progress = { current: 0, total: 0, keyword: '' };
 
-        const data = readJson(MARKETING_FILE, { config: { stores: [], settings: {} }, stores: {} });
-        const { stores, settings } = data.config;
+        const data = readJson(MARKETING_FILE, { config: { stores: [], categories: {}, settings: {} }, stores: {} });
+        const { stores, categories, settings } = data.config;
 
         if (!stores || stores.length === 0) {
             throw new Error('모니터링할 가게가 설정되지 않았습니다.');
         }
 
-        // 키워드별로 어떤 가게를 찾아야 하는지 맵핑 (중복 키워드는 한 번만 검색)
+        // 키워드별로 어떤 가게를 찾아야 하는지 맵핑 (카테고리 기반)
+        // 같은 카테고리의 키워드는 해당 카테고리의 모든 가게를 찾음
         const keywordToStores = {};
-        stores.forEach(store => {
-            if (store.keywords && store.keywords.length > 0) {
-                store.keywords.forEach(kw => {
-                    if (!keywordToStores[kw]) keywordToStores[kw] = [];
-                    keywordToStores[kw].push(store.name);
+        Object.keys(categories || {}).forEach(cat => {
+            const catKeywords = categories[cat].keywords || [];
+            const catStores = stores.filter(s => s.category === cat).map(s => s.name);
+
+            catKeywords.forEach(kw => {
+                if (!keywordToStores[kw]) keywordToStores[kw] = [];
+                // 중복 방지하며 추가
+                catStores.forEach(storeName => {
+                    if (!keywordToStores[kw].includes(storeName)) {
+                        keywordToStores[kw].push(storeName);
+                    }
                 });
-            }
+            });
         });
 
         const allKeywords = Object.keys(keywordToStores);
@@ -1722,8 +1729,10 @@ async function runNaverPlaceCheck() {
         // 시작 로그 (프로덕션에서도 출력)
         console.log(`🚀 [마케팅] 순위 체크 시작 - ${allKeywords.length}개 키워드`);
         mktLog('========================================');
-        stores.forEach(s => {
-            mktLog(`📍 ${s.name}: ${(s.keywords || []).join(', ')}`);
+        Object.keys(categories || {}).forEach(cat => {
+            const catKeywords = (categories[cat].keywords || []).join(', ');
+            const catStores = stores.filter(s => s.category === cat).map(s => s.name).join(', ');
+            mktLog(`📍 ${cat}: [${catKeywords}] → 가게: ${catStores}`);
         });
         mktLog('========================================');
 
@@ -1867,19 +1876,21 @@ app.post('/api/marketing/run', async (req, res) => {
 
 // 대시보드 요약 데이터
 app.get('/api/marketing/summary', (req, res) => {
-    const data = readJson(MARKETING_FILE, { config: { stores: [] }, stores: {} });
+    const data = readJson(MARKETING_FILE, { config: { stores: [], categories: {} }, stores: {} });
 
-    // 최신 순위 요약 생성 (가게별 키워드)
+    // 최신 순위 요약 생성 (카테고리별 키워드 기반)
     const summary = [];
-    const { stores: storeConfigs } = data.config;
+    const { stores: storeConfigs, categories } = data.config;
 
-    if (storeConfigs) {
+    if (storeConfigs && categories) {
         storeConfigs.forEach(storeConfig => {
             const storeName = storeConfig.name;
-            const storeKeywords = storeConfig.keywords || [];
+            const cat = storeConfig.category || 'chogazip';
+            // 해당 카테고리의 키워드들
+            const categoryKeywords = (categories[cat] && categories[cat].keywords) || [];
             const storeData = data.stores[storeName];
 
-            storeKeywords.forEach(keyword => {
+            categoryKeywords.forEach(keyword => {
                 const records = (storeData && storeData.keywords && storeData.keywords[keyword]) || [];
                 const latest = records.length > 0 ? records[records.length - 1] : null;
                 const previous = records.length > 1 ? records[records.length - 2] : null;
@@ -1887,6 +1898,7 @@ app.get('/api/marketing/summary', (req, res) => {
                 summary.push({
                     store: storeName,
                     is_mine: storeConfig.is_mine,
+                    category: cat,
                     keyword,
                     rank: latest ? latest.rank : null,
                     found: latest ? latest.found : false,
@@ -1929,20 +1941,28 @@ app.post('/api/marketing/config', (req, res) => {
     }
 });
 
-// 가게 추가
+// 가게 추가 (키워드는 카테고리별로 관리되므로 가게에는 이름과 카테고리만)
 app.post('/api/marketing/config/store', (req, res) => {
     const { name, is_mine, category } = req.body;
-    const data = readJson(MARKETING_FILE, { config: { stores: [], keywords: [], settings: {} }, stores: {} });
+    const data = readJson(MARKETING_FILE, { config: { stores: [], categories: {}, settings: {} }, stores: {} });
 
     if (!data.config.stores) data.config.stores = [];
+    if (!data.config.categories) data.config.categories = {};
 
     // 중복 체크
     if (data.config.stores.some(s => s.name === name)) {
         return res.json({ success: false, message: '이미 등록된 가게입니다.' });
     }
 
-    // category: 'chogazip' | 'yangeun' - 어느 가게의 경쟁업체인지
-    data.config.stores.push({ name, is_mine: is_mine !== false, category: category || 'chogazip', keywords: [] });
+    const cat = category || 'chogazip';
+
+    // 카테고리 초기화 (없으면 생성)
+    if (!data.config.categories[cat]) {
+        data.config.categories[cat] = { keywords: [] };
+    }
+
+    // 가게 추가 (키워드 없이 - 키워드는 카테고리에서 관리)
+    data.config.stores.push({ name, is_mine: is_mine !== false, category: cat });
     data.stores[name] = { keywords: {} };
 
     if (writeJson(MARKETING_FILE, data)) {
@@ -1955,7 +1975,7 @@ app.post('/api/marketing/config/store', (req, res) => {
 // 가게 삭제
 app.delete('/api/marketing/config/store', (req, res) => {
     const { name } = req.body;
-    const data = readJson(MARKETING_FILE, { config: { stores: [], keywords: [], settings: {} }, stores: {} });
+    const data = readJson(MARKETING_FILE, { config: { stores: [], categories: {}, settings: {} }, stores: {} });
 
     data.config.stores = data.config.stores.filter(s => s.name !== name);
     delete data.stores[name];
@@ -1967,30 +1987,27 @@ app.delete('/api/marketing/config/store', (req, res) => {
     }
 });
 
-// 키워드 추가 (가게별)
+// 키워드 추가 (카테고리별) - 가게별이 아닌 카테고리별로 키워드 관리
 app.post('/api/marketing/config/keyword', (req, res) => {
-    const { keyword, storeName } = req.body;
-    const data = readJson(MARKETING_FILE, { config: { stores: [], settings: {} }, stores: {} });
+    const { keyword, category } = req.body;
+    const data = readJson(MARKETING_FILE, { config: { stores: [], categories: {}, settings: {} }, stores: {} });
 
-    if (!storeName || !keyword) {
-        return res.json({ success: false, message: '가게명과 키워드를 모두 입력하세요.' });
+    if (!category || !keyword) {
+        return res.json({ success: false, message: '카테고리와 키워드를 모두 입력하세요.' });
     }
 
-    // 해당 가게 찾기
-    const storeConfig = data.config.stores.find(s => s.name === storeName);
-    if (!storeConfig) {
-        return res.json({ success: false, message: '등록되지 않은 가게입니다.' });
+    // 카테고리 초기화
+    if (!data.config.categories) data.config.categories = {};
+    if (!data.config.categories[category]) {
+        data.config.categories[category] = { keywords: [] };
     }
-
-    // 키워드 배열 초기화
-    if (!storeConfig.keywords) storeConfig.keywords = [];
 
     // 중복 체크
-    if (storeConfig.keywords.includes(keyword)) {
+    if (data.config.categories[category].keywords.includes(keyword)) {
         return res.json({ success: false, message: '이미 등록된 키워드입니다.' });
     }
 
-    storeConfig.keywords.push(keyword);
+    data.config.categories[category].keywords.push(keyword);
 
     if (writeJson(MARKETING_FILE, data)) {
         res.json({ success: true });
@@ -1999,25 +2016,28 @@ app.post('/api/marketing/config/keyword', (req, res) => {
     }
 });
 
-// 키워드 삭제 (가게별)
+// 키워드 삭제 (카테고리별)
 app.delete('/api/marketing/config/keyword', (req, res) => {
-    const { keyword, storeName } = req.body;
-    const data = readJson(MARKETING_FILE, { config: { stores: [], settings: {} }, stores: {} });
+    const { keyword, category } = req.body;
+    const data = readJson(MARKETING_FILE, { config: { stores: [], categories: {}, settings: {} }, stores: {} });
 
-    if (!storeName || !keyword) {
-        return res.json({ success: false, message: '가게명과 키워드를 모두 입력하세요.' });
+    if (!category || !keyword) {
+        return res.json({ success: false, message: '카테고리와 키워드를 모두 입력하세요.' });
     }
 
-    // 해당 가게 찾기
-    const storeConfig = data.config.stores.find(s => s.name === storeName);
-    if (storeConfig && storeConfig.keywords) {
-        storeConfig.keywords = storeConfig.keywords.filter(k => k !== keyword);
+    // 카테고리에서 키워드 삭제
+    if (data.config.categories && data.config.categories[category]) {
+        data.config.categories[category].keywords =
+            data.config.categories[category].keywords.filter(k => k !== keyword);
     }
 
-    // 해당 키워드의 기록도 삭제
-    if (data.stores[storeName] && data.stores[storeName].keywords) {
-        delete data.stores[storeName].keywords[keyword];
-    }
+    // 해당 카테고리의 모든 가게에서 해당 키워드 기록 삭제
+    const categoryStores = data.config.stores.filter(s => s.category === category);
+    categoryStores.forEach(store => {
+        if (data.stores[store.name] && data.stores[store.name].keywords) {
+            delete data.stores[store.name].keywords[keyword];
+        }
+    });
 
     if (writeJson(MARKETING_FILE, data)) {
         res.json({ success: true });
@@ -2031,8 +2051,8 @@ app.delete('/api/marketing/config/keyword', (req, res) => {
 // ==========================================
 async function generateMarketingBriefing() {
     try {
-        const data = readJson(MARKETING_FILE, { config: { stores: [] }, stores: {} });
-        const { stores: storeConfigs } = data.config;
+        const data = readJson(MARKETING_FILE, { config: { stores: [], categories: {} }, stores: {} });
+        const { stores: storeConfigs, categories: catConfig } = data.config;
 
         if (!storeConfigs || storeConfigs.length === 0) {
             console.log('⚠️ 마케팅 브리핑 스킵: 등록된 가게 없음');
@@ -2052,41 +2072,42 @@ async function generateMarketingBriefing() {
         message += `━━━━━━━━━━━━━━━━━━\n\n`;
 
         // 카테고리별 그룹화
-        const categories = {
+        const categoryGroups = {
             chogazip: { name: '🥩 초가짚', stores: [] },
             yangeun: { name: '🍲 양은이네', stores: [] }
         };
 
         myStores.forEach(store => {
             const cat = store.category || 'chogazip';
-            if (categories[cat]) {
-                categories[cat].stores.push(store);
+            if (categoryGroups[cat]) {
+                categoryGroups[cat].stores.push(store);
             }
         });
 
         let hasData = false;
 
-        for (const [catKey, catInfo] of Object.entries(categories)) {
+        for (const [catKey, catInfo] of Object.entries(categoryGroups)) {
             if (catInfo.stores.length === 0) continue;
+
+            // 해당 카테고리의 키워드
+            const keywords = (catConfig && catConfig[catKey] && catConfig[catKey].keywords) || [];
 
             message += `${catInfo.name}\n`;
             message += `──────────────\n`;
 
+            if (keywords.length === 0) {
+                message += `키워드 미등록\n`;
+                continue;
+            }
+
             catInfo.stores.forEach(store => {
                 const storeName = store.name;
                 const storeData = data.stores[storeName];
-                const keywords = store.keywords || [];
-
-                if (keywords.length === 0) {
-                    message += `${storeName}: 키워드 미등록\n`;
-                    return;
-                }
 
                 keywords.forEach(keyword => {
                     const records = (storeData && storeData.keywords && storeData.keywords[keyword]) || [];
 
                     if (records.length === 0) {
-                        message += `"${keyword}": 데이터 없음\n`;
                         return;
                     }
 
@@ -2094,7 +2115,7 @@ async function generateMarketingBriefing() {
                     const latest = records[records.length - 1];
                     const rankDisplay = latest.rank ? `${latest.rank}위` : '순위권 밖';
 
-                    // 7일 전과 비교 (추이)
+                    // 전일 대비 (추이)
                     let trendMsg = '';
                     if (records.length >= 2) {
                         const prev = records[records.length - 2];
@@ -2114,7 +2135,7 @@ async function generateMarketingBriefing() {
                         avgMsg = ` [7일평균: ${avg.toFixed(1)}위]`;
                     }
 
-                    message += `"${keyword}": ${rankDisplay}${trendMsg}${avgMsg}\n`;
+                    message += `${storeName} "${keyword}": ${rankDisplay}${trendMsg}${avgMsg}\n`;
                 });
             });
 
@@ -2128,17 +2149,22 @@ async function generateMarketingBriefing() {
 
         // 경쟁업체 비교 (키워드별 TOP 3)
         const allKeywords = new Set();
-        myStores.forEach(s => (s.keywords || []).forEach(k => allKeywords.add(k)));
+        Object.values(catConfig || {}).forEach(cat => {
+            (cat.keywords || []).forEach(k => allKeywords.add(k));
+        });
 
         if (allKeywords.size > 0) {
             message += `📈 경쟁 현황 (TOP 3)\n`;
             message += `──────────────\n`;
 
             allKeywords.forEach(keyword => {
-                // 해당 키워드를 사용하는 모든 가게의 순위 수집
+                // 해당 키워드를 사용하는 카테고리의 모든 가게의 순위 수집
                 const rankings = [];
                 storeConfigs.forEach(store => {
-                    if (!store.keywords || !store.keywords.includes(keyword)) return;
+                    const cat = store.category || 'chogazip';
+                    const catKeywords = (catConfig && catConfig[cat] && catConfig[cat].keywords) || [];
+                    if (!catKeywords.includes(keyword)) return;
+
                     const storeData = data.stores[store.name];
                     const records = (storeData && storeData.keywords && storeData.keywords[keyword]) || [];
                     if (records.length > 0) {
