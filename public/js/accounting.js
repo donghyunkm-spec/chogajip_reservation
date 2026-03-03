@@ -24,12 +24,7 @@ function resetAccMonth() {
 // 3. 데이터 로드 및 UI 업데이트
 // ==========================================
 async function loadAccountingData() {
-    if (!currentUser) {
-        alert("로그인이 필요합니다.");
-        openLoginModal();
-        switchTab('daily');
-        return;
-    }
+    if (!requireAuth()) { switchTab('daily'); return; }
 
     try {
         const res = await fetch(`/api/accounting?store=${currentStore}`);
@@ -151,7 +146,7 @@ async function sendKakaoBriefingManual() {
 }
 
 async function saveDailyAccounting() {
-    if (!currentUser) { alert("로그인이 필요합니다."); openLoginModal(); return; }
+    if (!requireAuth()) return;
     if (!['admin', 'manager'].includes(currentUser.role)) { alert("점장 또는 사장님만 매출을 입력/수정할 수 있습니다."); return; }
 
     const dateStr = document.getElementById('accDate').value;
@@ -290,7 +285,7 @@ function loadHistoryTable(filterKey = 'all') {
                 if(d.etc) details.push(`잡비:${d.etc.toLocaleString()}`);
             }
 
-            if(d.note) details.push(`📝"${d.note}"`);
+            if(d.note) details.push(`📝"${escapeHtml(d.note)}"`);
 
             rows.push({
                 date: date, dayStr: `${date.substring(8)}일`,
@@ -400,7 +395,7 @@ function loadMonthlyForm() {
 }
 
 async function saveFixedCost() {
-    if (!currentUser) { openLoginModal(); return; }
+    if (!requireAuth()) return;
     if (!['admin', 'manager'].includes(currentUser.role)) { alert("관리자 권한이 필요합니다."); return; }
 
     const monthStr = getMonthStr(currentDashboardDate);
@@ -909,10 +904,10 @@ async function loadAccountingLogs() {
                 tbody.innerHTML += `
                     <tr>
                         <td>${date}</td>
-                        <td>${log.actor}</td>
-                        <td class="log-action-${log.action}">${log.action}</td>
-                        <td>${log.target}</td>
-                        <td>${log.details}</td>
+                        <td>${escapeHtml(log.actor)}</td>
+                        <td class="log-action-${escapeHtml(log.action)}">${escapeHtml(log.action)}</td>
+                        <td>${escapeHtml(log.target)}</td>
+                        <td>${escapeHtml(log.details)}</td>
                     </tr>`;
             });
         }

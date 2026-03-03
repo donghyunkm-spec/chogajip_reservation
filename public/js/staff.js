@@ -85,7 +85,7 @@ function renderManageList() {
                 <div style="background:#fff3cd; border:2px solid #ffc107; padding:15px; border-radius:8px; margin-bottom:20px;">
                     <h4 style="color:#856404; margin:0 0 10px 0;">⚠️ 중복 직원 감지됨 (${duplicates.length}명)</h4>
                     <p style="font-size:13px; color:#856404; margin-bottom:10px;">
-                        동일 이름의 직원이 여러 명입니다: <strong>${duplicates.join(', ')}</strong>
+                        동일 이름의 직원이 여러 명입니다: <strong>${duplicates.map(n => escapeHtml(n)).join(', ')}</strong>
                     </p>
                     <button onclick="window.showMergeStaffModal()" style="background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">
                         🔧 중복 직원 병합하기
@@ -116,10 +116,10 @@ function renderManageList() {
             <div class="reservation-item">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <strong style="font-size:16px;">${s.name}</strong> ${statusBadge}
-                        <span style="font-size:12px; color:#666;">(${s.time})</span>
-                        <div style="font-size:13px; margin-top:5px;">📅 ${daysStr}</div>
-                        <div style="font-size:11px; color:#666; margin-top:2px;">기간: ${s.startDate||'미설정'} ~ ${s.endDate||'미설정'}</div>
+                        <strong style="font-size:16px;">${escapeHtml(s.name)}</strong> ${statusBadge}
+                        <span style="font-size:12px; color:#666;">(${escapeHtml(s.time)})</span>
+                        <div style="font-size:13px; margin-top:5px;">📅 ${escapeHtml(daysStr)}</div>
+                        <div style="font-size:11px; color:#666; margin-top:2px;">기간: ${escapeHtml(s.startDate||'미설정')} ~ ${escapeHtml(s.endDate||'미설정')}</div>
                         ${salaryInfo}
                     </div>
                     <div>
@@ -132,7 +132,7 @@ function renderManageList() {
 }
 
 function openEditModal(id) {
-    if (!currentUser) { openLoginModal(); return; }
+    if (!requireAuth()) return;
     const target = staffList.find(s => s.id === id);
     if (!target) return;
 
@@ -215,7 +215,7 @@ async function saveStaffEdit() {
 }
 
 async function deleteStaff(id) {
-    if (!currentUser) { openLoginModal(); return; }
+    if (!requireAuth()) return;
 
     if (currentUser.role !== 'admin') {
         alert("직원삭제는 카톡으로 요청하세요");
@@ -223,13 +223,6 @@ async function deleteStaff(id) {
     }
 
     if (!confirm('정말로 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.')) return;
-
-    // 삭제 비밀번호 확인
-    const deletePassword = prompt('삭제 비밀번호를 입력하세요:');
-    if (deletePassword !== '1234') {
-        alert('비밀번호가 틀렸습니다.');
-        return;
-    }
 
     try {
         await fetch(`/api/staff/${id}?actor=${encodeURIComponent(currentUser.name)}&store=${currentStore}`, { method: 'DELETE' });
@@ -264,14 +257,14 @@ window.showMergeStaffModal = function() {
 
         html += `
             <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #dee2e6;">
-                <h4 style="margin:0 0 10px 0; color:#495057;">👤 ${name} (${sameNameStaff.length}건)</h4>
+                <h4 style="margin:0 0 10px 0; color:#495057;">👤 ${escapeHtml(name)} (${sameNameStaff.length}건)</h4>
                 <div style="font-size:12px; color:#666;">
-                    <strong>[유지될 정보]</strong> 시급: ${keeper.salary.toLocaleString()}원 / 근무: ${keeper.time}
+                    <strong>[유지될 정보]</strong> 시급: ${keeper.salary.toLocaleString()}원 / 근무: ${escapeHtml(keeper.time)}
                 </div>
                 <div style="margin-top:5px; font-size:12px; color:#007bff;">
                     ➕ 과거 근무 기록들이 모두 이 직원에게 합쳐집니다.
                 </div>
-                <button onclick="mergeStaffByName('${name}')" style="width:100%; background:#dc3545; color:white; border:none; padding:8px; border-radius:5px; font-weight:bold; margin-top:10px;">
+                <button onclick="mergeStaffByName('${escapeHtml(name)}')" style="width:100%; background:#dc3545; color:white; border:none; padding:8px; border-radius:5px; font-weight:bold; margin-top:10px;">
                     🔧 병합 실행 (나머지 ${sameNameStaff.length - 1}개 삭제)
                 </button>
             </div>`;
@@ -530,7 +523,7 @@ function renderDailyView() {
             } else {
                 adminButtons = `
                 <div style="margin-top:5px; border-top:1px dashed #eee; padding-top:5px; text-align:right;">
-                    <button onclick="openTimeChangeModal(${s.id}, '${dateStr}', '${s.displayTime}')" style="font-size:11px; padding:3px 6px; background:#17a2b8; color:white; border:none; border-radius:3px; cursor:pointer; margin-right:5px;">⏰ 시간변경</button>
+                    <button onclick="openTimeChangeModal(${s.id}, '${dateStr}', '${escapeHtml(s.displayTime)}')" style="font-size:11px; padding:3px 6px; background:#17a2b8; color:white; border:none; border-radius:3px; cursor:pointer; margin-right:5px;">⏰ 시간변경</button>
                     <button onclick="setDailyException(${s.id}, '${dateStr}', 'off')" style="font-size:11px; padding:3px 6px; background:#dc3545; color:white; border:none; border-radius:3px; cursor:pointer;">⛔ 오늘휴무</button>
                 </div>`;
             }
@@ -539,11 +532,11 @@ function renderDailyView() {
                 <div class="${rowClass}" style="border-left:5px solid ${s.isOff ? '#999' : '#4CAF50'};">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                         <div>
-                            <strong>${s.name}</strong> ${statusBadge}
+                            <strong>${escapeHtml(s.name)}</strong> ${statusBadge}
                             <div class="reservation-time" style="font-size:14px; color:${s.isOff ? '#999' : '#0066cc'}; font-weight:bold; margin-top:2px;">
-                                ${s.isOff ? '휴무' : s.displayTime}
+                                ${s.isOff ? '휴무' : escapeHtml(s.displayTime)}
                             </div>
-                            <div style="font-size:12px; color:#666;">${s.position || '직원'}</div>
+                            <div style="font-size:12px; color:#666;">${escapeHtml(s.position || '직원')}</div>
                         </div>
                     </div>
                     ${adminButtons}
@@ -640,8 +633,8 @@ function renderWeeklyView() {
 
                 col.innerHTML += `
                     <div class="${cardClass}">
-                        <strong>${w.staff.name}</strong>
-                        <span>${timeText}</span>
+                        <strong>${escapeHtml(w.staff.name)}</strong>
+                        <span>${escapeHtml(timeText)}</span>
                     </div>`;
             });
         }
@@ -734,7 +727,7 @@ function goToDailyDetail(year, month, day) {
 // 5. 시간 변경 모달
 // ==========================================
 function openTimeChangeModal(id, dateStr, currentStr) {
-    if (!currentUser) { openLoginModal(); return; }
+    if (!requireAuth()) return;
     initTimeChangeOptions();
 
     document.getElementById('timeChangeId').value = id;
@@ -897,9 +890,9 @@ function calculateMonthlySalary() {
             totalAll += r.amount;
             tbody.innerHTML += `
                 <tr>
-                    <td>${r.name}${(r.workCount.includes('일할')) ? '<br><span style="font-size:10px; color:red;">(중도 입/퇴사)</span>' : ''}</td>
-                    <td><span class="badge" style="background:${r.type === '월급'?'#28a745':'#17a2b8'}; color:white; padding:3px 6px; border-radius:4px; font-size:11px;">${r.type}</span></td>
-                    <td style="font-size:12px;">${r.workCount}<br>${r.type==='시급' ? '('+r.totalHours+')' : ''}</td>
+                    <td>${escapeHtml(r.name)}${(r.workCount.includes('일할')) ? '<br><span style="font-size:10px; color:red;">(중도 입/퇴사)</span>' : ''}</td>
+                    <td><span class="badge" style="background:${r.type === '월급'?'#28a745':'#17a2b8'}; color:white; padding:3px 6px; border-radius:4px; font-size:11px;">${escapeHtml(r.type)}</span></td>
+                    <td style="font-size:12px;">${escapeHtml(r.workCount)}<br>${r.type==='시급' ? '('+escapeHtml(r.totalHours)+')' : ''}</td>
                     <td style="text-align:right; font-weight:bold;">${r.amount.toLocaleString()}원</td>
                 </tr>`;
         });
@@ -973,7 +966,7 @@ window.getEstimatedStaffCost = function(monthStr, targetStaffList = null) {
 // 7. 일일 예외 및 대타
 // ==========================================
 async function setDailyException(id, dateStr, action) {
-    if (!currentUser) { openLoginModal(); return; }
+    if (!requireAuth()) return;
     if (action === 'off') {
         if (!confirm('이 직원을 오늘 명단에서 제외(휴무)하시겠습니까?')) return;
         await callExceptionApi({ id, date: dateStr, type: 'off' });
@@ -1012,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function addTempWorker() {
-    if (!currentUser) { openLoginModal(); return; }
+    if (!requireAuth()) return;
 
     document.getElementById('tempName').value = '';
     document.getElementById('tempSalary').value = '10000';
@@ -1021,7 +1014,7 @@ function addTempWorker() {
     if (dataList && typeof staffList !== 'undefined') {
         const options = staffList
             .filter(s => s.salaryType !== 'monthly')
-            .map(s => `<option value="${s.name}">`)
+            .map(s => `<option value="${escapeHtml(s.name)}">`)
             .join('');
 
         dataList.innerHTML = options;
@@ -1190,10 +1183,10 @@ async function loadLogs() {
                 tbody.innerHTML += `
                     <tr>
                         <td>${date}</td>
-                        <td>${log.actor}</td>
-                        <td class="log-action-${log.action}">${log.action}</td>
-                        <td>${log.target}</td>
-                        <td>${log.details}</td>
+                        <td>${escapeHtml(log.actor)}</td>
+                        <td class="log-action-${escapeHtml(log.action)}">${escapeHtml(log.action)}</td>
+                        <td>${escapeHtml(log.target)}</td>
+                        <td>${escapeHtml(log.details)}</td>
                     </tr>`;
             });
         }
@@ -1242,6 +1235,7 @@ async function downloadAllData() {
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
 
+            
             alert(`✅ ${downloadCount}개 파일 다운로드 완료!\n\n다운로드된 파일:\n` +
                   files.map(f => `- ${currentStore}_${f.name}_${dateStr}.json`).join('\n') +
                   `\n\nPC의 '다운로드' 폴더를 확인하세요.`);

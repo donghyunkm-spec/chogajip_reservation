@@ -100,7 +100,7 @@ function renderMarketingDashboard() {
             html += `
                 <div class="mkt-my-store-card ${cardClass}">
                     <div class="mkt-my-store-header">
-                        <div class="mkt-my-store-name">${store.name}</div>
+                        <div class="mkt-my-store-name">${escapeHtml(store.name)}</div>
                         <div class="mkt-my-store-badge">${categoryLabel}</div>
                     </div>
                     <div class="mkt-keyword-ranks">
@@ -114,7 +114,7 @@ function renderMarketingDashboard() {
                     const changeHtml = getChangeHtml(item.change);
                     html += `
                         <div class="mkt-keyword-row">
-                            <div class="mkt-keyword-name">"${item.keyword}"</div>
+                            <div class="mkt-keyword-name">"${escapeHtml(item.keyword)}"</div>
                             <div class="mkt-rank-display">
                                 ${changeHtml}
                                 <span class="mkt-rank-num">${rankDisplay}</span>
@@ -176,7 +176,7 @@ function renderMarketingDashboard() {
 
             html += `
                 <tr class="${rowClass}">
-                    <td>${item.store}${isMyStore ? ' ⭐' : ''}</td>
+                    <td>${escapeHtml(item.store)}${isMyStore ? ' ⭐' : ''}</td>
                     <td><span class="mkt-rank-position ${rankClass}">${rankDisplay}</span></td>
                     <td>${changeHtml}</td>
                 </tr>
@@ -441,11 +441,11 @@ function renderStoreConfigItem(store, category) {
 
     return `
         <div class="config-item">
-            <span class="${store.is_mine ? 'my-store-badge' : ''}">${store.name}</span>
+            <span class="${store.is_mine ? 'my-store-badge' : ''}">${escapeHtml(store.name)}</span>
             <div style="display:flex;align-items:center;gap:8px;">
                 ${store.is_mine ? '<span class="mine-label">내 가게</span>' : ''}
                 <span class="category-label ${categoryClass}">${categoryLabel}</span>
-                <button onclick="removeMarketingStore('${store.name}')" class="remove-btn">X</button>
+                <button onclick="removeMarketingStore('${escapeHtml(store.name)}')" class="remove-btn">X</button>
             </div>
         </div>
     `;
@@ -461,13 +461,13 @@ function renderCategoryKeywordSection(category, title, keywords, color) {
         <div class="category-keyword-section" style="border-left: 3px solid ${color}; padding-left: 15px; margin-bottom: 20px;">
             <div style="font-weight:bold;color:${color};margin-bottom:12px;">${title}</div>
             <div style="font-size:11px;color:#666;margin-bottom:10px;">
-                등록된 가게: ${categoryStores.length > 0 ? categoryStores.join(', ') : '없음'}
+                등록된 가게: ${categoryStores.length > 0 ? categoryStores.map(n => escapeHtml(n)).join(', ') : '없음'}
             </div>
             <div class="store-keyword-list">
                 ${keywords.length > 0 ? keywords.map(k => `
                     <div class="config-item keyword-item">
-                        <span>${k}</span>
-                        <button onclick="removeMarketingKeyword('${category}', '${k}')" class="remove-btn">X</button>
+                        <span>${escapeHtml(k)}</span>
+                        <button onclick="removeMarketingKeyword('${category}', '${escapeHtml(k)}')" class="remove-btn">X</button>
                     </div>
                 `).join('') : '<div style="color:#999;font-size:12px;padding:8px;">등록된 키워드 없음</div>'}
             </div>
@@ -483,10 +483,8 @@ function renderCategoryKeywordSection(category, title, keywords, color) {
 // 3. 크롤러 제어
 // ==========================================
 async function runMarketingCrawler() {
-    // 비밀번호 확인
-    const password = prompt('순위 체크 실행을 위한 비밀번호를 입력하세요:');
-    if (password !== '1234') {
-        alert('비밀번호가 일치하지 않습니다.');
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
+        alert('관리자 권한이 필요합니다.');
         return;
     }
 
@@ -723,10 +721,8 @@ let posPollInterval = null;
 
 // POS 크롤러 실행
 async function runPosCrawler() {
-    // 비밀번호 확인
-    const password = prompt('POS 매출 수집을 위한 비밀번호를 입력하세요:');
-    if (password !== '1234') {
-        alert('비밀번호가 일치하지 않습니다.');
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
+        alert('관리자 권한이 필요합니다.');
         return;
     }
 

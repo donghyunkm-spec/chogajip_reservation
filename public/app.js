@@ -545,7 +545,7 @@ function showReservationFailureModal(people, preference, date, time, name, phone
         <div style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
             <h3 style="color: #f44336; margin-bottom: 20px;">⚠️ 예약이 어려운 상황입니다</h3>
             <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-                <strong>${name}님 ${people}명</strong><br>
+                <strong>${escapeHtml(name)}님 ${people}명</strong><br>
                 <span style="color: #856404;">📅 ${date} ${time} (${getPreferenceText(preference)})</span>
             </div>
     `;
@@ -813,7 +813,7 @@ function renderHallTables(dayReservations) {
                     const colorIndex = (reservation.id % 8) + 1;
                     html += `<div class="table-cell reserved-color-${colorIndex}" onclick="showReservationModal('${reservation.id}')">
                         <div>T${tableNum}</div>
-                        <div class="table-info">${reservation.name}</div>
+                        <div class="table-info">${escapeHtml(reservation.name)}</div>
                         <div class="table-info">${reservation.people}명</div>
                         <div class="table-info">${reservation.time}</div>
                     </div>`;
@@ -870,7 +870,7 @@ function renderRoomTables(dayReservations) {
                 const colorIndex = (reservation.id % 8) + 1;
                 html += `<div class="table-cell reserved-color-${colorIndex}" onclick="showReservationModal('${reservation.id}')">
                     <div>R${tableNum}</div>
-                    <div class="table-info">${reservation.name}</div>
+                    <div class="table-info">${escapeHtml(reservation.name)}</div>
                     <div class="table-info">${reservation.people}명</div>
                     <div class="table-info">${reservation.time}</div>
                 </div>`;
@@ -952,7 +952,7 @@ function updateReservationList(dayReservations) {
             const alternativeTag = r.alternative ? 
                 `<span class="badge alternative-badge">대안예약</span> ` : '';
                 
-            const phone = r.phone ? `<br><span class="reservation-detail">📞 연락처: ${r.phone}</span>` : '';
+            const phone = r.phone ? `<br><span class="reservation-detail">📞 연락처: ${escapeHtml(r.phone)}</span>` : '';
             const method = r.reservationMethod && r.reservationMethod !== 'none' ? 
                 `<br><span class="reservation-detail">📝 예약방법: ${getMethodText(r.reservationMethod)}</span>` : '';
             
@@ -960,7 +960,7 @@ function updateReservationList(dayReservations) {
                 <div class="reservation-item ${isAlternative}">
                     <div class="reservation-content">
                         <div class="reservation-info">
-                            ${alternativeTag}<strong class="customer-name">${r.name}</strong>
+                            ${alternativeTag}<strong class="customer-name">${escapeHtml(r.name)}</strong>
                             <span class="reservation-time">${r.time}~${addHours(r.time, 3)}</span>
                             <span class="reservation-people">${r.people}명</span>
                             <div class="reservation-tables">테이블: ${r.tables ? r.tables.join(', ') : '미배정'}</div>
@@ -1037,7 +1037,7 @@ function editReservation(reservationId) {
             <form id="editForm">
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: bold;">성함</label>
-                    <input type="text" id="editName" value="${reservation.name}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required>
+                    <input type="text" id="editName" value="${escapeHtml(reservation.name)}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required>
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -1429,7 +1429,7 @@ function showReservationSuccessModal(message, reservationData) {
         <div style="background: white; padding: 30px; border-radius: 15px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
             <h3 style="color: #4CAF50; margin-bottom: 20px;">🎉 예약 완료!</h3>
             <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">${reservationData.name}님</div>
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">${escapeHtml(reservationData.name)}님</div>
                 <div style="margin-bottom: 5px;">👥 ${reservationData.people}명</div>
                 <div style="margin-bottom: 5px;">📅 ${reservationData.date} ${reservationData.time}</div>
                 <div style="margin-bottom: 5px;">🪑 배정 테이블: ${displayTables}</div>

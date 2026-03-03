@@ -9,7 +9,7 @@ window.prepayData = { customers: {}, logs: [] };
 // 2. 데이터 로드
 // ==========================================
 async function loadPrepaymentData() {
-    if (!currentUser) { openLoginModal(); return; }
+    if (!requireAuth()) return;
     document.getElementById('preDate').value = new Date().toISOString().split('T')[0];
 
     try {
@@ -30,7 +30,7 @@ function renderPrepaymentUI() {
 
     const datalist = document.getElementById('customerList');
     if (datalist) {
-        datalist.innerHTML = Object.keys(prepayData.customers).map(name => `<option value="${name}">`).join('');
+        datalist.innerHTML = Object.keys(prepayData.customers).map(name => `<option value="${escapeHtml(name)}">`).join('');
     }
 
     const balanceTbody = document.getElementById('preBalanceTable');
@@ -51,9 +51,9 @@ function renderPrepaymentUI() {
                 };
 
                 row.innerHTML = `
-                    <td style="text-align:left;"><strong>👤 ${name}</strong></td>
+                    <td style="text-align:left;"><strong>👤 ${escapeHtml(name)}</strong></td>
                     <td style="font-weight:bold; color:${info.balance < 0 ? 'red' : '#1976D2'};">${info.balance.toLocaleString()}원</td>
-                    <td style="color:#666; font-size:11px;">${info.lastUpdate}</td>
+                    <td style="color:#666; font-size:11px;">${escapeHtml(info.lastUpdate)}</td>
                 `;
                 balanceTbody.appendChild(row);
             });
@@ -67,13 +67,13 @@ function renderPrepaymentUI() {
         } else {
             logTbody.innerHTML = prepayData.logs.map((log) => `
                 <tr>
-                    <td>${log.date.substring(5)}</td>
-                    <td style="font-weight:bold; color:#555;">${log.actor || '-'}</td>
-                    <td><strong>${log.customerName}</strong></td>
+                    <td>${escapeHtml(log.date.substring(5))}</td>
+                    <td style="font-weight:bold; color:#555;">${escapeHtml(log.actor) || '-'}</td>
+                    <td><strong>${escapeHtml(log.customerName)}</strong></td>
                     <td style="color:${log.type === 'charge' ? '#2e7d32' : '#d32f2f'};">${log.type === 'charge' ? '충전' : '사용'}</td>
                     <td style="text-align:right;">${log.amount.toLocaleString()}</td>
                     <td style="font-size:11px; color:#999; text-align:right;">${log.currentBalance.toLocaleString()}</td>
-                    <td style="font-size:11px; text-align:left;">${log.note || '-'}</td>
+                    <td style="font-size:11px; text-align:left;">${escapeHtml(log.note) || '-'}</td>
                     <td style="text-align:center;">
                         ${(currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ?
                         `<button onclick="deletePrepayLog(${log.id})" style="padding:2px 5px; background:#ffc107; border:none; border-radius:3px; font-size:10px; cursor:pointer;">취소</button>`

@@ -1242,7 +1242,7 @@ function generatePosInsights(stats) {
         insights.push({
             type: 'default',
             title: '🏆 베스트 메뉴',
-            text: `'${topProduct.productName}'이(가) ${topProduct.sales.toLocaleString()}원으로 가장 많이 팔렸습니다.`
+            text: `'${escapeHtml(topProduct.productName)}'이(가) ${topProduct.sales.toLocaleString()}원으로 가장 많이 팔렸습니다.`
         });
 
         // 수량 기준 분석
@@ -1251,7 +1251,7 @@ function generatePosInsights(stats) {
             insights.push({
                 type: 'default',
                 title: '📦 주문 수량 1위',
-                text: `'${topByQty.productName}'이(가) ${topByQty.quantity}개로 가장 많이 주문되었습니다.`
+                text: `'${escapeHtml(topByQty.productName)}'이(가) ${topByQty.quantity}개로 가장 많이 주문되었습니다.`
             });
         }
     }
@@ -1430,9 +1430,9 @@ function renderNotes() {
                 const cDateStr = `${cDate.getMonth() + 1}/${cDate.getDate()}`;
                 return `
                     <div class="comment-item">
-                        <span class="comment-author">${c.author}</span>
+                        <span class="comment-author">${escapeHtml(c.author)}</span>
                         <span class="comment-date">${cDateStr}</span>
-                        <div class="comment-text">${c.content}</div>
+                        <div class="comment-text">${escapeHtml(c.content)}</div>
                     </div>
                 `;
             }).join('');
@@ -1442,12 +1442,12 @@ function renderNotes() {
             <div class="note-card category-${note.category}">
                 <div class="note-header">
                     <div>
-                        <span class="note-category-badge">${categoryEmoji[note.category] || '📌'} ${note.category}</span>
-                        <h4 class="note-title">${note.title}</h4>
+                        <span class="note-category-badge">${categoryEmoji[note.category] || '📌'} ${escapeHtml(note.category)}</span>
+                        <h4 class="note-title">${escapeHtml(note.title)}</h4>
                     </div>
-                    <div class="note-meta">${note.author} · ${dateStr}</div>
+                    <div class="note-meta">${escapeHtml(note.author)} · ${dateStr}</div>
                 </div>
-                <div class="note-content">${note.content}</div>
+                <div class="note-content">${escapeHtml(note.content)}</div>
 
                 <div class="note-comments">
                     ${commentsHtml}

@@ -269,7 +269,7 @@ async function onLoginSuccess(user) {
     const userInfoDiv = document.getElementById('userInfo');
     if(userInfoDiv) {
         userInfoDiv.style.display = 'block';
-        userInfoDiv.innerHTML = `${user.name} (${user.role === 'admin' ? '사장' : user.role === 'manager' ? '점장' : '직원'})`;
+        userInfoDiv.innerHTML = `${escapeHtml(user.name)} (${user.role === 'admin' ? '사장' : user.role === 'manager' ? '점장' : '직원'})`;
     }
 
     if (user.role === 'admin' || user.role === 'manager') {

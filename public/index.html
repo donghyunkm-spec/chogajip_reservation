@@ -965,6 +965,7 @@
         </div>
     </div>
 
+    <script src="js/utils.js"></script>
     <script>
         // 전역 변수
         let reservations = [];
@@ -1395,7 +1396,7 @@
                     <tr>
                         <td>${formattedDate}</td>
                         <td>${r.time}</td>
-                        <td>${r.name}</td>
+                        <td>${escapeHtml(r.name)}</td>
                         <td>${r.people}명</td>
                         <td>${tableNames}</td>
                         <td>${formattedPhone}</td>
@@ -1454,7 +1455,7 @@
 							const colorIndex = (reservation.id % 8) + 1;
 							html += `<div class="table-cell reserved-color-${colorIndex}" onclick="showReservationModal('${reservation.id}')">
 								<div>T${tableNum}</div>
-								<div class="table-info">${reservation.name}</div>
+								<div class="table-info">${escapeHtml(reservation.name)}</div>
 								<div class="table-info">${reservation.people}명</div>
 								<div class="table-info">${reservation.time}</div>
 							</div>`;
@@ -1512,7 +1513,7 @@
 						const colorIndex = (reservation.id % 8) + 1;
 						html += `<div class="table-cell reserved-color-${colorIndex}" onclick="showReservationModal('${reservation.id}')">
 							<div>R${tableNum}</div>
-							<div class="table-info">${reservation.name}</div>
+							<div class="table-info">${escapeHtml(reservation.name)}</div>
 							<div class="table-info">${reservation.people}명</div>
 							<div class="table-info">${reservation.time}</div>
 						</div>`;
@@ -1555,7 +1556,7 @@
                 <div class="reservation-modal-content">
                     <h3>🏠 예약 정보</h3>
                     <div class="reservation-detail">
-                        <strong>예약자명:</strong> ${reservation.name}
+                        <strong>예약자명:</strong> ${escapeHtml(reservation.name)}
                     </div>
                     <div class="reservation-detail">
                         <strong>인원수:</strong> ${reservation.people}명
@@ -1618,7 +1619,7 @@
                     <div class="reservation-item">
                         <div class="reservation-content">
                             <div class="reservation-info">
-                                <strong class="customer-name">${r.name}</strong>
+                                <strong class="customer-name">${escapeHtml(r.name)}</strong>
                                 <span class="reservation-time">${r.time}~${endTime}</span>
                                 <span class="reservation-people">${r.people}명</span>
                                 <div class="reservation-tables">테이블: ${displayTables}</div>
@@ -1695,7 +1696,7 @@
                     <form id="editForm">
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">성함</label>
-                            <input type="text" id="editName" value="${reservation.name}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required>
+                            <input type="text" id="editName" value="${escapeHtml(reservation.name)}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" required>
                         </div>
                         
                         <div style="margin-bottom: 15px;">

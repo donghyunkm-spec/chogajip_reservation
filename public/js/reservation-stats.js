@@ -293,12 +293,12 @@ function renderCustomerStats() {
                             <span class="rank-badge ${rankClass}">${rank}</span>
                         </td>
                         <td style="text-align:left; font-weight:bold;">
-                            ${c.name}${vipBadge}
+                            ${escapeHtml(c.name)}${vipBadge}
                         </td>
-                        <td style="text-align:center; color:#666; font-size:12px;">${phoneDisplay}</td>
+                        <td style="text-align:center; color:#666; font-size:12px;">${escapeHtml(phoneDisplay)}</td>
                         <td style="text-align:right; font-weight:bold; color:#e91e63;">${c.count}회</td>
                         <td style="text-align:right;">${c.totalPeople}명</td>
-                        <td style="text-align:center; font-size:12px;">${c.lastVisit || '-'}</td>
+                        <td style="text-align:center; font-size:12px;">${escapeHtml(c.lastVisit || '-')}</td>
                     </tr>
                 `;
             }).join('');
@@ -332,11 +332,11 @@ function renderAllCustomersTable(customers) {
 
         return `
             <tr>
-                <td style="text-align:left;">${c.name}</td>
-                <td style="text-align:center; color:#666; font-size:12px;">${phoneDisplay}</td>
+                <td style="text-align:left;">${escapeHtml(c.name)}</td>
+                <td style="text-align:center; color:#666; font-size:12px;">${escapeHtml(phoneDisplay)}</td>
                 <td style="text-align:right; ${countStyle}">${c.count}회</td>
                 <td style="text-align:right;">${c.totalPeople}명</td>
-                <td style="text-align:center; font-size:12px;">${c.lastVisit || '-'}</td>
+                <td style="text-align:center; font-size:12px;">${escapeHtml(c.lastVisit || '-')}</td>
             </tr>
         `;
     }).join('');
