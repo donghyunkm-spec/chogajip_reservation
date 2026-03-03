@@ -16,9 +16,33 @@ npm start            # Production start
 
 ## Architecture
 
-### Backend (server.js)
+### Backend
 
-Single Express.js server (~2000+ lines) handling all API routes. No router splitting — everything lives in `server.js`.
+Modular Express.js server. Entry point `server.js` mounts routers and initializes cron jobs.
+
+```
+server.js              # Express app setup, router mounting, cron registration
+server/
+  routes/              # Express routers (one per domain)
+    reservations.js, staff.js, accounting.js, prepayments.js,
+    marketing.js, pos-crawler.js, pos-data.js, kakao.js,
+    notes.js, logs.js, backup.js, login.js
+  crawlers/
+    naver-place.js     # Playwright crawler for Naver Maps ranking
+    union-pos.js       # Playwright crawler for UnionPOS receipts
+  cron/
+    schedules.js       # node-cron job registration (KST)
+    briefing.js        # KakaoTalk daily briefing logic
+  utils/
+    data.js            # JSON file I/O, file path helpers (getStaffFile, getAccountingFile, etc.)
+    store.js           # Store name mappings (chogazip/yangeun)
+    staff-calc.js      # Staff cost calculation
+    kakao.js           # KakaoTalk API helpers
+    debug.js           # Debug logging
+  middleware/
+    error-handler.js, validate.js
+  state.js             # In-memory crawler status (marketing, POS)
+```
 
 **Core API routes:**
 - `/api/reservations` - CRUD for table reservations
@@ -35,27 +59,26 @@ Single Express.js server (~2000+ lines) handling all API routes. No router split
 - `/api/logs` - Activity logs
 - `/api/backup` - Download all store data as JSON bundle
 
-**Multi-store pattern**: Functions like `getStaffFile(store)`, `getAccountingFile(store)` route to store-specific JSON files (`staff.json` vs `staff_yangeun.json`).
+**Multi-store pattern**: Functions like `getStaffFile(store)`, `getAccountingFile(store)` in `server/utils/data.js` route to store-specific JSON files (`staff.json` vs `staff_yangeun.json`).
 
-**Data persistence**: JSON files in `/data` directory (local) or Railway volume mount path.
+**Data persistence**: JSON files in `/data` directory (local) or Railway volume mount path. Core helpers `readJson()`/`writeJson()` in `server/utils/data.js`.
 
-**Scheduled tasks** (node-cron, KST):
+**Scheduled tasks** (node-cron in `server/cron/schedules.js`, KST):
 - 04:00 - Naver Place ranking check (with random 0-4h delay)
-- 06:00 - POS auto-collection for both stores (`runPosCrawler`)
+- 06:00 - POS auto-collection for both stores
 - 11:00 - Marketing briefing via KakaoTalk (with random 0-30min delay)
 - 11:30 - Daily staff schedule notification
 
 ### POS Crawling
 
-`crawlUnionPos()` in server.js — Playwright headless crawler for UnionPOS (`asp2.unionpos.co.kr`). Runs on Railway via cron (06:00 KST) or manual `/api/pos/run` trigger. Parses receipt pages, classifies transactions (normal/반품/전취), aggregates cash/card/etc totals, and writes results to accounting JSON files. POS credentials have env var overrides (`UNIONPOS_*`) with hardcoded fallbacks.
+`server/crawlers/union-pos.js` — Playwright headless crawler for UnionPOS (`asp2.unionpos.co.kr`). Runs on Railway via cron (06:00 KST) or manual `/api/pos/run` trigger. Parses receipt pages, classifies transactions (normal/반품/전취), aggregates cash/card/etc totals, and writes results to accounting JSON files. POS credentials have env var overrides (`UNIONPOS_*`) with hardcoded fallbacks.
 
 ### Frontend (public/)
 
 | File | Purpose |
 |------|---------|
-| `index.html` + `app.js` | Customer reservation UI |
+| `index.html` | Customer reservation UI (inline JS) |
 | `staff.html` | Admin dashboard HTML |
-| `table-algorithm.js` | Table assignment logic |
 | `kakao-auth.html` | Kakao notification signup |
 
 **Admin Dashboard JS Modules** (`public/js/`):
@@ -69,20 +92,19 @@ Scripts load in order: `common.js` → `staff.js` → `accounting.js` → `prepa
 | `prepayment.js` | Customer prepayment ledger |
 | `unified.js` | Admin-only unified analysis (both stores) |
 | `marketing.js` | Naver Place ranking tracker UI |
+| `reservation-stats.js` | Reservation statistics and analytics |
 
 **Store switching**: `staff.html?store=yangeun` changes theme and data source.
 
-## Table Assignment Algorithm
+## Table Assignment
 
-Critical business logic in `table-algorithm.js` — handles complex seating rules:
+Manual table assignment — staff selects tables directly via UI in `index.html`. No automatic algorithm; the old `table-algorithm.js` and `app.js` have been removed.
 
-- **Hall tables 1-8**: Group seating allowed (various combinations for 5-24 people)
-- **Hall tables 9-16**: Individual reservations only (max 4 people each)
+Table structure:
+- **Hall tables 1-8**: Group seating (various combinations for 5-24 people)
+- **Hall tables 9-16**: Individual tables (max 4 people each)
 - **Room tables 1-9**: Private rooms, can combine (rooms 1-2-3, rooms 4-5-6, etc.)
-- **3-hour reservation window** assumed for table conflicts
 - Seat preference: "룸" (room), "홀" (hall), "관계없음" (any)
-
-The algorithm attempts to reassign existing reservations to accommodate new group bookings while respecting seat preferences.
 
 ## Key Data Structures
 
@@ -92,7 +114,7 @@ The algorithm attempts to reassign existing reservations to accommodate new grou
 
 ## Marketing (Naver Place Ranking)
 
-Playwright-based crawler checks store rankings on Naver Maps:
+Playwright-based crawler in `server/crawlers/naver-place.js` checks store rankings on Naver Maps:
 - **Store-specific keywords**: Each store has its own keyword list
 - **Data**: `data/marketing_ranking.json` stores config and historical rankings
 - **Debug logging**: `MARKETING_DEBUG` flag (true locally, false on Railway)
