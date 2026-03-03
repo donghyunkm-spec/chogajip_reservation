@@ -1,4 +1,4 @@
-const { readJson, writeJson, getAccountingFile, POS_HISTORY_FILE } = require('../utils/data');
+const { readJson, writeJson, getAccountingFile, POS_HISTORY_FILE, getKstNow } = require('../utils/data');
 const { sendToKakao } = require('../utils/kakao');
 const { posLog } = require('../utils/debug');
 const { posStatus } = require('../state');
@@ -202,9 +202,10 @@ async function runPosCrawler(stores = ['chogazip', 'yangeun'], targetDate = null
     }
 
     if (!targetDate) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        targetDate = yesterday.toISOString().split('T')[0];
+        // KST 기준 어제 날짜
+        const kstNow = getKstNow();
+        kstNow.setDate(kstNow.getDate() - 1);
+        targetDate = kstNow.toISOString().split('T')[0];
     }
 
     let browser = null;

@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const { sendToKakao } = require('../utils/kakao');
+const { getKstNow } = require('../utils/data');
 const { getDailyScheduleMessage } = require('../utils/staff-calc');
 const { generateAndSendBriefing } = require('../utils/briefing');
 const { generateMarketingBriefing } = require('../crawlers/naver-place');
@@ -12,12 +13,12 @@ function registerAllCrons() {
         console.log('🔔 [알림] 오전 11:30 근무표 브리핑 시작...');
 
         try {
-            const today = new Date();
+            const today = getKstNow();
             const msgChoga = getDailyScheduleMessage('chogazip', today);
             const msgYang = getDailyScheduleMessage('yangeun', today);
 
             const finalMsg = `
-[📅 ${today.getMonth()+1}월 ${today.getDate()}일 근무자 브리핑]
+[📅 ${today.getUTCMonth()+1}월 ${today.getUTCDate()}일 근무자 브리핑]
 
 ${msgChoga}
 

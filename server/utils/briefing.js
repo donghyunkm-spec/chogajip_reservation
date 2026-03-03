@@ -1,11 +1,11 @@
-const { readJson, getAccountingFile, getStaffFile } = require('./data');
+const { readJson, getAccountingFile, getStaffFile, getKstNow } = require('./data');
 const { sendToKakao } = require('./kakao');
 const { calculateServerStaffCost } = require('./staff-calc');
 
 function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) {
     let meat = 0, food = 0, etcDaily = 0, sales = 0;
 
-    const today = new Date();
+    const today = getKstNow();
     const todayKey = today.toISOString().slice(0, 10);
     let todaySales = 0;
 
@@ -62,7 +62,8 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
 
     const staffTotal = calculateServerStaffCost(staffData, monthStr);
 
-    const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const kstForLastDay = getKstNow();
+    const lastDay = new Date(kstForLastDay.getUTCFullYear(), kstForLastDay.getUTCMonth() + 1, 0).getDate();
 
     let appliedDay = currentDay;
     if (todaySales === 0 && appliedDay > 1) {
@@ -101,9 +102,9 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
 
 async function generateAndSendBriefing() {
     try {
-        const today = new Date();
+        const today = getKstNow();
         const monthStr = today.toISOString().slice(0, 7);
-        const dayNum = today.getDate();
+        const dayNum = today.getUTCDate();
 
         const accChoga = readJson(getAccountingFile('chogazip'), { monthly: {}, daily: {} });
         const staffChoga = readJson(getStaffFile('chogazip'), []);
@@ -174,7 +175,7 @@ async function generateAndSendBriefing() {
         };
 
         const message = `
-[📅 ${today.getMonth()+1}월 ${today.getDate()}일 경영 브리핑]
+[📅 ${today.getUTCMonth()+1}월 ${today.getUTCDate()}일 경영 브리핑]
 
 🏠 초가짚 (예상마진 ${(choga.sales>0?(choga.profitPred/choga.sales*100).toFixed(1):0)}%)
 ■ 매출: ${formatMoney(choga.sales)}원
@@ -233,7 +234,8 @@ function calculateMonthStats(accountingData, staffData, monthStr, currentDay) {
                             (mData.foodWaste||0) + (mData.tableOrder||0) +
                             (mData.insurance||0) + (mData.advertising||0);
 
-    const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const kstMonth = getKstNow();
+    const lastDay = new Date(kstMonth.getUTCFullYear(), kstMonth.getUTCMonth() + 1, 0).getDate();
     const ratio = currentDay / lastDay;
 
     const appliedFixed = Math.floor((fixedItemsTotal + totalStaffCost) * ratio);

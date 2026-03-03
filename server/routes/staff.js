@@ -1,7 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const router = express.Router();
-const { readJson, writeJson, getStaffFile, addLog } = require('../utils/data');
+const { readJson, writeJson, getStaffFile, addLog, getKstNow } = require('../utils/data');
 const { sendToKakao } = require('../utils/kakao');
 const { getDailyScheduleMessage } = require('../utils/staff-calc');
 const { asyncHandler } = require('../middleware/error-handler');
@@ -76,11 +76,12 @@ router.post('/exception', asyncHandler(async (req, res) => {
         writeJson(file, staff);
         addLog(store, actor, '근무변경', target.name, `${date} ${type}`);
 
-        // 변경된 날짜가 '오늘'이면 즉시 카톡 발송
-        const todayStr = new Date().toISOString().split('T')[0];
+        // 변경된 날짜가 '오늘'이면 즉시 카톡 발송 (KST 기준)
+        const kstNow = getKstNow();
+        const todayStr = kstNow.toISOString().split('T')[0];
         if (date === todayStr) {
             console.log('🔔 당일 근무 변경 감지! 알림 발송 중...');
-            const msg = getDailyScheduleMessage(store, new Date());
+            const msg = getDailyScheduleMessage(store, kstNow);
             await sendToKakao(`📢 [긴급] 당일 근무 변경 알림\n(${actor}님 수정)\n\n${msg}`);
         }
 
@@ -112,11 +113,12 @@ router.post('/temp', asyncHandler(async (req, res) => {
     if (writeJson(file, staff)) {
         addLog(store, actor, '대타등록', name, `${date} ${time}`);
 
-        // 변경된 날짜가 '오늘'이면 즉시 카톡 발송
-        const todayStr = new Date().toISOString().split('T')[0];
+        // 변경된 날짜가 '오늘'이면 즉시 카톡 발송 (KST 기준)
+        const kstNow2 = getKstNow();
+        const todayStr = kstNow2.toISOString().split('T')[0];
         if (date === todayStr) {
              console.log('🔔 당일 대타 등록 감지! 알림 발송 중...');
-             const msg = getDailyScheduleMessage(store, new Date());
+             const msg = getDailyScheduleMessage(store, kstNow2);
              await sendToKakao(`📢 [긴급] 당일 대타/추가 알림\n(${actor}님 등록)\n\n${msg}`);
         }
 

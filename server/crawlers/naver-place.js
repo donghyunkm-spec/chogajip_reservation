@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { readJson, writeJson, MARKETING_FILE } = require('../utils/data');
+const { readJson, writeJson, MARKETING_FILE, getKstNow } = require('../utils/data');
 const { sendToKakao } = require('../utils/kakao');
 const { MARKETING_DEBUG, mktLog } = require('../utils/debug');
 const { marketingStatus } = require('../state');
@@ -265,7 +265,7 @@ async function runNaverPlaceCheck() {
 
         const page = await context.newPage();
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = getKstNow().toISOString().split('T')[0];
         const changedRanks = [];
 
         for (let i = 0; i < allKeywords.length; i++) {
@@ -366,8 +366,8 @@ async function generateMarketingBriefing() {
             return;
         }
 
-        const today = new Date();
-        const dateStr = `${today.getMonth() + 1}/${today.getDate()}`;
+        const today = getKstNow();
+        const dateStr = `${today.getUTCMonth() + 1}/${today.getUTCDate()}`;
 
         let message = `📊 [마케팅 브리핑] ${dateStr}\n`;
         message += `━━━━━━━━━━━━━━━━━━\n\n`;

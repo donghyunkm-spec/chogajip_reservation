@@ -68,12 +68,12 @@ function getDailyScheduleMessage(store, dateObj) {
     const file = getStaffFile(store);
     const staffList = readJson(file, []);
 
-    const year = dateObj.getFullYear();
-    const month = dateObj.getMonth() + 1;
-    const day = dateObj.getDate();
+    const year = dateObj.getUTCFullYear();
+    const month = dateObj.getUTCMonth() + 1;
+    const day = dateObj.getUTCDate();
     const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const dayKey = dayMap[dateObj.getDay()];
+    const dayKey = dayMap[dateObj.getUTCDay()];
     const lastDayOfMonth = new Date(year, month, 0).getDate();
 
     let workers = [];

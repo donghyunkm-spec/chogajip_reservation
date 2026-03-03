@@ -65,6 +65,12 @@ function getPosDataFile(store) {
     return path.join(actualDataPath, fileName);
 }
 
+// KST(UTC+9) 기준 현재 Date 객체 반환 (Railway 서버는 UTC)
+function getKstNow() {
+    const now = new Date();
+    return new Date(now.getTime() + 9 * 60 * 60 * 1000);
+}
+
 // 로그 기록 함수
 function addLog(store, actor, action, target, details) {
     const logFile = getLogFile(store);
@@ -95,5 +101,6 @@ module.exports = {
     getAccountingFile,
     getPrepaymentFile,
     getPosDataFile,
-    addLog
+    addLog,
+    getKstNow
 };
