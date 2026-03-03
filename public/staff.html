@@ -708,6 +708,201 @@
             font-size: 12px;
             padding: 6px 12px !important;
         }
+
+        /* [POS] 매출 자동수집 스타일 */
+        .pos-section {
+            margin-top: 30px;
+            border-top: 2px dashed #ddd;
+            padding-top: 25px;
+        }
+        .pos-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .pos-header h3 {
+            color: #5d4037;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pos-header-right {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .pos-last-run {
+            font-size: 11px;
+            color: #888;
+        }
+        .pos-run-btn {
+            background: linear-gradient(135deg, #8d6e63 0%, #5d4037 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .pos-run-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(93, 64, 55, 0.3);
+        }
+        .pos-run-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .pos-status {
+            margin-bottom: 15px;
+        }
+        .pos-status-running {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
+            border-radius: 8px;
+            color: #e65100;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .pos-results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .pos-result-card {
+            background: linear-gradient(135deg, #8d6e63 0%, #6d4c41 100%);
+            border-radius: 16px;
+            padding: 20px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(93, 64, 55, 0.3);
+        }
+        .pos-result-card.chogazip-card {
+            background: linear-gradient(135deg, #d32f2f 0%, #c2185b 100%);
+            box-shadow: 0 4px 15px rgba(211, 47, 47, 0.3);
+        }
+        .pos-result-card.yangeun-card {
+            background: linear-gradient(135deg, #388e3c 0%, #1976d2 100%);
+            box-shadow: 0 4px 15px rgba(56, 142, 60, 0.3);
+        }
+        .pos-result-card.error-card {
+            background: linear-gradient(135deg, #757575 0%, #616161 100%);
+        }
+        .pos-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .pos-store-name {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .pos-date-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+        }
+        .pos-total-sales {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+        .pos-total-sales small {
+            font-size: 14px;
+            font-weight: normal;
+            opacity: 0.8;
+        }
+        .pos-detail-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .pos-detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .pos-detail-label {
+            opacity: 0.9;
+        }
+        .pos-detail-value {
+            font-weight: 600;
+        }
+        .pos-history-section {
+            margin-top: 20px;
+        }
+        .pos-history-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #5d4037;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .pos-history-list {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #eee;
+        }
+        .pos-history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 13px;
+        }
+        .pos-history-item:last-child {
+            border-bottom: none;
+        }
+        .pos-history-date {
+            font-weight: 600;
+            color: #333;
+        }
+        .pos-history-sales {
+            display: flex;
+            gap: 15px;
+        }
+        .pos-history-store {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .pos-history-store-name {
+            font-size: 11px;
+            color: #888;
+        }
+        .pos-history-amount {
+            font-weight: 600;
+            color: #5d4037;
+        }
+        .pos-empty {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+        }
+        .pos-empty-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -1155,6 +1350,46 @@
                             <li>"순위 체크 실행" 버튼으로 수동 실행도 가능합니다 (비밀번호 필요).</li>
                             <li>광고 결과는 제외하고 <strong>순수 검색 순위</strong>만 측정합니다.</li>
                             <li>최대 50위까지 체크하며, 50위 밖이면 "순위권 밖"으로 표시됩니다.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- POS 매출 자동수집 섹션 -->
+                <div class="pos-section">
+                    <div class="pos-header">
+                        <h3>🧾 POS 매출 자동수집</h3>
+                        <div class="pos-header-right">
+                            <span id="posLastRun" class="pos-last-run"></span>
+                            <button id="runPosBtn" onclick="runPosCrawler()" class="pos-run-btn">
+                                매출 수집 실행
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 상태 표시 영역 -->
+                    <div id="posStatus" class="pos-status"></div>
+
+                    <!-- 결과 카드 영역 -->
+                    <div id="posResults" class="pos-results-grid"></div>
+
+                    <!-- 수집 이력 -->
+                    <div class="pos-history-section">
+                        <div class="pos-history-title">📋 최근 수집 이력</div>
+                        <div id="posHistory" class="pos-history-list">
+                            <div class="pos-empty">
+                                <div class="pos-empty-icon">🧾</div>
+                                <p>아직 수집된 매출 데이터가 없습니다.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accounting-card" style="background:#efebe9; margin-top:20px;">
+                        <h4 style="color:#5d4037; margin-bottom:10px;">💡 POS 매출 수집 안내</h4>
+                        <ul style="font-size:12px; color:#555; line-height:1.8; padding-left:20px;">
+                            <li>매일 <strong>오전 6시</strong>에 어제 매출을 자동으로 수집합니다.</li>
+                            <li>수집된 매출은 가계부에 자동 반영됩니다.</li>
+                            <li>"매출 수집 실행" 버튼으로 수동 실행도 가능합니다 (비밀번호 필요).</li>
+                            <li>유니온포스 POS 시스템에서 데이터를 가져옵니다.</li>
                         </ul>
                     </div>
                 </div>

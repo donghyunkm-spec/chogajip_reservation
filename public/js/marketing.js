@@ -715,3 +715,273 @@ function switchMarketingSubTab(subId, btn) {
         setTimeout(() => marketingChart.resize(), 100);
     }
 }
+
+// ==========================================
+// 6. POS 매출 자동수집
+// ==========================================
+let posPollInterval = null;
+
+// POS 크롤러 실행
+async function runPosCrawler() {
+    // 비밀번호 확인
+    const password = prompt('POS 매출 수집을 위한 비밀번호를 입력하세요:');
+    if (password !== '1234') {
+        alert('비밀번호가 일치하지 않습니다.');
+        return;
+    }
+
+    const btn = document.getElementById('runPosBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '수집 중...';
+    }
+
+    try {
+        const res = await fetch('/api/pos/run', { method: 'POST' });
+        const result = await res.json();
+
+        if (result.success) {
+            alert('POS 매출 수집을 시작했습니다. 완료까지 몇 분 정도 소요됩니다.');
+            startPosPolling();
+        } else {
+            alert(result.message || '실행 실패');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '매출 수집 실행';
+            }
+        }
+    } catch (e) {
+        console.error('POS 크롤러 실행 오류:', e);
+        alert('실행 중 오류가 발생했습니다.');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '매출 수집 실행';
+        }
+    }
+}
+
+// POS 상태 폴링
+function startPosPolling() {
+    if (posPollInterval) clearInterval(posPollInterval);
+
+    const statusEl = document.getElementById('posStatus');
+
+    posPollInterval = setInterval(async () => {
+        try {
+            const res = await fetch('/api/pos/status');
+            const result = await res.json();
+
+            if (result.success) {
+                const { running, progress, lastRun, lastResult } = result.data;
+
+                if (statusEl) {
+                    if (running) {
+                        statusEl.innerHTML = `
+                            <div class="pos-status-running">
+                                <span class="spinner"></span>
+                                <span>수집 중: ${progress.store} (${progress.current}/${progress.total})</span>
+                            </div>
+                        `;
+                    } else {
+                        statusEl.innerHTML = '';
+                    }
+                }
+
+                if (!running) {
+                    clearInterval(posPollInterval);
+                    posPollInterval = null;
+
+                    const btn = document.getElementById('runPosBtn');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '매출 수집 실행';
+                    }
+
+                    // 결과 렌더링 및 이력 새로고침
+                    if (lastResult && lastResult.success && lastResult.results) {
+                        renderPosResults(lastResult.results, lastResult.date);
+                    }
+                    loadPosHistory();
+
+                    // 마지막 실행 시간 업데이트
+                    if (lastRun) {
+                        updatePosLastRun(lastRun);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('POS 상태 조회 오류:', e);
+        }
+    }, 3000);
+}
+
+// 마지막 실행 시간 업데이트
+function updatePosLastRun(lastRun) {
+    const el = document.getElementById('posLastRun');
+    if (el && lastRun) {
+        const date = new Date(lastRun);
+        el.textContent = `마지막: ${date.toLocaleDateString('ko-KR')} ${date.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}`;
+    }
+}
+
+// POS 결과 렌더링
+function renderPosResults(results, date) {
+    const container = document.getElementById('posResults');
+    if (!container) return;
+
+    let html = '';
+
+    for (const [store, data] of Object.entries(results)) {
+        const storeName = store === 'chogazip' ? '초가짚' : '양은이네';
+        const cardClass = store === 'chogazip' ? 'chogazip-card' : 'yangeun-card';
+
+        if (data.error) {
+            html += `
+                <div class="pos-result-card error-card">
+                    <div class="pos-card-header">
+                        <div class="pos-store-name">${storeName}</div>
+                        <div class="pos-date-badge">${date}</div>
+                    </div>
+                    <div class="pos-total-sales">
+                        <small>❌ 오류 발생</small>
+                    </div>
+                    <div class="pos-detail-rows">
+                        <div class="pos-detail-row">
+                            <span class="pos-detail-label">오류 내용</span>
+                            <span class="pos-detail-value">${data.error}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="pos-result-card ${cardClass}">
+                    <div class="pos-card-header">
+                        <div class="pos-store-name">${storeName}</div>
+                        <div class="pos-date-badge">${date}</div>
+                    </div>
+                    <div class="pos-total-sales">
+                        ${data.totalSales.toLocaleString()}<small>원</small>
+                    </div>
+                    <div class="pos-detail-rows">
+                        <div class="pos-detail-row">
+                            <span class="pos-detail-label">💵 현금</span>
+                            <span class="pos-detail-value">${data.cashSales.toLocaleString()}원</span>
+                        </div>
+                        <div class="pos-detail-row">
+                            <span class="pos-detail-label">💳 카드</span>
+                            <span class="pos-detail-value">${data.cardSales.toLocaleString()}원</span>
+                        </div>
+                        <div class="pos-detail-row">
+                            <span class="pos-detail-label">📦 기타</span>
+                            <span class="pos-detail-value">${(data.etcSales || 0).toLocaleString()}원</span>
+                        </div>
+                        <div class="pos-detail-row">
+                            <span class="pos-detail-label">↩️ 반품</span>
+                            <span class="pos-detail-value">-${(data.refundTotal || 0).toLocaleString()}원</span>
+                        </div>
+                        <div class="pos-detail-row">
+                            <span class="pos-detail-label">🚫 전취</span>
+                            <span class="pos-detail-value">-${(data.voidTotal || 0).toLocaleString()}원</span>
+                        </div>
+                        <div class="pos-detail-row">
+                            <span class="pos-detail-label">👥 팀 수</span>
+                            <span class="pos-detail-value">${data.teamCount}팀</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    container.innerHTML = html;
+}
+
+// POS 이력 로드
+async function loadPosHistory() {
+    try {
+        const res = await fetch('/api/pos/history?limit=7');
+        const result = await res.json();
+
+        if (result.success && result.data) {
+            renderPosHistory(result.data);
+
+            // 마지막 실행 시간 업데이트 (첫 번째 이력에서)
+            if (result.data.length > 0) {
+                updatePosLastRun(result.data[0].crawledAt);
+
+                // 최신 결과 렌더링
+                const latest = result.data[0];
+                if (latest.results) {
+                    renderPosResults(latest.results, latest.date);
+                }
+            }
+        }
+    } catch (e) {
+        console.error('POS 이력 로드 실패:', e);
+    }
+}
+
+// POS 이력 렌더링
+function renderPosHistory(history) {
+    const container = document.getElementById('posHistory');
+    if (!container) return;
+
+    if (!history || history.length === 0) {
+        container.innerHTML = `
+            <div class="pos-empty">
+                <div class="pos-empty-icon">🧾</div>
+                <p>아직 수집된 매출 데이터가 없습니다.</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    history.forEach(item => {
+        html += `
+            <div class="pos-history-item">
+                <div class="pos-history-date">${item.date}</div>
+                <div class="pos-history-sales">
+        `;
+
+        if (item.results) {
+            for (const [store, data] of Object.entries(item.results)) {
+                const storeName = store === 'chogazip' ? '초' : '양';
+                const amount = data.error ? '오류' : `${(data.totalSales || 0).toLocaleString()}원`;
+                html += `
+                    <div class="pos-history-store">
+                        <span class="pos-history-store-name">${storeName}</span>
+                        <span class="pos-history-amount">${amount}</span>
+                    </div>
+                `;
+            }
+        }
+
+        html += `
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// loadMarketingData 확장: POS 이력도 함께 로드
+const originalLoadMarketingData = loadMarketingData;
+loadMarketingData = async function() {
+    await originalLoadMarketingData.call(this);
+    // POS 이력도 로드
+    await loadPosHistory();
+
+    // POS 현재 상태 확인
+    try {
+        const res = await fetch('/api/pos/status');
+        const result = await res.json();
+        if (result.success && result.data.running) {
+            startPosPolling();
+        }
+    } catch (e) {
+        console.error('POS 상태 확인 실패:', e);
+    }
+};
