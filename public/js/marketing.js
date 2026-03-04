@@ -488,6 +488,12 @@ async function runMarketingCrawler() {
         return;
     }
 
+    const pw = prompt('비밀번호를 입력하세요:');
+    if (pw !== '1234') {
+        if (pw !== null) alert('비밀번호가 틀렸습니다.');
+        return;
+    }
+
     const btn = document.getElementById('runCrawlerBtn');
     if (btn) {
         btn.disabled = true;
@@ -723,6 +729,12 @@ let posPollInterval = null;
 async function runPosCrawler() {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
         alert('관리자 권한이 필요합니다.');
+        return;
+    }
+
+    const pw = prompt('비밀번호를 입력하세요:');
+    if (pw !== '1234') {
+        if (pw !== null) alert('비밀번호가 틀렸습니다.');
         return;
     }
 
