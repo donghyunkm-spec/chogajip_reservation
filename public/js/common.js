@@ -116,11 +116,13 @@ function moveToOtherStore() {
 
 // 메인 탭 전환
 function switchTab(tabName) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
+    // 메인 탭 버튼만 active 해제 (서브탭은 유지)
     const targetBtn = document.querySelector(`.tabs > button[onclick="switchTab('${tabName}')"]`);
-    if(targetBtn) targetBtn.classList.add('active');
+    if (targetBtn) {
+        targetBtn.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        targetBtn.classList.add('active');
+    }
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
     const contentId = (tabName === 'attendance') ? 'attendance-content' : `${tabName}-content`;
     const content = document.getElementById(contentId);
