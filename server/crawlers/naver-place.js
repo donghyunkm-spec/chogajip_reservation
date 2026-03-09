@@ -323,14 +323,93 @@ async function runNaverPlaceCheck() {
         data.last_updated = new Date().toISOString();
         writeJson(MARKETING_FILE, data);
 
-        if (settings.notify_on_change && changedRanks.length > 0) {
-            let msg = '📊 [네이버 플레이스 순위 변동 알림]\n\n';
-            changedRanks.forEach(c => {
-                const emoji = c.change.startsWith('+') ? '📈' : '📉';
-                msg += `${emoji} ${c.store} - "${c.keyword}"\n`;
-                msg += `   ${c.prev}위 → ${c.current}위 (${c.change})\n\n`;
+        // 순위 체크 결과 알림 (현재 순위 + 주간 추이 + 변동)
+        {
+            let msg = `📊 [네이버 플레이스 순위] ${today}\n`;
+            msg += `━━━━━━━━━━━━━━━━━━\n\n`;
+
+            // 카테고리별로 그룹핑
+            const { stores: storeConfigs, categories: catConfig } = data.config;
+            const categoryGroups = {
+                chogazip: { name: '🥩 초가짚', stores: [] },
+                yangeun: { name: '🍲 양은이네', stores: [] }
+            };
+
+            const myStores = (storeConfigs || []).filter(s => s.is_mine);
+            myStores.forEach(store => {
+                const cat = store.category || 'chogazip';
+                if (categoryGroups[cat]) {
+                    categoryGroups[cat].stores.push(store);
+                }
             });
-            await sendToKakao(msg);
+
+            let hasData = false;
+
+            for (const [catKey, catInfo] of Object.entries(categoryGroups)) {
+                if (catInfo.stores.length === 0) continue;
+
+                const keywords = (catConfig && catConfig[catKey] && catConfig[catKey].keywords) || [];
+                if (keywords.length === 0) continue;
+
+                msg += `${catInfo.name}\n`;
+                msg += `──────────────\n`;
+
+                catInfo.stores.forEach(store => {
+                    const storeName = store.name;
+                    const storeData = data.stores[storeName];
+
+                    keywords.forEach(keyword => {
+                        const records = (storeData && storeData.keywords && storeData.keywords[keyword]) || [];
+                        if (records.length === 0) return;
+
+                        hasData = true;
+                        const latest = records[records.length - 1];
+                        const rankDisplay = latest.rank ? `${latest.rank}위` : '순위권 밖';
+
+                        // 전일 대비 변동
+                        let trendMsg = '';
+                        if (records.length >= 2) {
+                            const prev = records[records.length - 2];
+                            if (latest.rank && prev.rank) {
+                                const diff = prev.rank - latest.rank;
+                                if (diff > 0) trendMsg = ` (▲${diff})`;
+                                else if (diff < 0) trendMsg = ` (▼${Math.abs(diff)})`;
+                                else trendMsg = ' (-)';
+                            }
+                        }
+
+                        // 7일 추이 (숫자 나열)
+                        const recent7 = records.slice(-7);
+                        let weeklyTrend = '';
+                        if (recent7.length >= 2) {
+                            weeklyTrend = recent7.map(r => r.rank ? r.rank : '-').join('→');
+                        }
+
+                        msg += `"${keyword}": ${rankDisplay}${trendMsg}\n`;
+                        if (weeklyTrend) {
+                            msg += `  추이: ${weeklyTrend}\n`;
+                        }
+                    });
+                });
+
+                msg += `\n`;
+            }
+
+            // 변동 하이라이트
+            if (changedRanks.length > 0) {
+                msg += `🔔 변동 항목\n`;
+                msg += `──────────────\n`;
+                changedRanks.forEach(c => {
+                    const emoji = c.change.startsWith('+') ? '📈' : '📉';
+                    msg += `${emoji} ${c.store} "${c.keyword}": ${c.prev}위→${c.current}위 (${c.change})\n`;
+                });
+            } else {
+                msg += `✅ 전일 대비 변동 없음`;
+            }
+
+            if (hasData) {
+                await sendToKakao(msg);
+            }
         }
 
         marketingStatus.lastRun = new Date().toISOString();
