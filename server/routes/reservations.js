@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { readJson, writeJson, FINAL_DATA_FILE } = require('../utils/data');
 const { asyncHandler } = require('../middleware/error-handler');
+const { sendNewReservationNotify } = require('../utils/reservation-notify');
 
 // 예약 조회
 router.get('/', (req, res) => {
@@ -136,7 +137,11 @@ router.post('/', (req, res) => {
     let reservations = readJson(FINAL_DATA_FILE, []);
     const newRes = { ...req.body, id: Date.now(), status: 'active' };
     reservations.push(newRes);
-    if (writeJson(FINAL_DATA_FILE, reservations)) res.json({ success: true });
+    if (writeJson(FINAL_DATA_FILE, reservations)) {
+        // 당일 예약이면 즉시 카톡 알림 (비동기, 응답 블로킹 안함)
+        sendNewReservationNotify(newRes).catch(e => console.error('카톡 알림 오류:', e));
+        res.json({ success: true });
+    }
     else res.status(500).json({ success: false });
 });
 

@@ -6,6 +6,7 @@ const { generateAndSendBriefing } = require('../utils/briefing');
 const { generateMarketingBriefing } = require('../crawlers/naver-place');
 const { runPosCrawler } = require('../crawlers/union-pos');
 const { runNaverPlaceCheck } = require('../crawlers/naver-place');
+const { sendDailyReservationBriefing } = require('../utils/reservation-notify');
 
 function registerAllCrons() {
     // 근무표 브리핑 (매일 오전 11:30)
@@ -79,6 +80,14 @@ ${msgYang}
             console.log('🔔 [스케줄] 네이버 플레이스 순위 체크 시작...');
             await runNaverPlaceCheck();
         }, randomDelayMs);
+    }, {
+        timezone: "Asia/Seoul"
+    });
+
+    // 예약 현황 브리핑 (매일 오후 2시)
+    cron.schedule('0 14 * * *', async () => {
+        console.log('🔔 [알림] 오후 2시 예약 현황 브리핑 시작...');
+        await sendDailyReservationBriefing();
     }, {
         timezone: "Asia/Seoul"
     });
