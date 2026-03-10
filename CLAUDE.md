@@ -61,7 +61,7 @@ server/
 
 **Multi-store pattern**: Functions like `getStaffFile(store)`, `getAccountingFile(store)` in `server/utils/data.js` route to store-specific JSON files (`staff.json` vs `staff_yangeun.json`).
 
-**Data persistence**: JSON files in `/data` directory (local) or Railway volume mount path. Core helpers `readJson()`/`writeJson()` in `server/utils/data.js`.
+**Data persistence**: JSON files stored via `server/utils/data.js`. Path resolution: uses `RAILWAY_VOLUME_MOUNT_PATH` env var if it exists, otherwise falls back to local `data/` directory. Core helpers: `readJson()`/`writeJson()` for file I/O, `getKstNow()` for KST-adjusted dates (critical since Railway runs in UTC).
 
 **Scheduled tasks** (node-cron in `server/cron/schedules.js`, KST):
 - 04:00 - Naver Place ranking check (with random 0-4h delay)
@@ -130,7 +130,9 @@ Playwright-based crawler in `server/crawlers/naver-place.js` checks store rankin
 
 ## Deployment
 
-Railway deployment uses Dockerfile with Playwright pre-installed (`mcr.microsoft.com/playwright:v1.40.0-jammy`). Production-only `npm ci`.
+Railway deployment uses Dockerfile with Playwright pre-installed (`mcr.microsoft.com/playwright:v1.40.0-jammy`). Production-only `npm ci`. Playwright chromium is also installed via `postinstall` script.
+
+**Note**: `googleapis` is listed in dependencies but currently unused in the codebase.
 
 ## Korean Language Context
 
