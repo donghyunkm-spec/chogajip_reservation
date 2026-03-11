@@ -150,7 +150,7 @@ function openEditModal(id) {
     document.getElementById('editStartDate').value = target.startDate || '';
     document.getElementById('editEndDate').value = target.endDate || '';
     
-    const isAdmin = currentUser.role === 'admin';
+    const isAdmin = currentUser && currentUser.role === 'admin';
     const salarySection = document.getElementById('modalSalarySection');
     if (isAdmin) {
         salarySection.style.display = 'block';

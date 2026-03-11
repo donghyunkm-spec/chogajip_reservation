@@ -148,20 +148,22 @@ router.post('/', (req, res) => {
 // 예약 수정
 router.put('/:id', (req, res) => {
     let reservations = readJson(FINAL_DATA_FILE, []);
-    const idx = reservations.findIndex(r => r.id == req.params.id);
+    const idx = reservations.findIndex(r => String(r.id) === req.params.id);
     if (idx !== -1) {
         reservations[idx] = { ...reservations[idx], ...req.body };
-        writeJson(FINAL_DATA_FILE, reservations);
-        res.json({ success: true });
+        if (writeJson(FINAL_DATA_FILE, reservations)) {
+            res.json({ success: true });
+        } else res.status(500).json({ success: false });
     } else res.status(404).json({ success: false });
 });
 
 // 예약 삭제
 router.delete('/:id', (req, res) => {
     let reservations = readJson(FINAL_DATA_FILE, []);
-    reservations = reservations.filter(r => r.id != req.params.id);
-    writeJson(FINAL_DATA_FILE, reservations);
-    res.json({ success: true });
+    reservations = reservations.filter(r => String(r.id) !== req.params.id);
+    if (writeJson(FINAL_DATA_FILE, reservations)) {
+        res.json({ success: true });
+    } else res.status(500).json({ success: false });
 });
 
 module.exports = router;

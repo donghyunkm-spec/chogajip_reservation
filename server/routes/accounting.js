@@ -159,9 +159,10 @@ router.post('/monthly', (req, res) => {
     if (!accData.monthly) accData.monthly = {};
 
     accData.monthly[month] = data;
-    writeJson(file, accData);
-    addLog(store, actor, '월간지출', month, '고정비용 저장');
-    res.json({ success: true });
+    if (writeJson(file, accData)) {
+        addLog(store, actor, '월간지출', month, '고정비용 저장');
+        res.json({ success: true });
+    } else res.status(500).json({ success: false });
 });
 
 module.exports = router;

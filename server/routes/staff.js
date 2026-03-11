@@ -35,13 +35,14 @@ router.put('/:id', (req, res) => {
     const { updates, actor, store } = req.body;
     const file = getStaffFile(store || 'chogazip');
     let staff = readJson(file, []);
-    const idx = staff.findIndex(s => s.id == req.params.id);
+    const idx = staff.findIndex(s => String(s.id) === req.params.id);
 
     if (idx !== -1) {
         staff[idx] = { ...staff[idx], ...updates };
-        writeJson(file, staff);
-        addLog(store, actor, '직원수정', staff[idx].name, '정보수정');
-        res.json({ success: true });
+        if (writeJson(file, staff)) {
+            addLog(store, actor, '직원수정', staff[idx].name, '정보수정');
+            res.json({ success: true });
+        } else res.status(500).json({ success: false });
     } else res.status(404).json({ success: false });
 });
 
@@ -52,8 +53,8 @@ router.delete('/:id', (req, res) => {
     const file = getStaffFile(store);
     let staff = readJson(file, []);
 
-    const target = staff.find(s => s.id == req.params.id);
-    staff = staff.filter(s => s.id != req.params.id);
+    const target = staff.find(s => String(s.id) === req.params.id);
+    staff = staff.filter(s => String(s.id) !== req.params.id);
 
     if (writeJson(file, staff)) {
         if(target) addLog(store, actor, '직원삭제', target.name, '삭제됨');
@@ -66,14 +67,14 @@ router.post('/exception', asyncHandler(async (req, res) => {
     const { id, date, type, time, actor, store } = req.body;
     const file = getStaffFile(store || 'chogazip');
     let staff = readJson(file, []);
-    const target = staff.find(s => s.id == id);
+    const target = staff.find(s => s.id === id);
 
     if (target) {
         if (!target.exceptions) target.exceptions = {};
         if (type === 'delete') delete target.exceptions[date];
         else target.exceptions[date] = { type, time };
 
-        writeJson(file, staff);
+        if (!writeJson(file, staff)) return res.status(500).json({ success: false });
         addLog(store, actor, '근무변경', target.name, `${date} ${type}`);
 
         // 변경된 날짜가 '오늘'이면 즉시 카톡 발송 (KST 기준)
