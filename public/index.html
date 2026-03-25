@@ -545,6 +545,16 @@
             font-size: 12px;
         }
 
+        .reservation-table-actions {
+            white-space: nowrap;
+        }
+        .reservation-table-actions .edit-btn,
+        .reservation-table-actions .delete-btn {
+            padding: 5px 10px;
+            font-size: 11px;
+            margin: 0 2px;
+        }
+
         .empty-state {
             text-align: center;
             padding: 30px;
@@ -692,6 +702,14 @@
             .reservation-table th,
             .reservation-table td {
                 padding: 6px 3px;
+            }
+
+            .reservation-table-actions .edit-btn,
+            .reservation-table-actions .delete-btn {
+                padding: 4px 6px;
+                font-size: 10px;
+                display: block;
+                margin: 2px auto;
             }
         }
 		/* 예약별 색깔 구분 - 8가지 뚜렷한 색깔 */
@@ -1365,6 +1383,7 @@
                             <th>인원</th>
                             <th>테이블명</th>
                             <th>연락처</th>
+                            <th>관리</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1400,6 +1419,10 @@
                         <td>${r.people}명</td>
                         <td>${tableNames}</td>
                         <td>${formattedPhone}</td>
+                        <td class="reservation-table-actions">
+                            <button class="edit-btn" onclick="editReservation(${r.id})">수정</button>
+                            <button class="delete-btn" onclick="cancelReservation(${r.id})">취소</button>
+                        </td>
                     </tr>
                 `;
             });
