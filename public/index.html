@@ -1343,8 +1343,9 @@
                 );
             }
             
-            renderHallTables(dayReservations);
-            renderRoomTables(dayReservations);
+            const colorMap = buildReservationColorMap(dayReservations);
+            renderHallTables(dayReservations, colorMap);
+            renderRoomTables(dayReservations, colorMap);
             updateReservationList(dayReservations);
         }
 
@@ -1435,9 +1436,83 @@
             container.innerHTML = tableHTML;
         }
 
-        // 홀 테이블 렌더링 (수정됨 - 클릭 이벤트 추가)
-        // 홀 테이블 렌더링 함수 (수정됨 - 예약별 색깔 구분)
-		function renderHallTables(dayReservations) {
+        // 인접 예약끼리 같은 색이 안 되도록 그래프 컬러링으로 색상 배정
+        function buildReservationColorMap(dayReservations) {
+            const hallLayout = [
+                [1, '', 3, 4, 5, 6, 7, 8],
+                [2, '', '', '', '', '', '', ''],
+                ['', '', 9, 10, 11, 12, '', ''],
+                ['', '', 13, 14, 15, 16, '', '']
+            ];
+            const roomLayout = [
+                [7, 8, 9],
+                [4, 5, 6],
+                [1, 2, 3]
+            ];
+
+            // 예약별 테이블 맵 구축
+            const tableResMap = new Map();
+            dayReservations.forEach(r => {
+                if (r.tables) {
+                    r.tables.forEach(t => tableResMap.set(t, r));
+                }
+            });
+
+            // 인접 예약 그래프 구축
+            const adjMap = new Map();
+            function addEdges(layout, prefix) {
+                for (let r = 0; r < layout.length; r++) {
+                    for (let c = 0; c < layout[r].length; c++) {
+                        const tn = layout[r][c];
+                        if (tn === '') continue;
+                        const res = tableResMap.get(`${prefix}-${tn}`);
+                        if (!res) continue;
+                        if (!adjMap.has(res.id)) adjMap.set(res.id, new Set());
+                        const dirs = [[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
+                        for (const [nr, nc] of dirs) {
+                            if (nr < 0 || nr >= layout.length || nc < 0 || nc >= layout[nr].length) continue;
+                            const ntn = layout[nr][nc];
+                            if (ntn === '') continue;
+                            const nRes = tableResMap.get(`${prefix}-${ntn}`);
+                            if (!nRes || nRes.id === res.id) continue;
+                            adjMap.get(res.id).add(nRes.id);
+                        }
+                    }
+                }
+            }
+            addEdges(hallLayout, 'hall');
+            addEdges(roomLayout, 'room');
+
+            // 그리디 컬러링
+            const colorMap = new Map();
+            const totalColors = 8;
+            // 인접이 있는 예약 먼저 처리 (이웃 많은 순)
+            const sorted = [...adjMap.entries()].sort((a, b) => b[1].size - a[1].size);
+            for (const [resId, neighbors] of sorted) {
+                const usedColors = new Set();
+                for (const nId of neighbors) {
+                    if (colorMap.has(nId)) usedColors.add(colorMap.get(nId));
+                }
+                let color = 1;
+                while (usedColors.has(color) && color <= totalColors) color++;
+                if (color > totalColors) color = 1;
+                colorMap.set(resId, color);
+            }
+
+            // 인접이 없는 예약도 색상 배정 (기존 방식 fallback)
+            let nextColor = 1;
+            dayReservations.forEach(r => {
+                if (!colorMap.has(r.id)) {
+                    colorMap.set(r.id, ((nextColor - 1) % totalColors) + 1);
+                    nextColor++;
+                }
+            });
+
+            return colorMap;
+        }
+
+        // 홀 테이블 렌더링 함수 (예약별 색깔 구분 - 인접 색상 충돌 방지)
+		function renderHallTables(dayReservations, colorMap) {
 			const hallDiv = document.getElementById('hall-tables');
 			if (!hallDiv) return;
 			
@@ -1474,8 +1549,7 @@
 						const reservation = tableReservations.get(tableId);
 						
 						if (isReserved && reservation) {
-							// 예약 ID를 기반으로 색깔 인덱스 생성 (1-8 순환)
-							const colorIndex = (reservation.id % 8) + 1;
+								const colorIndex = colorMap.get(reservation.id) || 1;
 							html += `<div class="table-cell reserved-color-${colorIndex}" onclick="showReservationModal('${reservation.id}')">
 								<div>T${tableNum}</div>
 								<div class="table-info">${escapeHtml(reservation.name)}</div>
@@ -1497,9 +1571,8 @@
 			hallDiv.innerHTML = html;
 		}
 
-        // 룸 테이블 렌더링 (수정됨 - 클릭 이벤트 추가)
-		// 룸 테이블 렌더링 함수 (수정됨 - 예약별 색깔 구분)
-		function renderRoomTables(dayReservations) {
+        // 룸 테이블 렌더링 함수 (예약별 색깔 구분 - 인접 색상 충돌 방지)
+		function renderRoomTables(dayReservations, colorMap) {
 			const roomDiv = document.getElementById('room-tables');
 			if (!roomDiv) return;
 			
@@ -1532,8 +1605,7 @@
 					const reservation = tableReservations.get(tableId);
 					
 					if (isReserved && reservation) {
-						// 예약 ID를 기반으로 색깔 인덱스 생성 (1-8 순환)
-						const colorIndex = (reservation.id % 8) + 1;
+						const colorIndex = colorMap.get(reservation.id) || 1;
 						html += `<div class="table-cell reserved-color-${colorIndex}" onclick="showReservationModal('${reservation.id}')">
 							<div>R${tableNum}</div>
 							<div class="table-info">${escapeHtml(reservation.name)}</div>
