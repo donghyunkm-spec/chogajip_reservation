@@ -817,7 +817,14 @@ function calculateMonthlySalary() {
 
     let salaryReport = [];
 
+    const firstDay = `${year}-${String(month+1).padStart(2,'0')}-01`;
+    const lastDayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(totalDaysInMonth).padStart(2,'0')}`;
+
     staffList.forEach(s => {
+        // 해당 월에 재직 기간이 전혀 없는 직원은 건너뜀
+        if (s.startDate && s.startDate > lastDayStr) return;
+        if (s.endDate && s.endDate < firstDay) return;
+
         const sDate = s.startDate ? new Date(s.startDate) : null;
         const eDate = s.endDate ? new Date(s.endDate) : null;
 
