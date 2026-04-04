@@ -143,7 +143,7 @@ async function crawlUnionPos(storeCode, userId, password, targetDate, browser) {
         results.discount = totalDiscount;
         results.refundTotal = refundTotal;
         results.voidTotal = voidTotal;
-        results.totalSales = totalCash + totalCard + totalEtc;
+        results.totalSales = totalCash + totalCard + totalEtc - refundTotal;
         results.rawDataCount = rawDataCount;
 
         posLog(`[POS] ${storeCode} 크롤링 완료:`, true);
@@ -274,7 +274,7 @@ async function runPosCrawler(stores = ['chogazip', 'yangeun'], targetDate = null
 
             let totalSales = 0;
             if (store === 'yangeun') {
-                totalSales = cardSales + data.cashSales + baemin + yogiyo + coupang;
+                totalSales = cardSales + data.cashSales + baemin + yogiyo + coupang - (data.refundTotal || 0);
             } else {
                 totalSales = data.totalSales;
             }
