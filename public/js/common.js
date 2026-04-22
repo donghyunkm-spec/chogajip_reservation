@@ -39,6 +39,11 @@ function initStoreSettings() {
             etcLabel.style.fontWeight = 'bold';
         }
 
+        const miscDiv = document.getElementById('divMisc');
+        if (miscDiv) miscDiv.style.display = '';
+        const filterOptMisc = document.getElementById('filterOptMisc');
+        if (filterOptMisc) filterOptMisc.style.display = '';
+
         const dispDiv = document.getElementById('divDisposable');
         if(dispDiv) dispDiv.style.display = 'block';
         const delivDiv = document.getElementById('divDeliveryFee');

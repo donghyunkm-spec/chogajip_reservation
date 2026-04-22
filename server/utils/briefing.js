@@ -42,7 +42,7 @@ function extractStoreCosts(accData, staffData, monthStr, storeType, currentDay) 
 
                 meat += (d.meat || 0);
                 food += (d.food || 0);
-                etcDaily += (d.etc || 0);
+                etcDaily += (d.etc || 0) + (d.misc || 0);
             }
         });
     }
@@ -217,7 +217,7 @@ function calculateMonthStats(accountingData, staffData, monthStr, currentDay) {
 
                 costBreakdown.meat += (d.meat || 0);
                 costBreakdown.food += (d.food || 0);
-                costBreakdown.etc += (d.etc || 0);
+                costBreakdown.etc += (d.etc || 0) + (d.misc || 0);
                 variableCostTotal += (d.cost || 0);
             }
         });

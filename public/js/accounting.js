@@ -89,6 +89,7 @@ function loadDailyAccounting() {
     document.getElementById('inpFood').value = dayData.food || '';
     document.getElementById('inpMeat').value = dayData.meat || '';
     document.getElementById('inpEtc').value = dayData.etc || '';
+    if(document.getElementById('inpMisc')) document.getElementById('inpMisc').value = dayData.misc || '';
     document.getElementById('inpNote').value = dayData.note || '';
 
     if(document.getElementById('inpReceiptCount')) document.getElementById('inpReceiptCount').value = dayData.receiptCount || 0;
@@ -160,6 +161,7 @@ async function saveDailyAccounting() {
     const food = parseInt(document.getElementById('inpFood').value) || 0;
     const meat = parseInt(document.getElementById('inpMeat').value) || 0;
     const etc = parseInt(document.getElementById('inpEtc').value) || 0;
+    const misc = (document.getElementById('inpMisc') ? parseInt(document.getElementById('inpMisc').value) || 0 : 0);
     const note = document.getElementById('inpNote').value || '';
 
     const receiptCount = parseInt(document.getElementById('inpReceiptCount').value) || 0;
@@ -186,7 +188,7 @@ async function saveDailyAccounting() {
         totalSales = card + cash + gift;
     }
 
-    const totalCost = food + meat + etc;
+    const totalCost = food + meat + etc + misc;
 
     if (totalSales === 0 && totalCost === 0) {
         if(!confirm(`${dateStr} 입력된 금액이 없습니다 (0원).\n그래도 저장하시겠습니까?`)) return;
@@ -197,7 +199,7 @@ async function saveDailyAccounting() {
         gift: (currentStore === 'yangeun' ? 0 : gift),
         baemin, yogiyo, coupang,
         baeminCount, yogiyoCount, coupangCount,
-        sales: totalSales, food, meat, etc, cost: totalCost, note: note,
+        sales: totalSales, food, meat, etc, misc, cost: totalCost, note: note,
         receiptCount, discount, refund, void: voidVal
     };
 
@@ -238,7 +240,9 @@ function loadHistoryTable(filterKey = 'all') {
         'card': '💳 카드', 'cash': '💵 현금', 'baemin': '🛵 배민',
         'yogiyo': '🛵 요기요', 'coupang': '🛵 쿠팡', 'gift': '🎫 기타',
         'meat': (currentStore === 'yangeun' ? '🍞 SPC' : '🥩 고기'),
-        'food': '🥬 삼시세끼', 'etc': '🍦 잡비'
+        'food': '🥬 삼시세끼',
+        'etc': (currentStore === 'yangeun' ? '🦪 막걸리/굴' : '🍦 잡비'),
+        'misc': '🍦 기타잡비'
     };
 
     const rows = [];
@@ -282,7 +286,11 @@ function loadHistoryTable(filterKey = 'all') {
                 const meatName = (currentStore === 'yangeun') ? 'SPC' : '고기';
                 if(d.meat) details.push(`${meatName}:${d.meat.toLocaleString()}`);
                 if(d.food) details.push(`유통:${d.food.toLocaleString()}`);
-                if(d.etc) details.push(`잡비:${d.etc.toLocaleString()}`);
+                if(d.etc) {
+                    const etcName = (currentStore === 'yangeun') ? '막걸리/굴' : '잡비';
+                    details.push(`${etcName}:${d.etc.toLocaleString()}`);
+                }
+                if(d.misc) details.push(`기타잡비:${d.misc.toLocaleString()}`);
             }
 
             if(d.note) details.push(`📝"${escapeHtml(d.note)}"`);
@@ -795,13 +803,14 @@ function renderCostList(containerId, mData, staffCost, ratio, salesTotal, totalC
 
     if(totalCost === 0) { el.innerHTML = '<div style="text-align:center; padding:10px; color:#999;">데이터 없음</div>'; return; }
 
-    let cMeat = 0, cFood = 0, cEtc = 0;
+    let cMeat = 0, cFood = 0, cEtc = 0, cMisc = 0;
     if (accountingData.daily) {
         Object.keys(accountingData.daily).forEach(date => {
             if (date.startsWith(monthStr)) {
                 cMeat += (accountingData.daily[date].meat||0);
                 cFood += (accountingData.daily[date].food||0);
                 cEtc += (accountingData.daily[date].etc||0);
+                cMisc += (accountingData.daily[date].misc||0);
             }
         });
     }
@@ -823,6 +832,7 @@ function renderCostList(containerId, mData, staffCost, ratio, salesTotal, totalC
         { label: meatLabel, val: cMeat, color: '#ef5350' },
         { label: '🥬 삼시세끼', val: cFood, color: '#8d6e63' },
         { label: etcLabel, val: cEtc, color: '#78909c' },
+        { label: '🍦 기타잡비', val: cMisc, color: '#9e9e9e' },
         { label: '🏠 임대료', val: fRent, color: '#ab47bc' },
         { label: '👥 인건비', val: fStaff, color: '#ba68c8' },
         { label: '🛡️ 4대보험', val: fInsurance, color: '#7e57c2' },

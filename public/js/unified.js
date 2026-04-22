@@ -142,7 +142,7 @@ function updateUnifiedView() {
 
                     const vMeat = (day.meat || 0);
                     const vFood = (day.food || 0);
-                    const vEtc = (day.etc || 0);
+                    const vEtc = (day.etc || 0) + (day.misc || 0);
 
                     predStats.meat += vMeat; predStats.food += vFood; predStats.etc += vEtc;
                     fullStats.meat += vMeat; fullStats.food += vFood; fullStats.etc += vEtc;

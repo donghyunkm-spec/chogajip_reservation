@@ -1975,6 +1975,10 @@
                             <span class="category-label" id="labelEtc">🍦 기타 잡비</span>
                             <input type="number" id="inpEtc" class="money-input" placeholder="0">
                         </div>
+                        <div id="divMisc" style="display:none;">
+                            <span class="category-label">🍦 기타잡비</span>
+                            <input type="number" id="inpMisc" class="money-input" placeholder="0">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1998,6 +2002,7 @@
                                     <option value="meat">🥩 고기/SPC</option>
                                     <option value="food">🥬 삼시세끼/유통</option>
                                     <option value="etc">🍦 기타 잡비</option>
+                                    <option value="misc" id="filterOptMisc" style="display:none;">🍦 기타잡비</option>
                                 </optgroup>
                             </select>
                             <button onclick="applyHistoryFilter()" style="flex:1; padding:8px; background:#455a64; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">검색</button>
