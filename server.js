@@ -31,13 +31,8 @@ app.use('/api/pos', require('./server/routes/pos-crawler'));
 
 // 카카오 라우터 (OAuth 콜백 + API)
 const kakaoRouter = require('./server/routes/kakao');
-app.use('/oauth/kakao', (req, res, next) => {
-    // GET /oauth/kakao → kakao router의 /callback
-    if (req.method === 'GET') {
-        req.url = '/callback' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
-    }
-    next();
-}, kakaoRouter);
+// Kakao 개발자센터에 등록된 redirect_uri 는 /oauth/kakao 이므로 직접 콜백 핸들러 연결
+app.get('/oauth/kakao', kakaoRouter.kakaoCallbackHandler);
 app.use('/api/kakao', kakaoRouter);
 
 // === 에러 핸들러 ===

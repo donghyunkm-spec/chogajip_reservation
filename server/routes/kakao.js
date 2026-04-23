@@ -12,8 +12,8 @@ router.get('/auth-url', (req, res) => {
     res.json({ success: true, url: authUrl });
 });
 
-// 카카오 OAuth 콜백
-router.get('/callback', asyncHandler(async (req, res) => {
+// 카카오 OAuth 콜백 핸들러 (server.js 에서 /oauth/kakao 로 직접 마운트)
+const kakaoCallbackHandler = asyncHandler(async (req, res) => {
     const { code } = req.query;
     if (!code) return res.send('인증 코드가 없습니다.');
 
@@ -62,7 +62,10 @@ router.get('/callback', asyncHandler(async (req, res) => {
     writeJson(KAKAO_TOKEN_FILE, tokenList);
 
     res.send(`<h1>✅ 로그인 성공!</h1><p>${userNickname}님 등록 완료.<br>현재 알림 받는 인원: ${tokenList.length}명</p>`);
-}));
+});
+
+// /api/kakao/callback 으로도 접근 가능하도록 유지 (하위 호환)
+router.get('/callback', kakaoCallbackHandler);
 
 // 수동 브리핑 발송
 router.post('/send-briefing', asyncHandler(async (req, res) => {
@@ -77,3 +80,4 @@ router.post('/send-briefing', asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+module.exports.kakaoCallbackHandler = kakaoCallbackHandler;
