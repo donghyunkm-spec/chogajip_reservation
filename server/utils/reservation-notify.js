@@ -69,25 +69,26 @@ async function sendDailyReservationBriefing() {
 }
 
 /**
+ * 당일 14시 이후 알림 대상인지 판단
+ * - 대상 날짜가 오늘인지, 현재 KST 시각이 14시 이후인지 확인
+ */
+function shouldNotifyForDate(dateStr) {
+    const now = getKstNow();
+    const todayStr = now.toISOString().slice(0, 10);
+    if (dateStr !== todayStr) return false;
+    const kstHour = now.getUTCHours();
+    if (kstHour < 14) return false;
+    return true;
+}
+
+/**
  * 당일 예약 즉시 알림 (오후 2시 이후에만)
  */
 async function sendNewReservationNotify(newRes) {
     try {
-        const now = getKstNow();
-        const todayStr = now.toISOString().slice(0, 10);
+        if (!shouldNotifyForDate(newRes.date)) return;
 
-        // 당일 예약이 아니면 무시
-        if (newRes.date !== todayStr) return;
-
-        // 오후 2시 이전이면 무시 (2시 브리핑에 포함됨)
-        const kstHour = now.getUTCHours();
-        if (kstHour < 14) return;
-
-        // 새 예약 정보 + 전체 현황
         const allToday = getTodayReservations();
-
-        const month = now.getUTCMonth() + 1;
-        const date = now.getUTCDate();
 
         let msg = `[🔔 당일 예약 추가!]\n`;
         msg += `━━━━━━━━━━━━━━━━━━\n`;
@@ -101,4 +102,65 @@ async function sendNewReservationNotify(newRes) {
     }
 }
 
-module.exports = { sendDailyReservationBriefing, sendNewReservationNotify };
+/**
+ * 당일 예약 수정 즉시 알림 (오후 2시 이후에만)
+ * - 구예약 혹은 신예약 중 하나라도 날짜가 오늘이면 발송
+ */
+async function sendUpdateReservationNotify(oldRes, newRes) {
+    try {
+        const oldIsToday = shouldNotifyForDate(oldRes && oldRes.date);
+        const newIsToday = shouldNotifyForDate(newRes && newRes.date);
+        if (!oldIsToday && !newIsToday) return;
+
+        const allToday = getTodayReservations();
+
+        let msg = `[✏️ 당일 예약 수정!]\n`;
+        msg += `━━━━━━━━━━━━━━━━━━\n`;
+        if (oldIsToday && newIsToday) {
+            msg += `▶ 변경전:${formatReservation(oldRes)}\n`;
+            msg += `▶ 변경후:${formatReservation(newRes)}\n\n`;
+        } else if (oldIsToday && !newIsToday) {
+            msg += `▶ 당일 → 타일자 이동\n`;
+            msg += `▶ 변경전:${formatReservation(oldRes)}\n`;
+            msg += `▶ 변경후(${newRes.date}):${formatReservation(newRes)}\n\n`;
+        } else {
+            msg += `▶ 타일자 → 당일 이동\n`;
+            msg += `▶ 변경전(${oldRes.date}):${formatReservation(oldRes)}\n`;
+            msg += `▶ 변경후:${formatReservation(newRes)}\n\n`;
+        }
+        msg += buildDailySummaryMessage(allToday);
+
+        await sendToKakao(msg);
+        console.log('✅ 당일 예약 수정 즉시 알림 전송 완료');
+    } catch (e) {
+        console.error('❌ 당일 예약 수정 알림 전송 실패:', e);
+    }
+}
+
+/**
+ * 당일 예약 취소/삭제 즉시 알림 (오후 2시 이후에만)
+ */
+async function sendCancelReservationNotify(cancelledRes) {
+    try {
+        if (!shouldNotifyForDate(cancelledRes && cancelledRes.date)) return;
+
+        const allToday = getTodayReservations();
+
+        let msg = `[❌ 당일 예약 취소!]\n`;
+        msg += `━━━━━━━━━━━━━━━━━━\n`;
+        msg += `▶ 취소:${formatReservation(cancelledRes)}\n\n`;
+        msg += buildDailySummaryMessage(allToday);
+
+        await sendToKakao(msg);
+        console.log('✅ 당일 예약 취소 즉시 알림 전송 완료');
+    } catch (e) {
+        console.error('❌ 당일 예약 취소 알림 전송 실패:', e);
+    }
+}
+
+module.exports = {
+    sendDailyReservationBriefing,
+    sendNewReservationNotify,
+    sendUpdateReservationNotify,
+    sendCancelReservationNotify
+};

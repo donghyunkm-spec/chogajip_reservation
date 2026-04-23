@@ -2,7 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { readJson, writeJson, FINAL_DATA_FILE } = require('../utils/data');
 const { asyncHandler } = require('../middleware/error-handler');
-const { sendNewReservationNotify } = require('../utils/reservation-notify');
+const {
+    sendNewReservationNotify,
+    sendUpdateReservationNotify,
+    sendCancelReservationNotify
+} = require('../utils/reservation-notify');
 
 // 예약 조회
 router.get('/', (req, res) => {
@@ -150,8 +154,20 @@ router.put('/:id', (req, res) => {
     let reservations = readJson(FINAL_DATA_FILE, []);
     const idx = reservations.findIndex(r => String(r.id) === req.params.id);
     if (idx !== -1) {
-        reservations[idx] = { ...reservations[idx], ...req.body };
+        const oldRes = { ...reservations[idx] };
+        const newRes = { ...reservations[idx], ...req.body };
+        reservations[idx] = newRes;
         if (writeJson(FINAL_DATA_FILE, reservations)) {
+            // active → cancelled 로 상태만 바뀐 경우 취소로 처리
+            const becameCancelled =
+                (oldRes.status === 'active' || !oldRes.status) &&
+                newRes.status && newRes.status !== 'active';
+
+            const notifyPromise = becameCancelled
+                ? sendCancelReservationNotify(oldRes)
+                : sendUpdateReservationNotify(oldRes, newRes);
+            notifyPromise.catch(e => console.error('카톡 알림 오류:', e));
+
             res.json({ success: true });
         } else res.status(500).json({ success: false });
     } else res.status(404).json({ success: false });
@@ -160,8 +176,12 @@ router.put('/:id', (req, res) => {
 // 예약 삭제
 router.delete('/:id', (req, res) => {
     let reservations = readJson(FINAL_DATA_FILE, []);
+    const target = reservations.find(r => String(r.id) === req.params.id);
     reservations = reservations.filter(r => String(r.id) !== req.params.id);
     if (writeJson(FINAL_DATA_FILE, reservations)) {
+        if (target) {
+            sendCancelReservationNotify(target).catch(e => console.error('카톡 알림 오류:', e));
+        }
         res.json({ success: true });
     } else res.status(500).json({ success: false });
 });
