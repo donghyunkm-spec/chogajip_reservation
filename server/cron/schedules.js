@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const { sendToKakao } = require('../utils/kakao');
+const { sendToKakao, refreshKakaoTokens } = require('../utils/kakao');
 const { getKstNow } = require('../utils/data');
 const { getDailyScheduleMessage } = require('../utils/staff-calc');
 const { generateAndSendBriefing } = require('../utils/briefing');
@@ -88,6 +88,19 @@ ${msgYang}
     cron.schedule('0 14 * * *', async () => {
         console.log('🔔 [알림] 오후 2시 예약 현황 브리핑 시작...');
         await sendDailyReservationBriefing();
+    }, {
+        timezone: "Asia/Seoul"
+    });
+
+    // 카카오 refresh_token 만료 체크 및 선제 갱신 (매일 새벽 3시)
+    // Kakao 정책상 refresh_token 은 만료 1개월 이내에만 자동 갱신되므로 매일 체크
+    cron.schedule('0 3 * * *', async () => {
+        console.log('🔔 [스케줄] 새벽 3시 카카오 토큰 만료 체크 시작...');
+        try {
+            await refreshKakaoTokens();
+        } catch (e) {
+            console.error('❌ 카카오 토큰 갱신 체크 실패:', e);
+        }
     }, {
         timezone: "Asia/Seoul"
     });
