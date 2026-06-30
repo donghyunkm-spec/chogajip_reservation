@@ -24,7 +24,12 @@ function formatReservation(r) {
     const tables = r.assignedTables && r.assignedTables.length > 0
         ? ` [${r.assignedTables.join(',')}번]`
         : '';
-    return `  ${time} | ${name} | ${people}명 | ${seat}${tables}`;
+    let line = `  ${time} | ${name} | ${people}명 | ${seat}${tables}`;
+    if (r.note && String(r.note).trim()) {
+        const note = String(r.note).replace(/\s*\n\s*/g, ' ').trim();
+        line += `\n     📝 ${note}`;
+    }
+    return line;
 }
 
 /**
