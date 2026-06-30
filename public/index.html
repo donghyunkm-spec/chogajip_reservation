@@ -879,7 +879,12 @@
                         <label for="phone">전화번호</label>
                         <input type="tel" id="phone" placeholder="연락 가능한 전화번호">
                     </div>
-                    
+
+                    <div class="form-group">
+                        <label for="note">특이사항 / 요청사항</label>
+                        <textarea id="note" rows="3" placeholder="알레르기, 유아 의자, 기념일 등 요청사항을 입력해주세요" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; resize: vertical; font-family: inherit;"></textarea>
+                    </div>
+
                     <button type="submit" class="btn" id="submitBtn">예약 등록</button>
                 </form>
             </div>
@@ -1257,6 +1262,7 @@
                     time: document.getElementById('time').value,
                     name: document.getElementById('name').value,
                     phone: document.getElementById('phone').value || '',
+                    note: document.getElementById('note').value || '',
                     tables: Array.from(selectedTables)
                 };
                 
@@ -1617,6 +1623,7 @@
                         <strong>좌석선호:</strong> ${getPreferenceText(reservation.preference)}
                     </div>
                     ${reservation.phone ? `<div class="reservation-detail"><strong>연락처:</strong> ${formattedPhone}</div>` : ''}
+                    ${reservation.note ? `<div class="reservation-detail"><strong>특이사항:</strong> ${escapeHtml(reservation.note)}</div>` : ''}
                     <button class="modal-close-btn" onclick="this.closest('.reservation-modal').remove()">확인</button>
                 </div>
             `;
@@ -1817,6 +1824,11 @@
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">전화번호</label>
                             <input type="tel" id="editPhone" value="${reservation.phone || ''}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" placeholder="연락 가능한 전화번호">
                         </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">특이사항 / 요청사항</label>
+                            <textarea id="editNote" rows="3" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; resize: vertical; font-family: inherit;" placeholder="알레르기, 유아 의자, 기념일 등 요청사항">${escapeHtml(reservation.note || '')}</textarea>
+                        </div>
                         
                         <!-- 버튼을 항상 보이도록 고정 -->
                         <div style="display: flex; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; position: sticky; bottom: 0; background: white;">
@@ -1930,6 +1942,7 @@
                             date: document.getElementById('editDate').value,
                             time: document.getElementById('editTime').value,
                             phone: document.getElementById('editPhone').value || '',
+                            note: document.getElementById('editNote').value || '',
                             tables: Array.from(editSelectedTables)
                         };
                         
