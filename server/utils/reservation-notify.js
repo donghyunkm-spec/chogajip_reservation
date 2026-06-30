@@ -16,13 +16,32 @@ function getTodayReservations() {
 /**
  * 예약 한 건을 한 줄로 포맷
  */
+function formatPreference(pref) {
+    switch (pref) {
+        case 'room': return '룸 선호';
+        case 'hall': return '홀 선호';
+        case 'any': return '관계없음';
+        default: return pref || '관계없음';
+    }
+}
+
+function formatTableId(t) {
+    if (typeof t !== 'string') return String(t);
+    if (t.startsWith('hall-')) return '홀' + t.split('-')[1];
+    if (t.startsWith('room-')) return '룸' + t.split('-')[1];
+    return t;
+}
+
 function formatReservation(r) {
     const time = r.time || '미정';
     const name = r.name || '미입력';
     const people = r.people || r.partySize || '?';
-    const seat = r.seatPreference || '관계없음';
-    const tables = r.assignedTables && r.assignedTables.length > 0
-        ? ` [${r.assignedTables.join(',')}번]`
+    const seat = formatPreference(r.preference || r.seatPreference);
+    const tableList = (r.tables && r.tables.length > 0)
+        ? r.tables
+        : (r.assignedTables || []);
+    const tables = tableList.length > 0
+        ? ` [${tableList.map(formatTableId).join(',')}]`
         : '';
     let line = `  ${time} | ${name} | ${people}명 | ${seat}${tables}`;
     if (r.note && String(r.note).trim()) {
